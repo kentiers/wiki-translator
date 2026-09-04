@@ -13,6 +13,8 @@ from unittest.mock import MagicMock, patch
 
 from wiki_translator.template_ecosystem import (
     RecursiveDependencyScanner,
+    EnWikiPreflightInspector,
+    PreflightReport,
     CategoryTreeLinker,
     SandboxTestcaseEngine,
     TemplateEcosystemManager,
@@ -270,6 +272,128 @@ class TestCategoryTreeLinker(unittest.TestCase):
         )
         self.assertEqual(second_pass.count("[[Kategori:Film Britania Raya]]"), 1)
 
+
+    def test_replicate_enwiki_category_with_header_templates(self):
+        # Test case for SoftwareYr / Artificial intelligence year category
+        mock_inspector = MagicMock(spec=EnWikiPreflightInspector)
+        report = PreflightReport(
+            title="Category:2026 software",
+            wikitext="{{SoftwareYr}}\n{{Container category}}\n[[Category:2020s software]]",
+            templates_used=["Template:SoftwareYr", "Template:Container category"],
+            explicit_categories=["Category:2020s software"],
+            rendered_categories=["Category:2020s software", "Category:Software by year"],
+            wikidata_qid="Q99999",
+            has_category_header_template=True,
+            header_templates=["Template:SoftwareYr", "Template:Container category"],
+        )
+        mock_inspector.inspect.return_value = report
+
+        linker = CategoryTreeLinker(
+            en_client=self.mock_en_client,
+            id_client=self.mock_id_client,
+            link_mapper=self.mock_link_mapper,
+            wikidata_linker=self.mock_wikidata_linker,
+            preflight_inspector=mock_inspector,
+        )
+        linker.map_parent_category_to_idwiki = MagicMock(
+            side_effect=lambda cat: "Kategori:Perangkat lunak tahun 2020-an" if "2020s" in cat else None
+        )
+
+        replicated_wikitext, parent_cats = linker.replicate_enwiki_category_content(
+            "Category:2026 software",
+            "Kategori:Perangkat lunak tahun 2026",
+        )
+
+        # Should map {{SoftwareYr}} -> {{Perangkat lunak tahun}}
+        # Should map {{Container category}} -> {{Kategori wadah}}
+        self.assertIn("{{Perangkat lunak tahun}}", replicated_wikitext)
+        self.assertIn("{{Kategori wadah}}", replicated_wikitext)
+        # Should map explicit category [[Category:2020s software]] -> [[Kategori:Perangkat lunak tahun 2020-an]]
+        self.assertIn("[[Kategori:Perangkat lunak tahun 2020-an]]", replicated_wikitext)
+        self.assertIn("Kategori:Perangkat lunak tahun 2020-an", parent_cats)
+
+    def test_replicate_enwiki_category_with_ai_year_category(self):
+        mock_inspector = MagicMock(spec=EnWikiPreflightInspector)
+        report = PreflightReport(
+            title="Category:2026 in artificial intelligence",
+            wikitext="{{Artificial intelligence year category}}\n",
+            templates_used=["Template:Artificial intelligence year category"],
+            explicit_categories=[],
+            rendered_categories=["Category:Artificial intelligence by year"],
+            wikidata_qid="Q88888",
+            has_category_header_template=True,
+            header_templates=["Template:Artificial intelligence year category"],
+        )
+        mock_inspector.inspect.return_value = report
+
+        linker = CategoryTreeLinker(
+            en_client=self.mock_en_client,
+            id_client=self.mock_id_client,
+            preflight_inspector=mock_inspector,
+        )
+        replicated_wikitext, parent_cats = linker.replicate_enwiki_category_content(
+            "Category:2026 in artificial intelligence"
+        )
+        self.assertIn("{{Kategori tahun kecerdasan buatan}}", replicated_wikitext)
+
+
+class TestEnWikiPreflightInspector(unittest.TestCase):
+    def setUp(self):
+        self.mock_en_client = MagicMock(spec=WikipediaClient)
+        self.mock_en_client.api_url = "https://en.wikipedia.org/w/api.php"
+        self.mock_en_client.user_agent = "TestUserAgent"
+        self.mock_wikidata_linker = MagicMock(spec=WikidataLinker)
+        self.inspector = EnWikiPreflightInspector(
+            en_client=self.mock_en_client,
+            wikidata_linker=self.mock_wikidata_linker,
+        )
+
+    def test_extract_explicit_categories(self):
+        wikitext = (
+            "Some text here\n"
+            "[[Category:Artificial intelligence]]\n"
+            "[[category:2026 in science| ]]\n"
+            "[[Kategori:Komputer]]\n"
+        )
+        cats = self.inspector.extract_explicit_categories(wikitext)
+        self.assertEqual(
+            cats,
+            ["Category:Artificial intelligence", "Category:2026 in science", "Category:Komputer"],
+        )
+
+    def test_inspect_with_header_templates_and_wikidata_qid(self):
+        self.mock_en_client.fetch_wikitext.return_value = (
+            "{{SoftwareYr}}\n"
+            "{{Container category}}\n"
+            "[[Category:Software by year|2026]]\n"
+        )
+        self.mock_wikidata_linker.get_item_id_from_enwiki.return_value = "Q12345"
+
+        with patch("urllib.request.urlopen") as mock_urlopen:
+            mock_resp = MagicMock()
+            mock_resp.read.return_value = json.dumps({
+                "query": {
+                    "pages": [
+                        {
+                            "categories": [
+                                {"title": "Category:Software by year"},
+                                {"title": "Category:2026 in computing"},
+                            ]
+                        }
+                    ]
+                }
+            }).encode("utf-8")
+            mock_urlopen.return_value.__enter__.return_value = mock_resp
+
+            report = self.inspector.inspect("Category:2026 software")
+
+            self.assertEqual(report.title, "Category:2026 software")
+            self.assertEqual(report.wikidata_qid, "Q12345")
+            self.assertTrue(report.has_category_header_template)
+            self.assertIn("Template:SoftwareYr", report.templates_used)
+            self.assertIn("Template:Container category", report.templates_used)
+            self.assertEqual(report.explicit_categories, ["Category:Software by year"])
+            self.assertIn("Category:2026 in computing", report.rendered_categories)
 
 class TestSandboxTestcaseEngine(unittest.TestCase):
     def setUp(self):

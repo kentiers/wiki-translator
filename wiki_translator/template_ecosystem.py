@@ -31,10 +31,59 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
+from .template_mapper import WikiTemplateMapper, default_template_mapper
 from .wiki_client import PageNotFoundError, WikipediaClient
 from .wiki_link_mapper import WikiLinkMapper, default_link_mapper
 from .wikidata_linker import WikidataLinker, default_wikidata_linker
 
+
+# Known category header templates mapped between en.wikipedia.org and id.wikipedia.org
+CATEGORY_HEADER_TEMPLATE_MAPPINGS: Dict[str, str] = {
+    "softwareyr": "Perangkat lunak tahun",
+    "software year": "Perangkat lunak tahun",
+    "artificial intelligence year category": "Kategori tahun kecerdasan buatan",
+    "ai year category": "Kategori tahun kecerdasan buatan",
+    "container category": "Kategori wadah",
+    "catmain": "Catmain",
+    "category main": "Catmain",
+    "portal category": "Kategori portal",
+    "topic cat": "Topik kategori",
+    "year by category": "Tahun berdasarkan kategori",
+    "navseasoncats": "Navseasoncats",
+    "category tree": "Pohon kategori",
+    "parent category": "Kategori induk",
+}
+
+CATEGORY_HEADER_TEMPLATES: Set[str] = {
+    "softwareyr",
+    "software year",
+    "artificial intelligence year category",
+    "ai year category",
+    "container category",
+    "catmain",
+    "category main",
+    "portal category",
+    "topic cat",
+    "year by category",
+    "navseasoncats",
+    "category tree",
+    "parent category",
+    "metacat",
+    "tracking category",
+    "empty category",
+}
+
+
+@dataclass
+class PreflightReport:
+    title: str
+    wikitext: str
+    templates_used: List[str]
+    explicit_categories: List[str]
+    rendered_categories: List[str]
+    wikidata_qid: Optional[str] = None
+    has_category_header_template: bool = False
+    header_templates: List[str] = field(default_factory=list)
 
 # Parser functions and magic words to ignore when extracting template transclusions
 PARSER_FUNCTIONS_AND_MAGIC_WORDS: Set[str] = {
@@ -416,9 +465,150 @@ class RecursiveDependencyScanner:
 
         return ordered
 
+# ---------------------------------------------------------------------------
+# 2. EnWikiPreflightInspector
+# ---------------------------------------------------------------------------
+
+class EnWikiPreflightInspector:
+    """
+    Inspects en.wikipedia.org source pages (Categories or Templates) via MediaWiki API
+    prior to creating or updating pages on id.wikipedia.org.
+
+    Ensures:
+    - Raw source wikitext is retrieved.
+    - Transcluded templates (including category header templates like {{SoftwareYr}}) are extracted.
+    - Explicit wikitext categories [[Category:...]] are extracted.
+    - Rendered parent categories (prop=categories) are fetched.
+    - Associated Wikidata QID is resolved.
+    - Category header templates are flagged and identified.
+    """
+
+    def __init__(
+        self,
+        en_client: Optional[WikipediaClient] = None,
+        wikidata_linker: Optional[WikidataLinker] = None,
+    ):
+        self.en_client = en_client or WikipediaClient(lang="en")
+        self.wikidata_linker = wikidata_linker or default_wikidata_linker
+        self.scanner = RecursiveDependencyScanner(en_client=self.en_client)
+
+    def extract_explicit_categories(self, wikitext: str) -> List[str]:
+        """
+        Extracts all explicit category links [[Category:...]] from source wikitext.
+        """
+        cats: List[str] = []
+        seen: Set[str] = set()
+        matches = re.finditer(r"\[\[\s*(?:Category|Kategori)\s*:\s*([^\]\|]+)", wikitext, flags=re.IGNORECASE)
+        for m in matches:
+            raw_cat = m.group(1).strip()
+            if not raw_cat:
+                continue
+            clean_cat = f"Category:{raw_cat[:1].upper() + raw_cat[1:]}"
+            if clean_cat.lower() not in seen:
+                seen.add(clean_cat.lower())
+                cats.append(clean_cat)
+        return cats
+
+    def fetch_rendered_categories(self, title: str) -> List[str]:
+        """
+        Fetches rendered categories (including categories added by templates) via prop=categories.
+        """
+        clean_title = title.strip()
+        params = {
+            "action": "query",
+            "prop": "categories",
+            "titles": clean_title,
+            "cllimit": "max",
+            "formatversion": "2",
+            "format": "json",
+        }
+        api_url = getattr(self.en_client, "api_url", "https://en.wikipedia.org/w/api.php")
+        user_agent = getattr(self.en_client, "user_agent", "WikiTranslatorGradeA/1.0")
+        url = f"{api_url}?{urllib.parse.urlencode(params)}"
+        req = urllib.request.Request(url, headers={"User-Agent": user_agent})
+
+        categories: List[str] = []
+        try:
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+            pages = data.get("query", {}).get("pages", [])
+            if pages:
+                for cat in pages[0].get("categories", []):
+                    cat_title = cat.get("title", "")
+                    if cat_title:
+                        categories.append(cat_title)
+        except Exception:
+            pass
+        return categories
+
+    def resolve_wikidata_qid(self, title: str) -> Optional[str]:
+        """
+        Resolves the Wikidata QID for the en.wikipedia.org title.
+        """
+        try:
+            return self.wikidata_linker.get_item_id_from_enwiki(title)
+        except Exception:
+            return None
+
+    def inspect(self, title: str) -> PreflightReport:
+        """
+        Performs full pre-flight inspection on en.wikipedia.org page.
+        """
+        clean_title = title.strip()
+        if not clean_title:
+            return PreflightReport(
+                title="",
+                wikitext="",
+                templates_used=[],
+                explicit_categories=[],
+                rendered_categories=[],
+            )
+
+        # 1. Fetch raw source wikitext
+        wikitext = ""
+        try:
+            wikitext = self.en_client.fetch_wikitext(clean_title)
+        except Exception:
+            wikitext = ""
+
+        # 2. Extract templates used
+        templates_used = self.scanner.extract_templates_from_wikitext(wikitext)
+
+        # 3. Extract explicit categories
+        explicit_cats = self.extract_explicit_categories(wikitext)
+
+        # 4. Fetch rendered categories from MediaWiki API
+        rendered_cats = self.fetch_rendered_categories(clean_title)
+
+        # 5. Resolve Wikidata QID
+        wikidata_qid = self.resolve_wikidata_qid(clean_title)
+
+        # 6. Check for category header templates
+        header_templates: List[str] = []
+        has_header = False
+        for tmpl in templates_used:
+            clean_tmpl = re.sub(r"^(?:Template|Templat)\s*:\s*", "", tmpl, flags=re.IGNORECASE).strip().lower()
+            if clean_tmpl in CATEGORY_HEADER_TEMPLATES or clean_tmpl in CATEGORY_HEADER_TEMPLATE_MAPPINGS:
+                header_templates.append(tmpl)
+                has_header = True
+            elif any(clean_tmpl.endswith(sfx) for sfx in (" year category", " decade category", " century category")):
+                header_templates.append(tmpl)
+                has_header = True
+
+        return PreflightReport(
+            title=clean_title,
+            wikitext=wikitext,
+            templates_used=templates_used,
+            explicit_categories=explicit_cats,
+            rendered_categories=rendered_cats,
+            wikidata_qid=wikidata_qid,
+            has_category_header_template=has_header,
+            header_templates=header_templates,
+        )
+
 
 # ---------------------------------------------------------------------------
-# 2. CategoryTreeLinker
+# 3. CategoryTreeLinker
 # ---------------------------------------------------------------------------
 
 class CategoryTreeLinker:
@@ -434,12 +624,18 @@ class CategoryTreeLinker:
         id_client: Optional[WikipediaClient] = None,
         link_mapper: Optional[WikiLinkMapper] = None,
         wikidata_linker: Optional[WikidataLinker] = None,
+        template_mapper: Optional[WikiTemplateMapper] = None,
+        preflight_inspector: Optional[EnWikiPreflightInspector] = None,
     ):
         self.en_client = en_client or WikipediaClient(lang="en")
         self.id_client = id_client or WikipediaClient(lang="id")
         self.link_mapper = link_mapper or default_link_mapper
         self.wikidata_linker = wikidata_linker or default_wikidata_linker
-
+        self.template_mapper = template_mapper or default_template_mapper
+        self.preflight_inspector = preflight_inspector or EnWikiPreflightInspector(
+            en_client=self.en_client,
+            wikidata_linker=self.wikidata_linker,
+        )
     def fetch_parent_categories_from_enwiki(self, category_title: str) -> List[str]:
         """
         Queries en.wikipedia.org API for parent categories of an English category.
@@ -553,6 +749,146 @@ class CategoryTreeLinker:
                 output_lines.append(f"[[Kategori:{clean_p}]]")
 
         return "\n".join(output_lines).strip() + "\n"
+
+    def map_template_to_idwiki(self, en_template_name: str) -> str:
+        """
+        Maps an English template name to its Indonesian equivalent:
+        1. Checks CATEGORY_HEADER_TEMPLATE_MAPPINGS.
+        2. Checks WikiTemplateMapper mappings.
+        3. Checks Wikidata item for sitelinks on idwiki.
+        4. Fallbacks to title-cased English name.
+        """
+        clean = re.sub(r"^(?:Template|Templat)\s*:\s*", "", en_template_name, flags=re.IGNORECASE).strip()
+        clean_lower = clean.lower()
+
+        # 1. Direct dictionary mapping
+        if clean_lower in CATEGORY_HEADER_TEMPLATE_MAPPINGS:
+            return CATEGORY_HEADER_TEMPLATE_MAPPINGS[clean_lower]
+
+        # 2. WikiTemplateMapper
+        try:
+            mapped = self.template_mapper.resolve_template_name(clean)
+            if mapped and mapped.lower() != clean_lower:
+                return mapped
+        except Exception:
+            pass
+
+        # 3. Wikidata sitelink lookup
+        try:
+            qid = self.wikidata_linker.get_item_id_from_enwiki(f"Template:{clean}")
+            if qid:
+                params = {
+                    "action": "wbgetentities",
+                    "ids": qid,
+                    "props": "sitelinks",
+                    "sitefilter": "idwiki",
+                    "format": "json",
+                }
+                url = f"{self.wikidata_linker.api_url}?{urllib.parse.urlencode(params)}"
+                req = urllib.request.Request(url, headers={"User-Agent": self.wikidata_linker.user_agent})
+                with urllib.request.urlopen(req, timeout=10) as resp:
+                    data = json.loads(resp.read().decode("utf-8"))
+                sitelinks = data.get("entities", {}).get(qid, {}).get("sitelinks", {})
+                if "idwiki" in sitelinks:
+                    id_title = sitelinks["idwiki"].get("title", "")
+                    if id_title:
+                        return re.sub(r"^(?:Templat|Template)\s*:\s*", "", id_title, flags=re.IGNORECASE).strip()
+        except Exception:
+            pass
+
+        # 4. Fallback: preserve original name title-cased
+        return clean[:1].upper() + clean[1:] if clean else clean
+
+    def replicate_enwiki_category_content(
+        self,
+        en_category_title: str,
+        id_category_title: Optional[str] = None,
+    ) -> Tuple[str, List[str]]:
+        """
+        Replicates category content faithfully by inspecting en.wikipedia.org source first:
+        - Runs EnWikiPreflightInspector.inspect(en_category_title).
+        - If en.wiki uses a category header template (e.g. {{SoftwareYr}} or
+          {{Artificial intelligence year category}} or {{Container category}}):
+            * Finds the corresponding Indonesian template on id.wikipedia.org via
+              Wikidata or template mapper.
+            * Replicates that exact template call in the Indonesian category wikitext.
+        - If en.wiki has explicit parent categories or parameters, maps each parent category
+          to its id.wiki counterpart via Wikidata.
+        - If no explicit categories exist but rendered categories exist, maps rendered parent categories.
+        - Returns tuple of (replicated_wikitext, list_of_id_parent_categories).
+        """
+        clean_en = en_category_title.strip()
+        if not clean_en.lower().startswith("category:"):
+            clean_en = f"Category:{clean_en}"
+
+        report = self.preflight_inspector.inspect(clean_en)
+
+        generated_blocks: List[str] = []
+        resolved_parent_categories: List[str] = []
+
+        # 1. Handle templates used in en.wiki category
+        if report.templates_used:
+            # Find all template calls in original wikitext and translate template names
+            # Pattern captures {{TemplateName | ...}} or {{TemplateName}}
+            pattern = re.compile(r"(\{\{\s*)([^{}\[\]\|#\n\r]+)([\s\|\}])")
+
+            def _replace_template(match: re.Match) -> str:
+                prefix = match.group(1)
+                tmpl_name = match.group(2).strip()
+                suffix = match.group(3)
+                # Don't replace if it's parser function or magic word
+                if tmpl_name.lower().startswith("#") or tmpl_name.lower() in PARSER_FUNCTIONS_AND_MAGIC_WORDS:
+                    return match.group(0)
+                id_tmpl = self.map_template_to_idwiki(tmpl_name)
+                return f"{prefix}{id_tmpl}{suffix}"
+
+            transformed_wikitext = pattern.sub(_replace_template, report.wikitext)
+
+            # Strip explicit [[Category:...]] from the transformed text to process categories cleanly
+            clean_body = re.sub(
+                r"\[\[\s*(?:Category|Kategori)\s*:[^\]]+\]\]",
+                "",
+                transformed_wikitext,
+                flags=re.IGNORECASE,
+            ).strip()
+
+            if clean_body:
+                generated_blocks.append(clean_body)
+
+        # 2. Map explicit parent categories from en.wiki wikitext
+        categories_to_map = list(report.explicit_categories)
+
+        # If en.wiki wikitext had no explicit categories and no header templates, fallback to rendered categories
+        if not categories_to_map and not report.has_category_header_template:
+            categories_to_map = [c for c in report.rendered_categories if not c.lower().startswith("category:hidden")]
+
+        for en_cat in categories_to_map:
+            mapped_id = self.map_parent_category_to_idwiki(en_cat)
+            if mapped_id:
+                clean_id = re.sub(r"^(?:Kategori|Category)\s*:\s*", "", mapped_id, flags=re.IGNORECASE).strip()
+                id_cat_formatted = f"Kategori:{clean_id}"
+                if id_cat_formatted not in resolved_parent_categories:
+                    resolved_parent_categories.append(id_cat_formatted)
+
+        # 3. Append category tags
+        cat_lines: List[str] = []
+        for c in resolved_parent_categories:
+            clean_c = re.sub(r"^(?:Kategori|Category)\s*:\s*", "", c, flags=re.IGNORECASE).strip()
+            cat_lines.append(f"[[Kategori:{clean_c}]]")
+
+        if cat_lines:
+            if generated_blocks:
+                final_wikitext = "\n\n".join(generated_blocks) + "\n\n" + "\n".join(cat_lines) + "\n"
+            else:
+                final_wikitext = "\n".join(cat_lines) + "\n"
+        else:
+            if generated_blocks:
+                final_wikitext = "\n\n".join(generated_blocks) + "\n"
+            else:
+                final_wikitext = "[[Kategori:Kategori]]\n"
+                resolved_parent_categories.append("Kategori:Kategori")
+
+        return final_wikitext, resolved_parent_categories
 
 
 # ---------------------------------------------------------------------------
@@ -784,16 +1120,25 @@ class TemplateEcosystemManager:
         wikidata_linker: Optional[WikidataLinker] = None,
         en_client: Optional[WikipediaClient] = None,
         id_client: Optional[WikipediaClient] = None,
+        preflight_inspector: Optional[EnWikiPreflightInspector] = None,
     ):
         self.en_client = en_client or WikipediaClient(lang="en")
         self.id_client = id_client or WikipediaClient(lang="id")
         self.scanner = scanner or RecursiveDependencyScanner(self.en_client, self.id_client)
+        self.wikidata_linker = wikidata_linker or default_wikidata_linker
+        self.preflight_inspector = preflight_inspector or EnWikiPreflightInspector(
+            en_client=self.en_client,
+            wikidata_linker=self.wikidata_linker,
+        )
         self.category_linker = category_linker or CategoryTreeLinker(
-            self.en_client, self.id_client, default_link_mapper, wikidata_linker or default_wikidata_linker
+            self.en_client,
+            self.id_client,
+            default_link_mapper,
+            self.wikidata_linker,
+            default_template_mapper,
+            self.preflight_inspector,
         )
         self.sandbox_engine = sandbox_engine or SandboxTestcaseEngine(self.id_client)
-        self.wikidata_linker = wikidata_linker or default_wikidata_linker
-
     def discover_subpages(self, base_title: str) -> List[str]:
         """
         Discovers existing ecosystem subpages on en.wikipedia.org (e.g. /config, /data, /i18n, /styles.css).

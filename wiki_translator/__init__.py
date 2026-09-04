@@ -130,6 +130,8 @@ from .paragraph_translator import (
 from .template_ecosystem import (
     RecursiveDependencyScanner,
     CategoryTreeLinker,
+    EnWikiPreflightInspector,
+    PreflightReport,
     SandboxTestcaseEngine,
     TemplateEcosystemManager,
     default_ecosystem_manager,
