@@ -110,8 +110,8 @@ class TestWikidataLinker(unittest.TestCase):
                 dry_run=False,
             )
             self.assertFalse(res["success"])
+            self.assertEqual(res.get("reason"), "auth_failed")
             self.assertIn("Wikidata authentication failed: Bad credentials", res["error"])
-
     def test_link_idwiki_sitelink_csrf_failure(self):
         with patch.object(self.linker, "_authenticate_bot_password", return_value=(True, None)):
             with patch.object(self.linker, "_get_csrf_token", return_value=(None, "No token")):
@@ -181,6 +181,82 @@ class TestWikidataLinker(unittest.TestCase):
                     self.assertFalse(res["success"])
                     self.assertIn("Conflict with other page", res["error"])
 
+
+    def test_circuit_breaker_prevents_repeated_login_attempts(self):
+        # First call triggers login failure and trips the breaker
+        login_resp = {"login": {"result": "Failed", "reason": "WrongPass"}}
+        with patch.object(self.linker, "_make_request") as mock_req:
+            mock_req.side_effect = [
+                ({"query": {"tokens": {"logintoken": "tok123"}}}, None),
+                (login_resp, None),
+            ]
+            res1 = self.linker.link_idwiki_sitelink(
+                item_id="Q250250",
+                id_title="Alfred Enoch",
+                username="TestUser",
+                bot_password="bad_password",
+                dry_run=False,
+            )
+            self.assertFalse(res1["success"])
+            self.assertEqual(res1.get("reason"), "auth_failed")
+            self.assertTrue(self.linker._auth_failed)
+            self.assertEqual(mock_req.call_count, 2)
+
+        # Second call MUST be blocked by circuit breaker without making any login HTTP request
+        with patch.object(self.linker, "_make_request") as mock_req2:
+            res2 = self.linker.link_idwiki_sitelink(
+                item_id="Q250250",
+                id_title="Alfred Enoch",
+                username="TestUser",
+                bot_password="bad_password",
+                dry_run=False,
+            )
+            self.assertFalse(res2["success"])
+            self.assertEqual(res2.get("reason"), "auth_failed")
+            # Absolutely NO network/request calls made
+            mock_req2.assert_not_called()
+
+    def test_resolve_credentials_prefers_wikidata_env_vars(self):
+        with patch.dict(
+            "os.environ",
+            {
+                "WIKIDATA_BOT_USERNAME": "WDUser@bot",
+                "WIKIDATA_BOT_PASSWORD": "WDPassword123",
+                "WIKI_BOT_USERNAME": "WPUser@bot",
+                "WIKI_BOT_PASSWORD": "WPPassword123",
+            },
+            clear=True,
+        ):
+            u, p = self.linker._resolve_credentials()
+            self.assertEqual(u, "WDUser@bot")
+            self.assertEqual(p, "WDPassword123")
+
+    def test_resolve_credentials_fallback_to_wiki_env_vars(self):
+        with patch.dict(
+            "os.environ",
+            {
+                "WIKI_BOT_USERNAME": "WPUser@bot",
+                "WIKI_BOT_PASSWORD": "WPPassword123",
+            },
+            clear=True,
+        ):
+            u, p = self.linker._resolve_credentials()
+            self.assertEqual(u, "WPUser@bot")
+            self.assertEqual(p, "WPPassword123")
+
+    def test_missing_credentials_fails_gracefully_without_login(self):
+        with patch.dict("os.environ", {}, clear=True):
+            with patch.object(self.linker, "_make_request") as mock_req:
+                res = self.linker.link_idwiki_sitelink(
+                    item_id="Q250250",
+                    id_title="Alfred Enoch",
+                    username=None,
+                    bot_password=None,
+                    dry_run=False,
+                )
+                self.assertFalse(res["success"])
+                self.assertEqual(res.get("reason"), "auth_failed")
+                mock_req.assert_not_called()
 
 if __name__ == "__main__":
     unittest.main()

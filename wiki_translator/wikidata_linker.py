@@ -6,11 +6,14 @@ Wikidata items (QID) using the Wikidata Action API (https://www.wikidata.org/w/a
 """
 
 import json
+import logging
+import os
 import urllib.error
 import urllib.parse
 import urllib.request
 from typing import Any, Dict, Optional, Tuple
 
+logger = logging.getLogger(__name__)
 
 class WikidataLinker:
     """Manages linking articles between Indonesian Wikipedia and Wikidata items."""
@@ -30,7 +33,9 @@ class WikidataLinker:
         self.api_url = api_url
         self.user_agent = user_agent
         self._cookie_jar: Dict[str, str] = {}
-
+        self._auth_failed: bool = False
+        self._auth_fail_reason: Optional[str] = None
+        self._auth_successful: bool = False
     def _make_request(
         self, params: Dict[str, str], method: str = "GET"
     ) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
@@ -69,10 +74,46 @@ class WikidataLinker:
         except Exception as e:
             return None, str(e)
 
+    def _resolve_credentials(
+        self, username: Optional[str] = None, bot_password: Optional[str] = None
+    ) -> Tuple[Optional[str], Optional[str]]:
+        """Resolves Wikidata bot username and password from params or environment variables.
+
+        Supports WIKIDATA_BOT_USERNAME and WIKIDATA_BOT_PASSWORD,
+        falling back to WIKI_BOT_USERNAME / WIKI_USERNAME and WIKI_BOT_PASSWORD / MEDIAWIKI_BOT_PASSWORD.
+        """
+        u = (
+            username
+            or os.environ.get("WIKIDATA_BOT_USERNAME")
+            or os.environ.get("WIKI_BOT_USERNAME")
+            or os.environ.get("WIKI_USERNAME")
+            or os.environ.get("MEDIAWIKI_USERNAME")
+        )
+        p = (
+            bot_password
+            or os.environ.get("WIKIDATA_BOT_PASSWORD")
+            or os.environ.get("WIKI_BOT_PASSWORD")
+            or os.environ.get("MEDIAWIKI_BOT_PASSWORD")
+        )
+        return u, p
+
     def _authenticate_bot_password(
         self, username: str, bot_password: str
     ) -> Tuple[bool, Optional[str]]:
-        """Authenticates on Wikidata using MediaWiki Bot Password flow."""
+        """Authenticates on Wikidata using MediaWiki Bot Password flow.
+
+        Implements a circuit breaker: if authentication previously failed or fails here,
+        caches the failure and never retries repeatedly.
+        """
+        if self._auth_failed:
+            logger.warning(
+                "Wikidata bot password not configured or invalid on wikidata.org; skipping write action (circuit open)"
+            )
+            return False, self._auth_fail_reason or "Cached authentication failure"
+
+        if self._auth_successful and self._cookie_jar:
+            return True, None
+
         token_payload, err = self._make_request(
             {"action": "query", "meta": "tokens", "type": "login"}, method="GET"
         )
@@ -98,11 +139,22 @@ class WikidataLinker:
         login_res = resp.get("login", {})
         status = login_res.get("result")
         if status == "Success":
+            self._auth_successful = True
+            self._auth_failed = False
+            self._auth_fail_reason = None
             return True, None
         else:
             reason = login_res.get("reason", status)
-            return False, f"Login rejected: {reason}"
-
+            err_msg = f"Login rejected: {reason}"
+            # Trip circuit breaker on authentication rejection
+            self._auth_failed = True
+            self._auth_fail_reason = err_msg
+            self._auth_successful = False
+            logger.warning(
+                "Wikidata bot password not configured or invalid on wikidata.org; skipping write action (%s)",
+                reason,
+            )
+            return False, err_msg
     def _get_csrf_token(self) -> Tuple[Optional[str], Optional[str]]:
         """Fetches CSRF token on Wikidata: action=query&meta=tokens&type=csrf."""
         payload, err = self._make_request(
@@ -122,10 +174,33 @@ class WikidataLinker:
         First tries wbgetentities on enwiki. If not found or redirected, resolves redirect
         or searches by title.
         """
-        clean_title = en_title.strip()
-        if not clean_title:
+        raw_title = en_title.strip()
+        if not raw_title:
             return None
 
+        # Normalize Indonesian namespace prefixes if passed accidentally
+        import re
+        clean_title = re.sub(r"^(?:Templat|Template)\s*:\s*", "Template:", raw_title, flags=re.IGNORECASE)
+        clean_title = re.sub(r"^(?:Kategori|Category)\s*:\s*", "Category:", clean_title, flags=re.IGNORECASE)
+        clean_title = clean_title.strip()
+
+        # Check if raw_title already starts with Kategori: or Templat: and also check idwiki directly first
+        if raw_title.lower().startswith(("kategori:", "templat:", "category:", "template:")):
+            # Try idwiki sitelink lookup directly if it's already an id title
+            try:
+                id_params = {
+                    "action": "wbgetentities",
+                    "sites": "idwiki",
+                    "titles": raw_title,
+                    "props": "info",
+                }
+                id_data, _ = self._make_request(id_params, method="GET")
+                if id_data and "entities" in id_data:
+                    for qid, entity in id_data["entities"].items():
+                        if qid != "-1" and "missing" not in entity:
+                            return qid
+            except Exception:
+                pass
         # 1. Direct wbgetentities query
         params = {
             "action": "wbgetentities",
@@ -188,8 +263,8 @@ class WikidataLinker:
         self,
         item_id: str,
         id_title: str,
-        username: str,
-        bot_password: str,
+        username: Optional[str] = None,
+        bot_password: Optional[str] = None,
         summary: Optional[str] = None,
         dry_run: bool = False,
     ) -> Dict[str, Any]:
@@ -222,19 +297,48 @@ class WikidataLinker:
                 "error": None,
             }
 
-        # Clear cookies before authenticating
-        self._cookie_jar = {}
-
-        # 1. Authenticate with bot password on Wikidata
-        auth_success, auth_err = self._authenticate_bot_password(username, bot_password)
-        if not auth_success:
+        # Check circuit breaker before attempting authentication
+        if self._auth_failed:
+            logger.warning(
+                "Wikidata bot password not configured or invalid on wikidata.org; skipping write action"
+            )
             return {
                 "success": False,
+                "reason": "auth_failed",
                 "item_id": clean_item_id,
                 "id_title": clean_id_title,
-                "error": f"Wikidata authentication failed: {auth_err}",
+                "error": f"Wikidata authentication failed: {self._auth_fail_reason or 'circuit open'}",
             }
 
+        # Resolve credentials (support WIKIDATA_BOT_* falling back to WIKI_BOT_*)
+        resolved_user, resolved_pass = self._resolve_credentials(username, bot_password)
+        if not resolved_user or not resolved_pass:
+            logger.warning(
+                "Wikidata bot password not configured or invalid on wikidata.org; skipping write action"
+            )
+            return {
+                "success": False,
+                "reason": "auth_failed",
+                "item_id": clean_item_id,
+                "id_title": clean_id_title,
+                "error": "Wikidata credentials not configured (missing username or bot password)",
+            }
+
+        # 1. Authenticate with bot password on Wikidata (if not already authenticated)
+        if not self._auth_successful or not self._cookie_jar:
+            self._cookie_jar = {}
+            auth_success, auth_err = self._authenticate_bot_password(resolved_user, resolved_pass)
+            if not auth_success:
+                logger.warning(
+                    "Wikidata bot password not configured or invalid on wikidata.org; skipping write action"
+                )
+                return {
+                    "success": False,
+                    "reason": "auth_failed",
+                    "item_id": clean_item_id,
+                    "id_title": clean_id_title,
+                    "error": f"Wikidata authentication failed: {auth_err}",
+                }
         # 2. Get CSRF token
         csrf_token, token_err = self._get_csrf_token()
         if not csrf_token:
