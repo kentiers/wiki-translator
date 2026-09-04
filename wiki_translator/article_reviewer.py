@@ -24,6 +24,7 @@ import urllib.parse
 import urllib.request
 
 from .auth import AuthManager
+from .awb_genfixes import default_genfixes
 from .editorial_qa import default_qa_pipeline
 
 from .gemini import GeminiTranslatorClient
@@ -961,6 +962,8 @@ class ArticleReviewer:
         # Sanitize typography (standard quotation marks, non-breaking spaces, heading casing)
         polished_body = default_typography_sanitizer.sanitize_wikitext(polished_body)
 
+        # Apply AWB General Fixes & RegEx Typo Fixes (RETF)
+        polished_body = default_genfixes.apply_all_fixes(polished_body)
         # Auto-repair wikitext syntax
         polished_body = default_syntax_balancer.auto_repair(polished_body)
 

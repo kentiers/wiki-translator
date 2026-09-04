@@ -110,6 +110,12 @@ from .template_ecosystem import (
     TemplateEcosystemManager,
     default_ecosystem_manager,
 )
+from .page_generators import (
+    CategoryPageGenerator,
+    WhatLinksHerePageGenerator,
+    PageQueueExporter,
+    PageQueueItem,
+)
 def print_banner() -> None:
     print("=" * 72)
     print("   🌐 Wikipedia Grade A++ Translator (en.wikipedia -> id.wikipedia)")
@@ -1482,6 +1488,45 @@ def main() -> None:
         help="Path to a text file containing article titles (one per line) for sequential batch translation",
     )
     parser.add_argument(
+        "--gen-category",
+        dest="gen_category",
+        default=None,
+        help="Generates translation queue of missing id.wiki articles from an en.wiki category",
+    )
+    parser.add_argument(
+        "--gen-backlinks",
+        dest="gen_backlinks",
+        default=None,
+        help="Generates translation queue of missing id.wiki articles from backlinks/transclusions to an en.wiki page",
+    )
+    parser.add_argument(
+        "--output-queue",
+        dest="output_queue",
+        default=None,
+        help="Specifies output text file for generated translation queue (e.g. output/queues/queue.txt)",
+    )
+    parser.add_argument(
+        "--dry-run-queue",
+        dest="dry_run_queue",
+        action="store_true",
+        default=False,
+        help="Prints generated page queue to console without writing to file",
+    )
+    parser.add_argument(
+        "--queue-limit",
+        dest="queue_limit",
+        type=int,
+        default=50,
+        help="Maximum number of missing articles to generate in queue (default: 50)",
+    )
+    parser.add_argument(
+        "--queue-recursive",
+        dest="queue_recursive",
+        action="store_true",
+        default=False,
+        help="Enables recursive subcategory traversal for --gen-category (default: False)",
+    )
+    parser.add_argument(
         "--check-media",
         dest="check_media",
         action="store_true",
@@ -1685,6 +1730,55 @@ def main() -> None:
         if args.publish_template and promo.get("promoted"):
             print("[+] Promoted successfully to mainspace!")
         return
+    if args.gen_category or args.gen_backlinks:
+        items: List[PageQueueItem] = []
+        source_desc = ""
+        limit = getattr(args, "queue_limit", 50)
+        recursive = getattr(args, "queue_recursive", False)
+
+        if args.gen_category:
+            source_desc = f"en.wiki Category: {args.gen_category}"
+            print(f"[*] AWB Smart Page Generator: Scanning en.wiki category '{args.gen_category}' (limit={limit}, recursive={recursive})...")
+            generator = CategoryPageGenerator(
+                en_category=args.gen_category,
+                limit=limit,
+                recursive=recursive,
+            )
+            items = generator.generate()
+        elif args.gen_backlinks:
+            source_desc = f"en.wiki Backlinks: {args.gen_backlinks}"
+            print(f"[*] AWB Smart Page Generator: Scanning inbound links/transclusions to '{args.gen_backlinks}' (limit={limit})...")
+            generator = WhatLinksHerePageGenerator(
+                en_target_page=args.gen_backlinks,
+                limit=limit,
+            )
+            items = generator.generate()
+
+        print(f"[+] Found {len(items)} article(s) missing on id.wikipedia.org.")
+
+        if args.dry_run_queue:
+            print("\n--- Dry Run Queue (Console Output) ---")
+            for idx, it in enumerate(items, 1):
+                print(f"  [{idx}] {it.en_title} -> {it.predicted_id_title} ({it.status})")
+            print("--------------------------------------\n")
+            return
+
+        # Determine output queue file path
+        out_file = args.output_queue
+        if not out_file:
+            slug = slugify(args.gen_category or args.gen_backlinks or "queue")
+            prefix = "category" if args.gen_category else "backlinks"
+            out_file = f"output/queues/{prefix}_{slug}.txt"
+
+        saved_path = PageQueueExporter.export_to_file(
+            items=items,
+            output_path=out_file,
+            source_description=source_desc,
+        )
+        print(f"[+] Translation queue exported successfully to: {saved_path}")
+        print(f"[*] You can run translation with: uv run python -m wiki_translator.cli --batch {saved_path}")
+        return
+
 
     if args.batch_file:
         print(f"[*] Batch Translation Mode: Reading queue from '{args.batch_file}'...")

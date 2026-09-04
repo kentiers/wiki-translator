@@ -16,6 +16,7 @@ Implements the 3 Pillars of Wikipedia ID Typography & Reference Date Standardiza
 
 import re
 from typing import Dict, List, Optional, Tuple, Set
+from .awb_genfixes import default_genfixes
 
 
 ENGLISH_TO_INDONESIAN_MONTHS: Dict[str, str] = {
@@ -147,6 +148,9 @@ class TypographySanitizer:
         # Step 5: Restore protected blocks
         for idx, block in enumerate(protected_blocks):
             sanitized = sanitized.replace(f"__PROTECTED_BLOCK_{idx}__", block)
+
+        # Step 6: Pillar 4 - AWB General Fixes & RegEx Typo Fix (RETF) Engine
+        sanitized = default_genfixes.apply_all_fixes(sanitized)
 
         return sanitized
 

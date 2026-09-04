@@ -134,3 +134,15 @@ from .template_ecosystem import (
     TemplateEcosystemManager,
     default_ecosystem_manager,
 )
+from .page_generators import (
+    PageQueueItem,
+    CategoryPageGenerator,
+    WhatLinksHerePageGenerator,
+    PageQueueExporter,
+)
+from .awb_genfixes import (
+    GeneralFixesEngine,
+    RegExTypoFixEngine,
+    AWBGenFixes,
+    default_genfixes,
+)
