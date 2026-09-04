@@ -293,6 +293,65 @@ class TestMainspacePublisher(unittest.TestCase):
                     self.assertFalse(res["success"])
                     self.assertIn("Failed to obtain CSRF token", res["error"])
 
+    def test_publish_directly_to_mainspace_wikidata_linking(self):
+        with patch.object(self.publisher, "check_mainspace_collision", return_value=(False, None)):
+            with patch.object(self.publisher, "_authenticate_bot_password", return_value=(True, None)):
+                with patch.object(self.publisher, "_get_csrf_token", return_value=("csrf_ok", None)):
+                    with patch.object(self.publisher, "_edit_page", return_value={"success": True, "edit": {"pageid": 123}}):
+                        mock_linker = MagicMock()
+                        mock_linker.get_item_id_from_enwiki.return_value = "Q12345"
+                        mock_linker.link_idwiki_sitelink.return_value = {
+                            "success": True,
+                            "item_id": "Q12345",
+                            "id_title": "Judul Target",
+                            "url": "https://www.wikidata.org/wiki/Q12345",
+                        }
+                        self.publisher.wikidata_linker = mock_linker
+
+                        res = self.publisher.publish_directly_to_mainspace(
+                            username="EditorUser",
+                            bot_password="valid_password",
+                            mainspace_title="Judul Target",
+                            wikitext="== Teks ==",
+                            en_title="Target Title",
+                            link_wikidata=True,
+                        )
+                        self.assertTrue(res["success"])
+                        self.assertIn("wikidata", res)
+                        self.assertTrue(res["wikidata"]["success"])
+                        self.assertEqual(res["wikidata"]["item_id"], "Q12345")
+                        mock_linker.get_item_id_from_enwiki.assert_called_once_with("Target Title")
+                        mock_linker.link_idwiki_sitelink.assert_called_once()
+
+    def test_move_draft_to_mainspace_wikidata_linking(self):
+        with patch.object(self.publisher, "_authenticate_bot_password", return_value=(True, None)):
+            with patch.object(self.publisher, "_get_csrf_token", return_value=("csrf_ok", None)):
+                with patch.object(self.publisher, "_make_request", return_value=({"move": {"from": "Draf", "to": "Target"}}, None)):
+                    mock_linker = MagicMock()
+                    mock_linker.get_item_id_from_enwiki.return_value = "Q54321"
+                    mock_linker.link_idwiki_sitelink.return_value = {
+                        "success": True,
+                        "item_id": "Q54321",
+                        "id_title": "Target",
+                        "url": "https://www.wikidata.org/wiki/Q54321",
+                    }
+                    self.publisher.wikidata_linker = mock_linker
+
+                    res = self.publisher.move_draft_to_mainspace(
+                        username="EditorUser",
+                        bot_password="valid_password",
+                        sandbox_source="Pengguna:Editor/Bak_pasir/Target",
+                        mainspace_target="Target",
+                        en_title="Target English",
+                        link_wikidata=True,
+                    )
+                    self.assertTrue(res["success"])
+                    self.assertIn("wikidata", res)
+                    self.assertTrue(res["wikidata"]["success"])
+                    self.assertEqual(res["wikidata"]["item_id"], "Q54321")
+                    mock_linker.get_item_id_from_enwiki.assert_called_once_with("Target English")
+                    mock_linker.link_idwiki_sitelink.assert_called_once()
+
 
 class TestMainspaceCLIIntegration(unittest.TestCase):
     def setUp(self):

@@ -212,7 +212,7 @@ class MainspacePublisher:
                 )
                 res["dashboard"] = dash_res
             if link_wikidata:
-                target_qid = wikidata_item_id or (self.wikidata_linker.get_item_id_from_enwiki(en_title or clean_target) if (en_title or clean_target) else None)
+                target_qid = wikidata_item_id or (self.wikidata_linker.get_item_id_from_enwiki(en_title) if en_title else None) or self.wikidata_linker.get_item_id_from_enwiki(clean_target)
                 if target_qid:
                     res["wikidata"] = self.wikidata_linker.link_idwiki_sitelink(
                         item_id=target_qid,
@@ -316,7 +316,7 @@ class MainspacePublisher:
                 result["dashboard"] = {"success": False, "error": str(e)}
         if link_wikidata:
             try:
-                target_qid = wikidata_item_id or (self.wikidata_linker.get_item_id_from_enwiki(en_title or clean_target) if (en_title or clean_target) else None)
+                target_qid = wikidata_item_id or (self.wikidata_linker.get_item_id_from_enwiki(en_title) if en_title else None) or self.wikidata_linker.get_item_id_from_enwiki(clean_target)
                 if target_qid:
                     wiki_res = self.wikidata_linker.link_idwiki_sitelink(
                         item_id=target_qid,
@@ -425,7 +425,7 @@ class MainspacePublisher:
                     "summary": sanitize_edit_summary(self.DEFAULT_TALK_SUMMARY, default_fallback=self.DEFAULT_TALK_SUMMARY),
                 }
             if link_wikidata:
-                target_qid = wikidata_item_id or (self.wikidata_linker.get_item_id_from_enwiki(en_title or clean_title) if (en_title or clean_title) else None)
+                target_qid = wikidata_item_id or (self.wikidata_linker.get_item_id_from_enwiki(en_title) if en_title else None) or self.wikidata_linker.get_item_id_from_enwiki(clean_title)
                 if target_qid:
                     result["wikidata"] = self.wikidata_linker.link_idwiki_sitelink(
                         item_id=target_qid,
@@ -508,7 +508,7 @@ class MainspacePublisher:
         # 5. Link to Wikidata if requested
         if link_wikidata:
             try:
-                target_qid = wikidata_item_id or (self.wikidata_linker.get_item_id_from_enwiki(en_title or clean_title) if (en_title or clean_title) else None)
+                target_qid = wikidata_item_id or (self.wikidata_linker.get_item_id_from_enwiki(en_title) if en_title else None) or self.wikidata_linker.get_item_id_from_enwiki(clean_title)
                 if target_qid:
                     wiki_res = self.wikidata_linker.link_idwiki_sitelink(
                         item_id=target_qid,

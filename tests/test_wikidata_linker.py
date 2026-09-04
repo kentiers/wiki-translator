@@ -77,7 +77,7 @@ class TestWikidataLinker(unittest.TestCase):
         res = self.linker.link_idwiki_sitelink(
             item_id="Q250250",
             id_title="Alfred Enoch",
-            username="TestUser",
+            username="TestUser@bot",
             bot_password="testpassword",
             dry_run=True,
         )
@@ -93,7 +93,7 @@ class TestWikidataLinker(unittest.TestCase):
         res = self.linker.link_idwiki_sitelink(
             item_id="InvalidID",
             id_title="Alfred Enoch",
-            username="TestUser",
+            username="TestUser@bot",
             bot_password="testpassword",
             dry_run=False,
         )
@@ -105,7 +105,7 @@ class TestWikidataLinker(unittest.TestCase):
             res = self.linker.link_idwiki_sitelink(
                 item_id="Q250250",
                 id_title="Alfred Enoch",
-                username="TestUser",
+                username="TestUser@bot",
                 bot_password="testpassword",
                 dry_run=False,
             )
@@ -118,7 +118,7 @@ class TestWikidataLinker(unittest.TestCase):
                 res = self.linker.link_idwiki_sitelink(
                     item_id="Q250250",
                     id_title="Alfred Enoch",
-                    username="TestUser",
+                    username="TestUser@bot",
                     bot_password="testpassword",
                     dry_run=False,
                 )
@@ -145,7 +145,7 @@ class TestWikidataLinker(unittest.TestCase):
                     res = self.linker.link_idwiki_sitelink(
                         item_id="Q250250",
                         id_title="Alfred Enoch",
-                        username="TestUser",
+                        username="TestUser@bot",
                         bot_password="testpassword",
                         dry_run=False,
                     )
@@ -174,7 +174,7 @@ class TestWikidataLinker(unittest.TestCase):
                     res = self.linker.link_idwiki_sitelink(
                         item_id="Q250250",
                         id_title="Alfred Enoch",
-                        username="TestUser",
+                        username="TestUser@bot",
                         bot_password="testpassword",
                         dry_run=False,
                     )
@@ -193,7 +193,7 @@ class TestWikidataLinker(unittest.TestCase):
             res1 = self.linker.link_idwiki_sitelink(
                 item_id="Q250250",
                 id_title="Alfred Enoch",
-                username="TestUser",
+                username="TestUser@bot",
                 bot_password="bad_password",
                 dry_run=False,
             )
@@ -207,7 +207,7 @@ class TestWikidataLinker(unittest.TestCase):
             res2 = self.linker.link_idwiki_sitelink(
                 item_id="Q250250",
                 id_title="Alfred Enoch",
-                username="TestUser",
+                username="TestUser@bot",
                 bot_password="bad_password",
                 dry_run=False,
             )
@@ -244,6 +244,44 @@ class TestWikidataLinker(unittest.TestCase):
             self.assertEqual(u, "WPUser@bot")
             self.assertEqual(p, "WPPassword123")
 
+    def test_resolve_credentials_bare_username_auto_appends_bot_suffix(self):
+        # Bare 'Baloo Official' without @ is auto-appended with @asisten_draf
+        with patch.dict("os.environ", {"WIKI_USERNAME": "Baloo Official", "WIKI_BOT_PASSWORD": "pw"}, clear=True):
+            u, p = self.linker._resolve_credentials()
+            self.assertEqual(u, "Baloo Official@asisten_draf")
+            self.assertEqual(p, "pw")
+
+        # Bare username borrows suffix if known from WIKIDATA_BOT_USERNAME or WIKI_BOT_USERNAME
+        with patch.dict(
+            "os.environ",
+            {"WIKI_USERNAME": "OtherUser", "WIKI_BOT_USERNAME": "OtherUser@custombot", "WIKI_BOT_PASSWORD": "pw"},
+            clear=True,
+        ):
+            u, p = self.linker._resolve_credentials(username="CustomUser")
+            self.assertEqual(u, "CustomUser@custombot")
+            self.assertEqual(p, "pw")
+
+    def test_resolve_credentials_rejects_bare_username_without_known_bot_suffix(self):
+        # Unknown bare username with no @ in WIKIDATA_BOT_USERNAME or WIKI_BOT_USERNAME is rejected (returns None)
+        with patch.dict("os.environ", {"WIKI_USERNAME": "PlainUser", "WIKI_BOT_PASSWORD": "pw"}, clear=True):
+            u, p = self.linker._resolve_credentials()
+            self.assertIsNone(u)
+            self.assertEqual(p, "pw")
+
+        # Explicit username argument without @ and no known bot suffix is rejected
+        with patch.dict("os.environ", {}, clear=True):
+            u, p = self.linker._resolve_credentials(username="PlainUser", bot_password="pw")
+            self.assertIsNone(u)
+            self.assertEqual(p, "pw")
+
+    def test_authenticate_bot_password_guard_blocks_bare_username(self):
+        ok, err = self.linker._authenticate_bot_password("BareUser", "some_password")
+        self.assertFalse(ok)
+        self.assertIn("Bot username must contain @botname suffix", err)
+
+        ok2, err2 = self.linker._authenticate_bot_password("", "some_password")
+        self.assertFalse(ok2)
+        self.assertIn("Bot username must contain @botname suffix", err2)
     def test_missing_credentials_fails_gracefully_without_login(self):
         with patch.dict("os.environ", {}, clear=True):
             with patch.object(self.linker, "_make_request") as mock_req:

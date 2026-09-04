@@ -20,6 +20,7 @@ from .wiki_client import PageNotFoundError, WikipediaClient
 from .wiki_link_mapper import WikiLinkMapper, default_link_mapper
 from .template_doc_auditor import TemplateDocAuditor, default_template_doc_auditor
 from .navbox_generator import STANDARD_GROUP_TRANSLATIONS, PARAM_TRANSLATION_MAP
+from .wikidata_linker import WikidataLinker, default_wikidata_linker
 
 # Additional group translations specific to broad templates / navboxes / infoboxes
 EXTENDED_GROUP_TRANSLATIONS: Dict[str, str] = {
@@ -80,6 +81,7 @@ class TemplateSyncer:
         id_client: Optional[WikipediaClient] = None,
         link_mapper: Optional[WikiLinkMapper] = None,
         doc_auditor: Optional[TemplateDocAuditor] = None,
+        wikidata_linker: Optional[WikidataLinker] = None,
         id_api_url: str = ID_WIKI_API,
         en_api_url: str = EN_WIKI_API,
         user_agent: str = DEFAULT_USER_AGENT,
@@ -89,6 +91,7 @@ class TemplateSyncer:
         self.id_client = id_client or WikipediaClient(lang="id")
         self.link_mapper = link_mapper or default_link_mapper
         self.doc_auditor = doc_auditor or default_template_doc_auditor
+        self.wikidata_linker = wikidata_linker or default_wikidata_linker
         self.id_api_url = id_api_url
         self.en_api_url = en_api_url
         self.user_agent = user_agent
@@ -545,6 +548,8 @@ class TemplateSyncer:
         bot_password: Optional[str] = None,
         output_dir: Optional[Path] = None,
         topic: Optional[str] = None,
+        link_wikidata: bool = True,
+        wikidata_item_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Main synchronization pipeline:
@@ -696,6 +701,29 @@ class TemplateSyncer:
                 "template_edit": template_res,
                 "doc_edit": doc_res,
             }
+
+            # Link to Wikidata if published successfully and requested
+            if is_published and link_wikidata:
+                try:
+                    en_tmpl_title = f"Template:{clean_en_name}"
+                    target_qid = wikidata_item_id or self.wikidata_linker.get_item_id_from_enwiki(en_tmpl_title)
+                    if target_qid:
+                        wiki_res = self.wikidata_linker.link_idwiki_sitelink(
+                            item_id=target_qid,
+                            id_title=f"Templat:{clean_id_name}",
+                            username=wiki_user,
+                            bot_password=bot_pass,
+                            summary=f"hubungkan templat id.wikipedia: Templat:{clean_id_name}",
+                            dry_run=False,
+                        )
+                        result["wikidata"] = wiki_res
+                    else:
+                        result["wikidata"] = {
+                            "success": False,
+                            "error": f"Could not find Wikidata item ID for '{en_tmpl_title}'",
+                        }
+                except Exception as e:
+                    result["wikidata"] = {"success": False, "error": str(e)}
 
         return result
 

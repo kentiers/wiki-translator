@@ -81,8 +81,10 @@ class WikidataLinker:
 
         Supports WIKIDATA_BOT_USERNAME and WIKIDATA_BOT_PASSWORD,
         falling back to WIKI_BOT_USERNAME / WIKI_USERNAME and WIKI_BOT_PASSWORD / MEDIAWIKI_BOT_PASSWORD.
+        Ensures that bare usernames lacking a bot suffix ('@bot') are rejected to prevent
+        failed login alerts on the main user account.
         """
-        u = (
+        raw_u = (
             username
             or os.environ.get("WIKIDATA_BOT_USERNAME")
             or os.environ.get("WIKI_BOT_USERNAME")
@@ -95,6 +97,26 @@ class WikidataLinker:
             or os.environ.get("WIKI_BOT_PASSWORD")
             or os.environ.get("MEDIAWIKI_BOT_PASSWORD")
         )
+        if not raw_u:
+            return None, p
+
+        u = raw_u.strip()
+        if "@" not in u:
+            # Check if known bot suffix exists in bot username env vars
+            known_bot = (
+                os.environ.get("WIKIDATA_BOT_USERNAME")
+                or os.environ.get("WIKI_BOT_USERNAME")
+            )
+            if known_bot and "@" in known_bot:
+                suffix = known_bot.split("@", 1)[1].strip()
+                if suffix:
+                    u = f"{u}@{suffix}"
+                else:
+                    u = None
+            elif u.lower() == "baloo official":
+                u = f"{u}@asisten_draf"
+            else:
+                u = None
         return u, p
 
     def _authenticate_bot_password(
@@ -105,6 +127,13 @@ class WikidataLinker:
         Implements a circuit breaker: if authentication previously failed or fails here,
         caches the failure and never retries repeatedly.
         """
+        if not username or "@" not in username:
+            logger.warning(
+                "Bot username '%s' lacks @botname suffix. Aborting login to prevent failed login alerts on main user account.",
+                username,
+            )
+            return False, "Bot username must contain @botname suffix (e.g. User@botname)"
+
         if self._auth_failed:
             logger.warning(
                 "Wikidata bot password not configured or invalid on wikidata.org; skipping write action (circuit open)"

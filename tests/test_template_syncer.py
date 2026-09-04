@@ -16,6 +16,7 @@ from wiki_translator.template_syncer import (
 from wiki_translator.wiki_client import PageNotFoundError, WikipediaClient
 from wiki_translator.wiki_link_mapper import WikiLinkMapper
 from wiki_translator.template_doc_auditor import TemplateDocAuditor
+from wiki_translator.wikidata_linker import WikidataLinker
 
 
 class TestTemplateSyncer(unittest.TestCase):
@@ -226,6 +227,43 @@ class TestTemplateSyncer(unittest.TestCase):
                 args, kwargs = call_args
                 self.assertEqual(kwargs.get("summary") or args[2], "pemutakhiran templat & dokumentasi")
                 self.assertEqual(kwargs.get("csrf_token") or args[3], "fake_csrf_token")
+
+    @patch.object(TemplateSyncer, "_authenticate_bot_password")
+    @patch.object(TemplateSyncer, "_get_csrf_token")
+    @patch.object(TemplateSyncer, "_edit_page")
+    def test_sync_template_with_wikidata_linking(
+        self, mock_edit_page, mock_get_csrf_token, mock_auth
+    ):
+        self.mock_en_client.fetch_wikitext.return_value = "{{Navbox| name = Test | list1 = [[A]] }}"
+        mock_auth.return_value = (True, None)
+        mock_get_csrf_token.return_value = ("fake_csrf_token", None)
+        mock_edit_page.return_value = {"success": True, "edit": {"result": "Success"}}
+
+        mock_linker = MagicMock(spec=WikidataLinker)
+        mock_linker.get_item_id_from_enwiki.return_value = "Q99999"
+        mock_linker.link_idwiki_sitelink.return_value = {
+            "success": True,
+            "item_id": "Q99999",
+            "id_title": "Templat:Test",
+            "url": "https://www.wikidata.org/wiki/Q99999",
+        }
+        self.syncer.wikidata_linker = mock_linker
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            res = self.syncer.sync_template(
+                template_name="Test",
+                publish=True,
+                username="BotUser@Bot",
+                bot_password="secretpassword",
+                output_dir=Path(tmpdir),
+                link_wikidata=True,
+            )
+            self.assertTrue(res["published"])
+            self.assertIn("wikidata", res)
+            self.assertTrue(res["wikidata"]["success"])
+            self.assertEqual(res["wikidata"]["item_id"], "Q99999")
+            mock_linker.get_item_id_from_enwiki.assert_called_once_with("Template:Test")
+            mock_linker.link_idwiki_sitelink.assert_called_once()
 
     def test_default_instance(self):
         self.assertIsInstance(default_template_syncer, TemplateSyncer)
