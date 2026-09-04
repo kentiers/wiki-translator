@@ -185,6 +185,12 @@ def sanitize_ill_foreign_targets(wikitext: str) -> str:
 
     return ill_pattern.sub(repl, wikitext)
 
+from .link_fidelity_validator import (
+    LinkFidelityValidator,
+    default_fidelity_validator,
+    LinkFidelityIssue,
+    FidelityValidationResult,
+)
 
 class WikiLinkMapper:
     """
@@ -194,8 +200,6 @@ class WikiLinkMapper:
     - Verifying id.wikipedia.org article / category existence.
     - Resolving EN wikilinks to ID titles via langlinks / Wikidata.
     - Transforming missing articles into {{ill|Nama ID|en|Target EN}} (or plain link).
-    - Translating and verifying categories, with comment fallback for non-existent ones.
-    - SQLite caching for speed and zero redundant network overhead.
     """
 
     def __init__(
@@ -203,12 +207,14 @@ class WikiLinkMapper:
         cache_db_path: str = ".cache/wiki_links_cache.db",
         use_ill_templates: bool = True,
         comment_uncreated_categories: bool = True,
-        user_agent: Optional[str] = None,
         allow_network: bool = True,
         gemini_client: Optional[Any] = None,
+        user_agent: Optional[str] = None,
+        fidelity_validator: Optional[LinkFidelityValidator] = None,
     ):
         self.cache_db_path = Path(cache_db_path)
         self.use_ill_templates = use_ill_templates
+        self.fidelity_validator = fidelity_validator or default_fidelity_validator
         self.comment_uncreated_categories = comment_uncreated_categories
         self.allow_network = allow_network
         self.gemini_client = gemini_client
@@ -1369,6 +1375,9 @@ class WikiLinkMapper:
             text = self.map_wikilinks(text, resolve_disambiguation=resolve_disambiguation)
             # Step 3: Sanitize {{ill}} foreign targets
             text = sanitize_ill_foreign_targets(text)
+            # Step 4: Validate link fidelity & convert existing links
+            if hasattr(self, "fidelity_validator") and self.fidelity_validator:
+                text, _ = self.fidelity_validator.auto_convert_existing_links(text)
             return text
         finally:
             self.use_ill_templates = orig_ill

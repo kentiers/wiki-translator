@@ -6,6 +6,13 @@ from .wiki_link_mapper import (
     default_link_mapper,
     LinkResolution,
     CategoryResolution,
+    LinkFidelityValidator,
+    default_fidelity_validator,
+    LinkFidelityIssue,
+    FidelityValidationResult,
+)
+from .link_fidelity_validator import (
+    LinkFidelityValidator as StandaloneLinkFidelityValidator,
 )
 from .syntax_balancer import (
     WikitextSyntaxBalancer,
