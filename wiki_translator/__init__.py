@@ -120,3 +120,10 @@ from .paragraph_translator import (
     default_paragraph_translator,
     split_into_paragraph_chunks,
 )
+from .template_ecosystem import (
+    RecursiveDependencyScanner,
+    CategoryTreeLinker,
+    SandboxTestcaseEngine,
+    TemplateEcosystemManager,
+    default_ecosystem_manager,
+)

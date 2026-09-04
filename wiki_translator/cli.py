@@ -103,6 +103,13 @@ from .paragraph_translator import (
     ParagraphTranslator,
     default_paragraph_translator,
 )
+from .template_ecosystem import (
+    RecursiveDependencyScanner,
+    CategoryTreeLinker,
+    SandboxTestcaseEngine,
+    TemplateEcosystemManager,
+    default_ecosystem_manager,
+)
 def print_banner() -> None:
     print("=" * 72)
     print("   🌐 Wikipedia Grade A++ Translator (en.wikipedia -> id.wikipedia)")
@@ -1517,6 +1524,18 @@ def main() -> None:
         help="Sync and update a template and its documentation from en.wiki",
     )
     parser.add_argument(
+        "--scan-template-deps",
+        dest="scan_template_deps",
+        default=None,
+        help="Recursively scans and prints full dependency tree for a Wikipedia template/module",
+    )
+    parser.add_argument(
+        "--sync-ecosystem",
+        dest="sync_ecosystem",
+        default=None,
+        help="Orchestrates recursive sync with sandbox/testcases for a Wikipedia template/module",
+    )
+    parser.add_argument(
         "--publish-template",
         dest="publish_template",
         action="store_true",
@@ -1618,9 +1637,53 @@ def main() -> None:
         if args.publish_template:
             if sync_res.get("published"):
                 print(f"[+] Published {sync_res['id_title']} and {sync_res['doc_title']} to id.wikipedia.org successfully.")
+                wiki_info = sync_res.get("wikidata", {})
+                if wiki_info:
+                    if wiki_info.get("success"):
+                        print(f"[+] Wikidata Terhubung   : {wiki_info.get('item_id')} -> {wiki_info.get('url')}")
+                    else:
+                        print(f"[!] Wikidata Linker Info : {wiki_info.get('error')}")
             else:
                 err = sync_res.get("publish_results", {}).get("error", "Unknown error")
                 print(f"[!] Warning: Failed to publish template: {err}")
+        return
+
+    if args.scan_template_deps:
+        print(f"[*] Scanning recursive dependency tree for '{args.scan_template_deps}'...")
+        nodes = default_ecosystem_manager.scanner.scan_dependencies_recursive(args.scan_template_deps)
+        topo = default_ecosystem_manager.scanner.topological_sort(nodes)
+        print(f"[+] Total components discovered: {len(nodes)}")
+        print("\n" + "=" * 60)
+        print(" TOPOLOGICAL RESOLUTION ORDER (Prerequisites first):")
+        print("=" * 60)
+        for idx, title in enumerate(topo, 1):
+            node = nodes.get(title)
+            status = "[ADA]" if (node and node.exists_on_id) else "[BELUM ADA]"
+            kind = node.kind.value if node else "item"
+            deps_count = len(node.dependencies) if node else 0
+            print(f"  {idx}. {status} ({kind}) {title} - {deps_count} sub-dependencies")
+        print("=" * 60 + "\n")
+        return
+
+    if args.sync_ecosystem:
+        print(f"[*] Orchestrating template & module ecosystem sync for '{args.sync_ecosystem}'...")
+        eco_res = default_ecosystem_manager.sync_ecosystem(
+            args.sync_ecosystem,
+            publish_sandbox=True,
+            promote=args.publish_template,
+            output_dir=Path(args.output_dir) / "ecosystem" if args.output_dir else None,
+        )
+        print(f"[+] Root component        : {eco_res['root_title']}")
+        print(f"[+] Discovered components : {len(eco_res['dependency_tree'])}")
+        print(f"[+] Missing on id.wiki    : {len(eco_res['missing_dependencies'])}")
+        print(f"[+] Sandbox Page          : {eco_res['sandbox']['title']}")
+        print(f"[+] Testcases Page        : {eco_res['testcases']['title']}")
+        val = eco_res.get("validation", {})
+        print(f"[+] Pre-flight Validation : {'VALID' if val.get('is_valid') else 'INVALID'}")
+        promo = eco_res.get("promotion", {})
+        print(f"[+] Promotion Gate        : {promo.get('message')}")
+        if args.publish_template and promo.get("promoted"):
+            print("[+] Promoted successfully to mainspace!")
         return
 
     if args.batch_file:
