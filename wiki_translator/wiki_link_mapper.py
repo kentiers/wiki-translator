@@ -25,7 +25,7 @@ from pathlib import Path
 import re
 import sqlite3
 import time
-from typing import Dict, Iterable, List, Optional, Set, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Set, Tuple
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -37,7 +37,8 @@ class LinkResolution:
     target_id: Optional[str] = None
     exists_on_id: bool = False
     source: str = "unknown"  # "id_direct", "en_langlink", "wikidata", "cache", "fallback"
-
+    is_disambiguation: bool = False
+    disambiguation_target: Optional[str] = None
 
 @dataclass
 class CategoryResolution:
@@ -204,11 +205,13 @@ class WikiLinkMapper:
         comment_uncreated_categories: bool = True,
         user_agent: Optional[str] = None,
         allow_network: bool = True,
+        gemini_client: Optional[Any] = None,
     ):
         self.cache_db_path = Path(cache_db_path)
         self.use_ill_templates = use_ill_templates
         self.comment_uncreated_categories = comment_uncreated_categories
         self.allow_network = allow_network
+        self.gemini_client = gemini_client
         self.user_agent = (
             user_agent
             or "WikiTranslatorLinkMapper/1.0 (https://id.wikipedia.org; translator-tool)"
@@ -230,14 +233,24 @@ class WikiLinkMapper:
                         id_title TEXT,
                         exists_on_id INTEGER NOT NULL,
                         source TEXT NOT NULL,
-                        created_at REAL NOT NULL
+                        created_at REAL NOT NULL,
+                        is_disambiguation INTEGER DEFAULT 0,
+                        disambiguation_target TEXT
                     )
                     """
                 )
+                # Schema migration / ALTER TABLE check for existing cache databases
+                cur = conn.cursor()
+                cur.execute("PRAGMA table_info(page_link_cache)")
+                existing_cols = {row[1] for row in cur.fetchall()}
+                if "is_disambiguation" not in existing_cols:
+                    conn.execute("ALTER TABLE page_link_cache ADD COLUMN is_disambiguation INTEGER DEFAULT 0")
+                if "disambiguation_target" not in existing_cols:
+                    conn.execute("ALTER TABLE page_link_cache ADD COLUMN disambiguation_target TEXT")
+
                 conn.execute(
                     "CREATE INDEX IF NOT EXISTS idx_page_link_en ON page_link_cache(en_title_lower)"
                 )
-
                 # Cache table for categories
                 conn.execute(
                     """
@@ -268,7 +281,7 @@ class WikiLinkMapper:
         try:
             cur = conn.cursor()
             cur.execute(
-                "SELECT en_title_original, id_title, exists_on_id, source FROM page_link_cache WHERE en_title_lower = ?",
+                "SELECT en_title_original, id_title, exists_on_id, source, is_disambiguation, disambiguation_target FROM page_link_cache WHERE en_title_lower = ?",
                 (key,),
             )
             row = cur.fetchone()
@@ -278,12 +291,22 @@ class WikiLinkMapper:
                     target_id=row[1],
                     exists_on_id=bool(row[2]),
                     source=f"cache_{row[3]}",
+                    is_disambiguation=bool(row[4]) if row[4] is not None else False,
+                    disambiguation_target=row[5],
                 )
             return None
         finally:
             conn.close()
 
-    def cache_page_link(self, en_title: str, id_title: Optional[str], exists_on_id: bool, source: str) -> None:
+    def cache_page_link(
+        self,
+        en_title: str,
+        id_title: Optional[str],
+        exists_on_id: bool,
+        source: str,
+        is_disambiguation: bool = False,
+        disambiguation_target: Optional[str] = None,
+    ) -> None:
         """Saves page link resolution to SQLite cache."""
         key = en_title.strip().lower()
         conn = sqlite3.connect(self.cache_db_path)
@@ -291,10 +314,47 @@ class WikiLinkMapper:
             with conn:
                 conn.execute(
                     """
-                    INSERT OR REPLACE INTO page_link_cache (en_title_lower, en_title_original, id_title, exists_on_id, source, created_at)
-                    VALUES (?, ?, ?, ?, ?, ?)
+                    INSERT OR REPLACE INTO page_link_cache (
+                        en_title_lower, en_title_original, id_title, exists_on_id, source, created_at, is_disambiguation, disambiguation_target
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                     """,
-                    (key, en_title.strip(), id_title.strip() if id_title else None, 1 if exists_on_id else 0, source, time.time()),
+                    (
+                        key,
+                        en_title.strip(),
+                        id_title.strip() if id_title else None,
+                        1 if exists_on_id else 0,
+                        source,
+                        time.time(),
+                        1 if is_disambiguation else 0,
+                        disambiguation_target.strip() if disambiguation_target else None,
+                    ),
+                )
+        finally:
+            conn.close()
+
+    def update_cached_disambiguation(
+        self,
+        en_title: str,
+        is_disambiguation: bool,
+        disambiguation_target: Optional[str] = None,
+    ) -> None:
+        """Updates disambiguation flag and resolved target for a cached title."""
+        key = en_title.strip().lower()
+        conn = sqlite3.connect(self.cache_db_path)
+        try:
+            with conn:
+                conn.execute(
+                    """
+                    UPDATE page_link_cache
+                    SET is_disambiguation = ?, disambiguation_target = ?
+                    WHERE en_title_lower = ?
+                    """,
+                    (
+                        1 if is_disambiguation else 0,
+                        disambiguation_target.strip() if disambiguation_target else None,
+                        key,
+                    ),
                 )
         finally:
             conn.close()
@@ -390,6 +450,249 @@ class WikiLinkMapper:
                         results[b] = exists
 
         return results
+    def check_id_disambiguation(self, titles: List[str]) -> Dict[str, Tuple[bool, List[str]]]:
+        """
+        Batched disambiguation detection for Indonesian titles.
+        Queries https://id.wikipedia.org/w/api.php with:
+        action=query&titles=...&prop=pageprops|categories&ppprop=disambiguation&cllimit=max&format=json
+        Checks if pageprops.disambiguation is present or if page is in
+        'Kategori:Halaman disambiguasi' / 'Kategori:Semua halaman disambiguasi'.
+        For any disambiguation page, fetches candidate target links via prop=links&plnamespace=0&pllimit=100.
+        Returns Dict[str, Tuple[bool, List[str]]].
+        """
+        if not titles:
+            return {}
+
+        results: Dict[str, Tuple[bool, List[str]]] = {t: (False, []) for t in titles}
+        endpoint = "https://id.wikipedia.org/w/api.php"
+        batch_size = 40
+
+        disambig_titles: List[str] = []
+
+        disambig_cat_names = {
+            "kategori:halaman disambiguasi",
+            "kategori:semua halaman disambiguasi",
+            "halaman disambiguasi",
+            "semua halaman disambiguasi",
+        }
+
+        for i in range(0, len(titles), batch_size):
+            batch = titles[i : i + batch_size]
+            params = {
+                "action": "query",
+                "titles": "|".join(batch),
+                "prop": "pageprops|categories",
+                "ppprop": "disambiguation",
+                "cllimit": "max",
+                "format": "json",
+            }
+            data = self._api_get(endpoint, params)
+            query = data.get("query", {})
+            pages_obj = query.get("pages", {})
+
+            # Handles pages as either dict (pageid -> obj) or list (if formatversion=2)
+            pages_list = list(pages_obj.values()) if isinstance(pages_obj, dict) else pages_obj
+
+            for page in pages_list:
+                page_title = page.get("title", "")
+                is_disambig = False
+
+                # Check pageprops
+                pageprops = page.get("pageprops")
+                if isinstance(pageprops, dict) and "disambiguation" in pageprops:
+                    is_disambig = True
+
+                # Check categories
+                if not is_disambig:
+                    categories = page.get("categories", [])
+                    for cat in categories:
+                        cat_title = cat.get("title", "").strip().lower()
+                        if cat_title in disambig_cat_names or any(cat_title.endswith(dc) for dc in ("halaman disambiguasi", "semua halaman disambiguasi")):
+                            is_disambig = True
+                            break
+
+                # Match page_title back to original batch title(s)
+                matched_originals = [
+                    b for b in batch
+                    if b.lower() == page_title.lower() or b.replace("_", " ").lower() == page_title.lower()
+                ]
+                if not matched_originals:
+                    matched_originals = [page_title]
+
+                for orig in matched_originals:
+                    if is_disambig:
+                        results[orig] = (True, [])
+                        if page_title not in disambig_titles:
+                            disambig_titles.append(page_title)
+                    else:
+                        results[orig] = (False, [])
+
+        # For any disambiguation page, fetch candidate target links
+        if disambig_titles:
+            for i in range(0, len(disambig_titles), batch_size):
+                batch_disambig = disambig_titles[i : i + batch_size]
+                params = {
+                    "action": "query",
+                    "titles": "|".join(batch_disambig),
+                    "prop": "links",
+                    "plnamespace": "0",
+                    "pllimit": "100",
+                    "format": "json",
+                }
+                data = self._api_get(endpoint, params)
+                query = data.get("query", {})
+                pages_obj = query.get("pages", {})
+                pages_list = list(pages_obj.values()) if isinstance(pages_obj, dict) else pages_obj
+
+                for page in pages_list:
+                    page_title = page.get("title", "")
+                    raw_links = page.get("links", [])
+                    candidate_links = [l.get("title", "").strip() for l in raw_links if l.get("title")]
+
+                    # Map back to results
+                    for orig, (is_dis, _) in list(results.items()):
+                        if is_dis and (orig.lower() == page_title.lower() or orig.replace("_", " ").lower() == page_title.lower()):
+                            results[orig] = (True, candidate_links)
+
+        return results
+    def resolve_disambiguation_context(
+        self,
+        title: str,
+        options: List[str],
+        context_sentence: str,
+    ) -> Optional[str]:
+        """
+        Uses semantic keyword similarity between context_sentence and the option titles/qualifiers.
+        If self.gemini_client is provided or available, supports LLM-assisted disambiguation resolution
+        when heuristics are tied or ambiguous.
+        Fallback: If no candidate clearly matches, returns original target (or None).
+        """
+        if not options:
+            return None
+
+        # Pre-process context words and n-grams
+        ctx_clean = context_sentence.lower()
+        ctx_words = set(re.findall(r"\w+", ctx_clean))
+
+        # Known semantic domain associations for common Indonesian / disambiguation domains
+        domain_associations: Dict[str, Set[str]] = {
+            "planet": {"orbit", "matahari", "planet", "tata surya", "astronomi", "antariksa", "gravitasi", "bintang", "bumi", "satelit", "teleskop"},
+            "astronomi": {"orbit", "matahari", "planet", "tata surya", "astronomi", "antariksa", "gravitasi", "bintang"},
+            "unsur": {"raksa", "termometer", "kimia", "logam", "keracunan", "tabel periodik", "merkuri", "senyawa", "larutan", "atom", "massa"},
+            "kimia": {"raksa", "termometer", "kimia", "logam", "keracunan", "senyawa", "reaksi", "larutan"},
+            "mitologi": {"dewa", "mitologi", "romawi", "yunani", "pemujaan", "kuil", "agama", "legenda", "dewa-dewi", "pantheon"},
+            "film": {"film", "sutradara", "pemeran", "aktor", "bioskop", "sinema", "box office", "alur", "karakter", "tayang"},
+            "tokoh": {"lahir", "meninggal", "politikus", "presiden", "menteri", "tokoh", "penulis", "aktivis", "biografi"},
+            "kota": {"kota", "provinsi", "wilayah", "penduduk", "ibukota", "kabupaten", "daerah"},
+            "negara": {"negara", "republik", "kerajaan", "bangsa", "pemerintah", "presiden"},
+            "album": {"album", "lagu", "rekaman", "musik", "penyanyi", "band", "musisi"},
+            "lagu": {"lagu", "singel", "penyanyi", "musik", "lirik", "irama", "vokal"},
+            "buku": {"buku", "novel", "penulis", "karya", "penerbit", "halaman", "fiksi"},
+            "perusahaan": {"perusahaan", "korporasi", "bisnis", "saham", "industri", "pendiri", "kantor"},
+        }
+
+        scores: Dict[str, float] = {}
+        for opt in options:
+            score = 0.0
+            opt_lower = opt.lower()
+
+            # Extract qualifier if present e.g. "Merkurius (planet)" -> "planet"
+            qualifier_match = re.search(r"\(([^)]+)\)", opt)
+            qualifier = qualifier_match.group(1).strip().lower() if qualifier_match else ""
+
+            # 1. Exact qualifier word match in context
+            if qualifier:
+                qual_tokens = set(re.findall(r"\w+", qualifier))
+                for qt in qual_tokens:
+                    if qt in ctx_words:
+                        score += 3.0
+                    if qt in ctx_clean:
+                        score += 1.5
+
+                # Check domain associations for the qualifier
+                for domain_key, keywords in domain_associations.items():
+                    if domain_key in qual_tokens or domain_key in qualifier:
+                        matches = keywords.intersection(ctx_words)
+                        score += len(matches) * 2.0
+                        for kw in keywords:
+                            if " " in kw and kw in ctx_clean:
+                                score += 3.0
+
+            # 2. Non-qualifier words unique to the option
+            opt_tokens = set(re.findall(r"\w+", opt_lower))
+            base_tokens = set(re.findall(r"\w+", title.lower()))
+            diff_tokens = opt_tokens - base_tokens
+            for dt in diff_tokens:
+                if dt in ctx_words:
+                    score += 2.0
+                for domain_key, keywords in domain_associations.items():
+                    if dt == domain_key:
+                        matches = keywords.intersection(ctx_words)
+                        score += len(matches) * 1.5
+
+            scores[opt] = score
+
+        # Determine best scoring option
+        sorted_opts = sorted(scores.items(), key=lambda x: x[1], reverse=True)
+        best_opt, best_score = sorted_opts[0]
+        second_score = sorted_opts[1][1] if len(sorted_opts) > 1 else 0.0
+
+        # Clear winner heuristic: score >= 2.0 and score strictly exceeds second_score
+        if best_score >= 2.0 and best_score > second_score:
+            return best_opt
+
+        # If heuristic is tied, ambiguous, or no candidate clearly matched (best_score == 0 or best_score == second_score)
+        # try LLM-assisted disambiguation if gemini_client is available
+        if self.gemini_client and options:
+            try:
+                resolved_by_llm = self._resolve_disambiguation_llm(title, options, context_sentence)
+                if resolved_by_llm in options:
+                    return resolved_by_llm
+            except Exception:
+                pass
+
+        # Fallback: if best_score > 0 and no clear tie
+        if best_score > 0 and best_score > second_score:
+            return best_opt
+
+        # If no candidate clearly matches, return original title or None
+        return None
+
+    def _resolve_disambiguation_llm(
+        self,
+        title: str,
+        options: List[str],
+        context_sentence: str,
+    ) -> Optional[str]:
+        """Queries gemini_client to resolve disambiguation given sentence context."""
+        prompt = (
+            f"Diberikan kata/istilah '{title}' yang merupakan halaman disambiguasi di Wikipedia bahasa Indonesia.\n"
+            f"Konteks kalimat:\n\"{context_sentence}\"\n\n"
+            f"Pilihan halaman spesifik yang tersedia:\n"
+            + "\n".join(f"- {opt}" for opt in options)
+            + "\n\nTentukan mana SATU halaman yang paling tepat sesuai konteks kalimat di atas.\n"
+            "Jawab HANYA dengan judul halaman persis dari daftar pilihan di atas tanpa teks tambahan."
+        )
+
+        client = self.gemini_client
+        response_text = ""
+        if hasattr(client, "translate_section"):
+            response_text = client.translate_section(user_prompt=prompt)
+        elif hasattr(client, "generate_content"):
+            res = client.generate_content(prompt)
+            response_text = getattr(res, "text", str(res))
+        elif callable(client):
+            response_text = client(prompt)
+
+        cleaned_resp = response_text.strip().strip('"').strip("'")
+        for opt in options:
+            if opt.lower() == cleaned_resp.lower():
+                return opt
+        # Partial match if exact failed
+        for opt in options:
+            if opt.lower() in cleaned_resp.lower():
+                return opt
+        return None
 
     def fetch_en_to_id_langlinks(self, en_titles: List[str]) -> Dict[str, Optional[str]]:
         """
@@ -828,10 +1131,12 @@ class WikiLinkMapper:
 
         return adapted
 
-    def map_wikilinks(self, wikitext: str) -> str:
+    def map_wikilinks(self, wikitext: str, resolve_disambiguation: bool = True) -> str:
         """
         Finds internal wikilinks `[[Target]]` or `[[Target|Anchor]]` (excluding Categories and Files/Images).
         Maps to official ID article title or formats red-links with {{ill|...}} when appropriate.
+        When resolve_disambiguation=True, checks if resolved ID target is a disambiguation page and
+        disambiguates using sentence context.
         """
         # Exclude File, Image, Berkas, Gambar, Category, Kategori
         excluded_namespaces = (
@@ -843,11 +1148,9 @@ class WikiLinkMapper:
 
         # Collect targets for batch resolution
         targets_to_resolve: List[str] = []
-        matches: List[Tuple[str, Optional[str], int, int]] = []
 
         for m in link_pattern.finditer(wikitext):
             target = m.group(1).strip()
-            alias = m.group(2).strip() if m.group(2) else None
             
             # Check if namespace is excluded
             target_lower = target.lower()
@@ -860,10 +1163,54 @@ class WikiLinkMapper:
                 bare = re.sub(r"\s*\([^)]+\)$", "", target).strip()
                 if bare:
                     targets_to_resolve.append(bare)
-            matches.append((target, alias, m.start(), m.end()))
 
         # Batch resolve all targets
         resolutions = self.batch_resolve_wikilinks(targets_to_resolve)
+
+        # Batch disambiguation check for resolved id targets if enabled
+        disambig_map: Dict[str, Tuple[bool, List[str]]] = {}
+        if resolve_disambiguation and self.allow_network:
+            id_targets_to_check: List[str] = []
+            for res in resolutions.values():
+                if res.exists_on_id and res.target_id:
+                    # If already checked in cache (is_disambiguation is known)
+                    if not res.is_disambiguation and res.source.startswith("cache_"):
+                        continue
+                    id_targets_to_check.append(res.target_id)
+
+            if id_targets_to_check:
+                disambig_map = self.check_id_disambiguation(list(set(id_targets_to_check)))
+                for t_id, (is_dis, opts) in disambig_map.items():
+                    if is_dis:
+                        for res in resolutions.values():
+                            if res.target_id and res.target_id.lower() == t_id.lower():
+                                res.is_disambiguation = True
+
+        def extract_context(start_idx: int, end_idx: int) -> str:
+            """Extracts surrounding sentence or line for contextual resolution."""
+            # Find line boundaries first
+            line_start = wikitext.rfind("\n", 0, start_idx)
+            line_start = 0 if line_start == -1 else line_start + 1
+            line_end = wikitext.find("\n", end_idx)
+            line_end = len(wikitext) if line_end == -1 else line_end
+            line = wikitext[line_start:line_end].strip()
+
+            # Extract surrounding sentence if punctuation exists
+            prev_punct = max(wikitext.rfind(". ", 0, start_idx), wikitext.rfind("! ", 0, start_idx), wikitext.rfind("? ", 0, start_idx))
+            sent_start = 0 if prev_punct == -1 else prev_punct + 2
+            sent_start = max(sent_start, line_start)
+
+            next_punct = -1
+            for p in (". ", "! ", "? "):
+                idx = wikitext.find(p, end_idx)
+                if idx != -1 and (next_punct == -1 or idx < next_punct):
+                    next_punct = idx
+            sent_end = len(wikitext) if next_punct == -1 else next_punct + 1
+            sent_end = min(sent_end, line_end)
+
+            context = wikitext[sent_start:sent_end].strip()
+            return context or line or wikitext[max(0, start_idx - 100):min(len(wikitext), end_idx + 100)]
+
         def replace_link(match: re.Match) -> str:
             target = match.group(1).strip()
             alias = match.group(2).strip() if match.group(2) else None
@@ -911,7 +1258,45 @@ class WikiLinkMapper:
                     else:
                         return f"[[{id_title}|{display}]]"
 
-                id_title = res.target_id + section_anchor
+                final_id_target = res.target_id
+
+                # Contextual Disambiguation Guard:
+                # If resolved ID target is a disambiguation page and resolution is requested
+                if resolve_disambiguation:
+                    # Check if marked in res or disambig_map
+                    is_dis = res.is_disambiguation
+                    options: List[str] = []
+                    if final_id_target in disambig_map:
+                        is_dis_api, opts_api = disambig_map[final_id_target]
+                        is_dis = is_dis or is_dis_api
+                        options = opts_api
+                    elif is_dis and self.allow_network:
+                        dis_res = self.check_id_disambiguation([final_id_target])
+                        if final_id_target in dis_res:
+                            is_dis, options = dis_res[final_id_target]
+
+                    if is_dis and options:
+                        context_sent = extract_context(match.start(), match.end())
+                        resolved_target = self.resolve_disambiguation_context(
+                            title=final_id_target,
+                            options=options,
+                            context_sentence=context_sent,
+                        )
+                        if resolved_target:
+                            # Update cache and res
+                            res.disambiguation_target = resolved_target
+                            self.update_cached_disambiguation(
+                                en_title=base_target,
+                                is_disambiguation=True,
+                                disambiguation_target=resolved_target,
+                            )
+                            # Target resolved to specific option:
+                            # e.g. [[Merkurius]] -> [[Merkurius (planet)|Merkurius]]
+                            # [[Merkurius|bintang fajar]] -> [[Merkurius (planet)|bintang fajar]]
+                            display_text = alias if alias else final_id_target
+                            return f"[[{resolved_target}{section_anchor}|{display_text}]]"
+
+                id_title = final_id_target + section_anchor
                 if alias is None:
                     if base_target.lower() in ("action thriller", "action thriller film"):
                         return f"[[{id_title}|cerita seru laga]]"
@@ -962,21 +1347,31 @@ class WikiLinkMapper:
 
         return link_pattern.sub(replace_link, wikitext)
 
-    def process_wikitext(self, wikitext: str) -> str:
+    def process_wikitext(
+        self,
+        wikitext: str,
+        use_ill_templates: bool = True,
+        resolve_disambiguation: bool = True,
+    ) -> str:
         """
         Full pipeline:
         1. Maps and validates categories.
-        2. Resolves wikilinks & red-link safeguards.
+        2. Resolves wikilinks & red-link safeguards (with contextual disambiguation when resolve_disambiguation=True).
         3. Sanitizes {{ill}} foreign targets against corrupted Indonesian disambiguators.
         """
-        # Step 1: Map categories
-        text = self.map_categories(wikitext)
-        # Step 2: Map wikilinks
-        text = self.map_wikilinks(text)
-        # Step 3: Sanitize {{ill}} foreign targets
-        text = sanitize_ill_foreign_targets(text)
-        return text
-
+        # Temporarily adapt use_ill_templates if different
+        orig_ill = self.use_ill_templates
+        self.use_ill_templates = use_ill_templates
+        try:
+            # Step 1: Map categories
+            text = self.map_categories(wikitext)
+            # Step 2: Map wikilinks
+            text = self.map_wikilinks(text, resolve_disambiguation=resolve_disambiguation)
+            # Step 3: Sanitize {{ill}} foreign targets
+            text = sanitize_ill_foreign_targets(text)
+            return text
+        finally:
+            self.use_ill_templates = orig_ill
 
 # Global default instance
 default_link_mapper = WikiLinkMapper()
