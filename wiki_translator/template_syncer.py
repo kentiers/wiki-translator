@@ -63,9 +63,32 @@ EXTENDED_GROUP_TRANSLATIONS: Dict[str, str] = {
     "see also": "Lihat pula",
     "external links": "Pranala luar",
     "references": "Referensi",
+    # Technology, AI, and corporate / organizational navboxes
+    "large language models": "Model bahasa besar",
+    "large language model": "Model bahasa besar",
+    "reasoning models": "Model penalaran",
+    "reasoning model": "Model penalaran",
+    "multimodal models": "Model multimodal",
+    "multimodal model": "Model multimodal",
+    "voice and audio": "Suara dan audio",
+    "image generation": "Pembangkitan gambar",
+    "video generation": "Pembangkitan video",
+    "products and services": "Produk dan layanan",
+    "products & services": "Produk dan layanan",
+    "products": "Produk",
+    "people": "Tokoh utama",
+    "foundation models": "Model dasar",
+    "foundation model": "Model dasar",
+    "gpt models": "Model GPT",
+    "specialized": "Khusus",
+    "intelligent agents": "Agen cerdas",
+    "senior management": "Manajemen senior",
+    "board of directors": "Dewan direksi",
+    "current": "Saat ini",
+    "former": "Mantan",
+    "jvs": "Usaha patungan",
+    "joint ventures": "Usaha patungan",
 }
-
-
 class TemplateSyncer:
     """
     Synchronizes templates and documentation from en.wikipedia.org to id.wikipedia.org.
@@ -130,9 +153,16 @@ class TemplateSyncer:
         if lower_label in EXTENDED_GROUP_TRANSLATIONS:
             return EXTENDED_GROUP_TRANSLATIONS[lower_label]
 
+        # Normalize <br/> tags and extra whitespace
+        normalized_lower = re.sub(r"\s+", " ", re.sub(r"<br\s*/?>", " ", lower_label)).strip()
+        if normalized_lower in EXTENDED_GROUP_TRANSLATIONS:
+            return EXTENDED_GROUP_TRANSLATIONS[normalized_lower]
+
         # Handle bold/italic or wikilinks: e.g. "[[Documentaries]]" or "'''Feature films'''"
         plain = re.sub(r"\[\[(?:[^|\]]*\|)?([^\]]+)\]\]", r"\1", clean_label)
-        plain = re.sub(r"['*#]", "", plain).strip().lower()
+        plain = re.sub(r"<br\s*/?>", " ", plain)
+        plain = re.sub(r"['*#]", "", plain)
+        plain = re.sub(r"\s+", " ", plain).strip().lower()
 
         if plain in EXTENDED_GROUP_TRANSLATIONS:
             trans = EXTENDED_GROUP_TRANSLATIONS[plain]
@@ -260,7 +290,19 @@ class TemplateSyncer:
                     val = self.translate_group_label(val)
                 elif list_match:
                     new_key = f"daftar{list_match.group(1)}"
-                    val = self.link_mapper.map_wikilinks(val)
+                    # Translate nested child navbox groups if present
+                    def child_group_repl(m: re.Match) -> str:
+                        prefix = m.group(1)
+                        g_val = m.group(2)
+                        trans_g = self.translate_group_label(g_val)
+                        return f"{prefix}{trans_g}"
+
+                    translated_val = re.sub(
+                        r"(\|\s*(?:group\d+|kelompok\d+)\s*=\s*)([^\n|}]+)",
+                        child_group_repl,
+                        val,
+                    )
+                    val = self.link_mapper.map_wikilinks(translated_val)
                 elif lower_name == "name" or new_key == "nama":
                     val = clean_target
                 elif lower_name == "title" or new_key == "judul":

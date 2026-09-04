@@ -244,6 +244,8 @@ class TemplateDocAuditor:
                 c_str = cat.strip()
                 if c_str.startswith("[[") and c_str.endswith("]]"):
                     cat_lines.append(c_str)
+                elif c_str.lower().startswith("kategori:"):
+                    cat_lines.append(f"[[{c_str}]]")
                 else:
                     cat_lines.append(f"[[Kategori:{c_str}]]")
             category_block = "\n".join(cat_lines)
