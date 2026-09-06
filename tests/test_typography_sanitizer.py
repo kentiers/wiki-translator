@@ -249,6 +249,24 @@ class TestTypographySanitizerPillars(unittest.TestCase):
         res3 = self.sanitizer.normalize_sentence_case_after_periods(text3)
         self.assertIn("hlm. 45", res3)
         self.assertIn("dkk. mereka", res3)
+
+    def test_clean_indirect_speech_fragmented_quotes(self):
+        # Unquotes fragmented quotes in indirect speech and fixes clitic
+        text1 = 'Gorbachev menuturkan bahwa peristiwa itu "sangat membekas" dalam dirinya, seraya mengakui bahwa "hati nurani tersiksa" karena telah mengawasi persekusi.'
+        res1 = self.sanitizer.clean_indirect_speech_fragmented_quotes(text1)
+        self.assertIn("peristiwa itu sangat membekas dalam", res1)
+        self.assertIn("hati nuraninya tersiksa karena", res1)
+        self.assertNotIn('"sangat membekas"', res1)
+        self.assertNotIn('"hati nurani tersiksa"', res1)
+
+        # Preserves preserved political terms and direct speech
+        text2 = 'Gorbachev mengkaji keunggulan "demokrasi sosialis" ala Soviet.'
+        res2 = self.sanitizer.clean_indirect_speech_fragmented_quotes(text2)
+        self.assertIn('"demokrasi sosialis"', res2)
+
+        text3 = 'Gorbachev menyatakan, "Kami memang berjuang merebut kekuasaan."'
+        res3 = self.sanitizer.clean_indirect_speech_fragmented_quotes(text3)
+        self.assertIn('"Kami memang berjuang', res3)
     def test_quotation_punctuation_order(self):
         # EYD V: punctuation outside quotes
         text1 = 'Ia membintangi film "The Runner," yang diproduksi oleh Amazon.'

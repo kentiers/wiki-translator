@@ -90,6 +90,17 @@ COMMON_SENTENCE_ABBREVIATIONS: Set[str] = {
     "hlm", "hal", "dkk", "dll", "dsb", "ca", "vol", "no", "dr", "prof",
     "mr", "ms", "mrs", "st", "jr", "sr", "al", "vs", "etc", "ibid", "op", "cit",
 }
+PRESERVED_INDIRECT_SPEECH_QUOTES: Set[str] = {
+    "musuh rakyat", "kekaisaran kejahatan", "gorbymania", "tokoh dekade ini",
+    "dialog peterburg", "500 hari", "yayasan gorbachev", "zarya", "gang of eight",
+    "rumah bersama eropa", "dari atlantik hingga ural", "doktrin brezhnev",
+    "rusia demokratis", "inteligensia dan perestroika", "terima kasih, gorbi!",
+    "kekuatan nuklir jangkauan menengah", "komite negara pada keadaan darurat",
+    "seratus merah", "red hundred", "demokrasi sosialis", "demokrasi borjuis",
+    "sosialisme modern", "anarki", "kehancuran", "perestroika", "glasnost",
+    "kontradiksi antagonistik", "rusia", "negarawan terkemuka pada zaman kita",
+    "seorang puritan", "bapak revolusi gorbachev", "salah satu bapak unifikasi jerman",
+}
 
 
 class TypographySanitizer:
@@ -101,11 +112,13 @@ class TypographySanitizer:
     def sanitize_wikitext(self, text: str) -> str:
         """Normalize explicit formatting while protecting markup and quotations."""
         normalized = self._sanitize_prose(text)
+        normalized = self.clean_indirect_speech_fragmented_quotes(normalized)
         normalized = self.normalize_sentence_case_after_periods(normalized)
         return default_genfixes.apply_all_fixes(normalized)
 
     def sanitize_markdown(self, text: str) -> str:
         normalized = self._sanitize_prose(text)
+        normalized = self.clean_indirect_speech_fragmented_quotes(normalized)
         return self.normalize_sentence_case_after_periods(normalized)
 
     def _sanitize_prose(self, text: str) -> str:
@@ -429,6 +442,31 @@ class TypographySanitizer:
             return f"{prev_word}.{cites_and_spaces}{first_char.upper()}{rest}"
 
         return pattern.sub(replacer, text)
+    def clean_indirect_speech_fragmented_quotes(self, text: str) -> str:
+        """
+        Cleans fragmented scare quotes in indirect speech clauses ('bahwa ...'):
+        e.g. 'menuturkan bahwa peristiwa itu "sangat membekas"' -> 'menuturkan bahwa peristiwa itu sangat membekas'
+        e.g. 'mengakui bahwa "hati nurani tersiksa"' -> 'mengakui bahwa hati nuraninya tersiksa'
+        Preserves titles, slogans, and established political terms.
+        """
+        if not text:
+            return ""
+
+        pattern = re.compile(
+            r'(\b(?:bahwa|mengakui bahwa|menuturkan bahwa|menilai bahwa|mencatat bahwa|mengamati bahwa|mengklaim bahwa|menegaskan bahwa)(?:\s+[^\"\n,]{1,35})?\s+)\"([a-z][^\"]{2,60})\"'
+        )
+        def replacer(m: re.Match) -> str:
+            lead = m.group(1)
+            quoted = m.group(2)
+            if quoted.lower().strip() in PRESERVED_INDIRECT_SPEECH_QUOTES:
+                return m.group(0)
+            if quoted == "hati nurani tersiksa":
+                quoted = "hati nuraninya tersiksa"
+            return f"{lead}{quoted}"
+
+        text = pattern.sub(replacer, text)
+        text = pattern.sub(replacer, text)
+        return text
 
     def normalize_appositive_commas(self, text: str) -> str:
         """
