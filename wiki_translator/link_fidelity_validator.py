@@ -253,26 +253,43 @@ class LinkFidelityValidator:
                 req = urllib.request.Request(url, headers={"User-Agent": self.user_agent})
                 with urllib.request.urlopen(req, timeout=15) as resp:
                     data = json.loads(resp.read().decode("utf-8"))
-                    pages = data.get("query", {}).get("pages", {})
-                    # Build map from returned page title and normalized titles
-                    normalized_map = {}
-                    for norm in data.get("query", {}).get("normalized", []):
-                        normalized_map[norm["to"]] = norm["from"]
+                    query_data = data.get("query", {})
+                    pages = query_data.get("pages", {})
+                    normalized = query_data.get("normalized", [])
+                    redirects = query_data.get("redirects", [])
 
-                    # Track found titles
-                    found_titles: Set[str] = set()
+                    alias_to_target = {}
+                    for norm in normalized:
+                        alias_to_target[norm["from"]] = norm["to"]
+                    for red in redirects:
+                        alias_to_target[red["from"]] = red["to"]
+
+                    from collections import defaultdict
+                    target_to_sources = defaultdict(set)
+                    for t in chunk:
+                        curr = t
+                        visited = {curr}
+                        while curr in alias_to_target:
+                            curr = alias_to_target[curr]
+                            if curr in visited:
+                                break
+                            visited.add(curr)
+                        target_to_sources[curr].add(t)
+
                     for pid, pdata in pages.items():
-                        title = pdata.get("title", "")
-                        orig_title = normalized_map.get(title, title)
+                        page_title = pdata.get("title", "")
                         is_exist = "missing" not in pdata
-                        results[orig_title] = is_exist
-                        self._existence_cache[orig_title] = is_exist
-                        self._existence_cache[title] = is_exist
+                        sources = target_to_sources.get(page_title, set())
+                        sources.add(page_title)
+                        for s in sources:
+                            results[s] = is_exist
+                            self._existence_cache[s] = is_exist
             except Exception:
-                for t in chunk:
-                    if t not in results:
-                        results[t] = False
-                        self._existence_cache[t] = False
+                pass
+            for t in chunk:
+                if t not in results:
+                    results[t] = False
+                    self._existence_cache[t] = False
 
         return results
 

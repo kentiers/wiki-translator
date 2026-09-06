@@ -1478,23 +1478,57 @@ class HTMLPreviewGenerator:
             return f'<a href="{target}" class="external" target="_blank" rel="noopener">Wikisumber</a> memiliki naskah asli berbahasa {lang} mengenai <em>{html.escape(clean_title or title)}</em>.'
         text = re.sub(r"\{\{\s*wikisourcelang-inline\s*\|([^}]+)\}\}", wikisource_sub, text, flags=re.IGNORECASE)
         # Format {{ill|Title|lang|Orig...}} or {{interlanguage link|Title|lang|Orig...}}
+        # Format {{lahirmati|Tempat Lahir|H1|B1|T1|Tempat Wafat|H2|B2|T2}}
+        MONTH_NAMES = {
+            "1": "Januari", "2": "Februari", "3": "Maret", "4": "April",
+            "5": "Mei", "6": "Juni", "7": "Juli", "8": "Agustus",
+            "9": "September", "10": "Oktober", "11": "November", "12": "Desember",
+            "01": "Januari", "02": "Februari", "03": "Maret", "04": "April",
+            "05": "Mei", "06": "Juni", "07": "Juli", "08": "Agustus",
+            "09": "September",
+        }
+        def lahirmati_sub(m: re.Match) -> str:
+            parts = [p.strip() for p in m.group(1).split("|")]
+            b_day = parts[1] if len(parts) > 1 else ""
+            b_month = MONTH_NAMES.get(parts[2], parts[2]) if len(parts) > 2 else ""
+            b_year = parts[3] if len(parts) > 3 else ""
+            birth_str = f"{b_day} {b_month} {b_year}".strip()
+
+            d_day = parts[5] if len(parts) > 5 else ""
+            d_month = MONTH_NAMES.get(parts[6], parts[6]) if len(parts) > 6 else ""
+            d_year = parts[7] if len(parts) > 7 else ""
+            death_str = f"{d_day} {d_month} {d_year}".strip()
+
+            if birth_str and death_str:
+                return f"{birth_str} – {death_str}"
+            elif birth_str:
+                return f"lahir {birth_str}"
+            elif death_str:
+                return f"wafat {death_str}"
+            return ""
+        text = re.sub(r"\{\{\s*lahirmati\s*\|([^}]+)\}\}", lahirmati_sub, text, flags=re.IGNORECASE)
+
+        # Format {{ill|Title|lang|Orig...}} or {{interlanguage link|Title|lang|Orig...}}
         def ill_sub(m: re.Match) -> str:
             inner = m.group(1).strip()
             parts = [p.strip() for p in inner.split("|")]
             if parts:
                 title = parts[0]
                 lang = parts[1] if len(parts) > 1 and len(parts[1]) <= 3 and "=" not in parts[1] else ""
+                foreign_target = parts[2] if len(parts) > 2 and "=" not in parts[2] else title
                 for p in parts[1:]:
                     if p.lower().startswith("lt="):
                         title = p.split("=", 1)[1].strip()
                         break
                 slug = re.sub(r"[^\w\s-]", "", title).strip().replace(" ", "_")
-                badge = (
-                    f' <span class="interlanguage-link-badge" style="color:#72777d; font-size:85%;">({lang})</span>'
-                    if lang
-                    else ""
-                )
-                return f'<a href="https://id.wikipedia.org/wiki/{slug}" class="new" title="{html.escape(title)}">{html.escape(title)}</a>{badge}'
+
+                if lang:
+                    safe_foreign = urllib.parse.quote(foreign_target.replace(" ", "_"))
+                    foreign_url = f"https://{lang}.wikipedia.org/wiki/{safe_foreign}"
+                    badge = f' <a href="{foreign_url}" class="interlanguage-link-badge ext-iw" target="_blank" rel="noopener" title="Lihat artikel \'{html.escape(foreign_target)}\' di Wikipedia bahasa {lang}">({lang})</a>'
+                else:
+                    badge = ""
+                return f'<a href="https://id.wikipedia.org/wiki/{slug}" class="new" title="{html.escape(title)} (halaman belum dibuat)">{html.escape(title)}</a>{badge}'
             return ""
 
         text = re.sub(

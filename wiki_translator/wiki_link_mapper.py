@@ -449,27 +449,46 @@ class WikiLinkMapper:
         def normalize_title(value: str) -> str:
             return value.replace("_", " ").strip().casefold()
 
+        from collections import defaultdict
+
         for i in range(0, len(titles), batch_size):
             batch = titles[i : i + batch_size]
-            batch_lookup: Dict[str, List[str]] = {}
-            for candidate in batch:
-                batch_lookup.setdefault(normalize_title(candidate), []).append(candidate)
             params = {
                 "action": "query",
                 "titles": "|".join(batch),
+                "redirects": "1",
                 "formatversion": "2",
                 "format": "json",
             }
             data = self._api_get(endpoint, params)
-            pages = data.get("query", {}).get("pages", [])
+            query_data = data.get("query", {})
+            pages = query_data.get("pages", [])
+            redirects = query_data.get("redirects", [])
+            normalized = query_data.get("normalized", [])
+
+            alias_to_target = {}
+            for norm in normalized:
+                alias_to_target[normalize_title(norm["from"])] = normalize_title(norm["to"])
+            for red in redirects:
+                alias_to_target[normalize_title(red["from"])] = normalize_title(red["to"])
+
+            target_to_batch = defaultdict(set)
+            for candidate in batch:
+                curr = normalize_title(candidate)
+                visited = {curr}
+                while curr in alias_to_target:
+                    curr = alias_to_target[curr]
+                    if curr in visited:
+                        break
+                    visited.add(curr)
+                target_to_batch[curr].add(candidate)
+
             for p in pages:
                 title = p.get("title", "")
                 is_missing = p.get("missing", False)
-                # If page is not missing and has pageid > 0, it exists
                 exists = not is_missing and p.get("pageid", 0) > 0
-                # Match API titles in O(n) using MediaWiki's underscore/space semantics.
-                normalized = normalize_title(title)
-                for original in batch_lookup.get(normalized, []):
+                norm_title = normalize_title(title)
+                for original in target_to_batch.get(norm_title, []):
                     results[original] = exists
         return results
     def check_id_disambiguation(self, titles: List[str]) -> Dict[str, Tuple[bool, List[str]]]:
