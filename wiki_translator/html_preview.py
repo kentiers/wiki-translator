@@ -288,6 +288,53 @@ table.wikitable tr:hover {
     text-decoration: underline;
 }
 
+/* Quote box (Vector 2022 Callout Card) */
+.quotebox {
+    background-color: #f8f9fa;
+    border: 1px solid #eaecf0;
+    border-left: 4px solid #36c;
+    border-radius: 4px;
+    padding: 12px 18px;
+    margin: 0.8em 0 1em 1.4em;
+    font-size: 14px;
+    line-height: 1.6;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    max-width: 100%;
+}
+.quotebox.q-right {
+    float: right;
+    clear: right;
+    width: 320px;
+}
+.quotebox.q-left {
+    float: left;
+    clear: left;
+    width: 320px;
+    margin: 0.8em 1.4em 1em 0;
+}
+.quotebox.q-center {
+    margin: 1.2em auto;
+    max-width: 650px;
+}
+.quotebox-title {
+    font-weight: bold;
+    color: #202122;
+    font-size: 14px;
+    margin-bottom: 6px;
+}
+.quotebox-quote {
+    font-family: var(--font-family-serif);
+    font-style: italic;
+    color: #202122;
+    font-size: 14.5px;
+}
+.quotebox-source {
+    margin-top: 8px;
+    text-align: right;
+    font-size: 12.5px;
+    color: #54595d;
+    font-style: normal;
+}
 /* Sister project box */
 .sister-project-box {
     float: right;
@@ -617,6 +664,8 @@ class HTMLPreviewGenerator:
 
         # 2.5 Extract and format Wikitext tables / notice boxes: {| ... |}
         text = self._extract_and_format_tables(text)
+        # 2.6 Format Quote box templates: {{Quote box ...}}
+        text = self._format_quote_boxes(text)
         # 2.8 Format Multiple image templates: {{Multiple image ...}}
         text = self._format_multiple_images(text)
         # 2.9 Format Single File / Berkas image links: [[File:...]] or [[Berkas:...]]
@@ -1195,6 +1244,116 @@ class HTMLPreviewGenerator:
             return f'<table class="{cls_str}">\n{caption_html}' + "".join(rows_html) + "</table>\n"
 
         return table_pattern.sub(table_replacer, text)
+    def _format_quote_boxes(self, wikitext: str) -> str:
+        """Extracts and formats {{Quote box}} and {{Kotak kutipan}} into styled Vector callout cards."""
+        qb_re = re.compile(r"\{\{\s*(?:Quote[ _]box|Kotak[ _]kutipan)\b", re.IGNORECASE)
+        pos = 0
+        out = []
+        while pos < len(wikitext):
+            m = qb_re.search(wikitext, pos)
+            if not m:
+                out.append(wikitext[pos:])
+                break
+            start_pos = m.start()
+            out.append(wikitext[pos:start_pos])
+
+            # Balanced brace matching
+            i = start_pos
+            depth = 0
+            end_pos = -1
+            while i < len(wikitext):
+                if wikitext[i : i + 2] == "{{":
+                    depth += 1
+                    i += 2
+                elif wikitext[i : i + 2] == "}}":
+                    depth -= 1
+                    if depth == 0:
+                        end_pos = i + 2
+                        break
+                    i += 2
+                else:
+                    i += 1
+
+            if end_pos == -1:
+                out.append(wikitext[start_pos : m.end()])
+                pos = m.end()
+                continue
+
+            raw_box = wikitext[start_pos:end_pos]
+            inner = raw_box.strip()[2:-2].strip()
+
+            # Parse parameters with top-level pipe tracking
+            parts = []
+            cur = []
+            d_brace = 0
+            d_bracket = 0
+            pj = 0
+            while pj < len(inner):
+                if inner[pj : pj + 2] == "{{":
+                    d_brace += 1
+                    cur.append(inner[pj : pj + 2])
+                    pj += 2
+                elif inner[pj : pj + 2] == "}}":
+                    d_brace = max(0, d_brace - 1)
+                    cur.append(inner[pj : pj + 2])
+                    pj += 2
+                elif inner[pj : pj + 2] == "[[":
+                    d_bracket += 1
+                    cur.append(inner[pj : pj + 2])
+                    pj += 2
+                elif inner[pj : pj + 2] == "]]":
+                    d_bracket = max(0, d_bracket - 1)
+                    cur.append(inner[pj : pj + 2])
+                    pj += 2
+                elif inner[pj] == "|" and d_brace == 0 and d_bracket == 0:
+                    parts.append("".join(cur).strip())
+                    cur = []
+                    pj += 1
+                else:
+                    cur.append(inner[pj])
+                    pj += 1
+            if cur:
+                parts.append("".join(cur).strip())
+
+            params = {}
+            unnamed = []
+            for p in parts[1:]:
+                if "=" in p:
+                    k, v = p.split("=", 1)
+                    params[k.strip().lower()] = v.strip()
+                else:
+                    unnamed.append(p.strip())
+
+            quote_text = params.get("quote", params.get("kutipan", unnamed[0] if unnamed else ""))
+            source_text = params.get("source", params.get("sumber", ""))
+            title_text = params.get("title", params.get("judul", ""))
+            align = params.get("align", params.get("perataan", "right")).lower()
+
+            def clean_markup(val: str) -> str:
+                val = re.sub(r"\[\[([^|\]]+)\|([^\]]+)\]\]", r'<a href="https://id.wikipedia.org/wiki/\1">\2</a>', val)
+                val = re.sub(r"\[\[([^\]]+)\]\]", r'<a href="https://id.wikipedia.org/wiki/\1">\1</a>', val)
+                val = re.sub(r"'''''(.*?)'''''", r"<strong><em>\1</em></strong>", val)
+                val = re.sub(r"'''(.*?)'''", r"<strong>\1</strong>", val)
+                val = re.sub(r"''(.*?)''", r"<em>\1</em>", val)
+                return val.strip()
+
+            quote_html = clean_markup(quote_text)
+            source_html = clean_markup(source_text)
+            title_html = f'<div class="quotebox-title">{clean_markup(title_text)}</div>' if title_text else ""
+            source_div = f'<div class="quotebox-source">{source_html}</div>' if source_html else ""
+            align_cls = f"q-{align}" if align in ("right", "left", "center") else "q-right"
+
+            box_card = (
+                f'<div class="quotebox {align_cls}">\n'
+                f"{title_html}"
+                f'<div class="quotebox-quote">“{quote_html}”</div>\n'
+                f"{source_div}"
+                f"</div>\n"
+            )
+            out.append(box_card)
+            pos = end_pos
+
+        return "".join(out)
     def _clean_ref_content(self, content: str) -> str:
         """Processes reference content, formatting citation templates or preserving plain text."""
         trimmed = content.strip()

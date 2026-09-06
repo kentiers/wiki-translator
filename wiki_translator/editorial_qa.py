@@ -527,6 +527,22 @@ class EditorialQAPipeline:
                 score -= 5
             uncommented_categories.append(cat_clean)
 
+        # 6. Quote Box & Pull Quote Integrity Check
+        quote_boxes = list(re.finditer(r"\{\{\s*(?:Quote[ _]box|Kotak[ _]kutipan)\b", wikitext, re.IGNORECASE))
+        for qb in quote_boxes:
+            qb_snippet = wikitext[qb.start() : qb.start() + 800]
+            has_quote = bool(
+                re.search(r"\|\s*(?:quote|kutipan)\s*=\s*\S+", qb_snippet, re.IGNORECASE)
+                or re.search(r"\{\{\s*(?:Quote[ _]box|Kotak[ _]kutipan)\s*\|\s*[^|=]+[|=]", qb_snippet, re.IGNORECASE)
+            )
+            if not has_quote:
+                warnings.append("Ditemukan template {{Quote box}} tanpa parameter kutipan yang jelas.")
+                score -= 5
+            has_source = bool(re.search(r"\|\s*(?:source|sumber)\s*=\s*\S+", qb_snippet, re.IGNORECASE))
+            if not has_source:
+                warnings.append("Template {{Quote box}} tidak menyertakan parameter sumber (|source=).")
+                score -= 3
+
         score = max(0, min(100, score))
         return WikiTechnicianAuditResult(
             has_broken_shortdesc=has_broken_shortdesc,
