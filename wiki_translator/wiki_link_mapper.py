@@ -1502,6 +1502,8 @@ class WikiLinkMapper:
                 # Step 5: Safeguard remaining naked redlinks with {{ill}} when source is provided
                 if use_ill_templates and source_wikitext is not None:
                     text, _, _ = self.fidelity_validator.safeguard_redlinks_with_ill(text, source_wikitext=source_wikitext)
+                # Step 6: Enrich {{ill}} templates with native language sitelinks (e.g. ru, ja, de)
+                text, _ = self.fidelity_validator.enrich_ill_with_native_lang(text)
             return text
         finally:
             self.use_ill_templates = orig_ill

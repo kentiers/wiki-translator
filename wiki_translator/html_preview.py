@@ -1789,26 +1789,35 @@ class HTMLPreviewGenerator:
         text = re.sub(r"\{\{\s*lahirmati\s*\|([^}]+)\}\}", lahirmati_sub, text, flags=re.IGNORECASE)
 
         # Format {{ill|Title|lang|Orig...}} or {{interlanguage link|Title|lang|Orig...}}
+        # Format {{ill|Title|lang1|Orig1|lang2|Orig2...}} or {{interlanguage link|...}}
         def ill_sub(m: re.Match) -> str:
             inner = m.group(1).strip()
             parts = [p.strip() for p in inner.split("|")]
             if parts:
                 title = parts[0]
-                lang = parts[1] if len(parts) > 1 and len(parts[1]) <= 3 and "=" not in parts[1] else ""
-                foreign_target = parts[2] if len(parts) > 2 and "=" not in parts[2] else title
-                for p in parts[1:]:
+                badges = []
+                idx = 1
+                while idx < len(parts):
+                    p = parts[idx]
                     if p.lower().startswith("lt="):
                         title = p.split("=", 1)[1].strip()
-                        break
-                slug = re.sub(r"[^\w\s-]", "", title).strip().replace(" ", "_")
+                        idx += 1
+                        continue
+                    if len(p) <= 3 and "=" not in p and idx + 1 < len(parts) and "=" not in parts[idx + 1]:
+                        lang = p.lower()
+                        foreign_target = parts[idx + 1]
+                        safe_foreign = urllib.parse.quote(foreign_target.replace(" ", "_"))
+                        foreign_url = f"https://{lang}.wikipedia.org/wiki/{safe_foreign}"
+                        badges.append(
+                            f' <a href="{foreign_url}" class="interlanguage-link-badge ext-iw" target="_blank" rel="noopener" title="Lihat artikel \'{html.escape(foreign_target)}\' di Wikipedia bahasa {lang}">({lang})</a>'
+                        )
+                        idx += 2
+                    else:
+                        idx += 1
 
-                if lang:
-                    safe_foreign = urllib.parse.quote(foreign_target.replace(" ", "_"))
-                    foreign_url = f"https://{lang}.wikipedia.org/wiki/{safe_foreign}"
-                    badge = f' <a href="{foreign_url}" class="interlanguage-link-badge ext-iw" target="_blank" rel="noopener" title="Lihat artikel \'{html.escape(foreign_target)}\' di Wikipedia bahasa {lang}">({lang})</a>'
-                else:
-                    badge = ""
-                return f'<a href="https://id.wikipedia.org/wiki/{slug}" class="new" title="{html.escape(title)} (halaman belum dibuat)">{html.escape(title)}</a>{badge}'
+                slug = re.sub(r"[^\w\s-]", "", title).strip().replace(" ", "_")
+                badges_str = "".join(badges)
+                return f'<a href="https://id.wikipedia.org/wiki/{slug}" class="new" title="{html.escape(title)} (halaman belum dibuat)">{html.escape(title)}</a>{badges_str}'
             return ""
 
         text = re.sub(
