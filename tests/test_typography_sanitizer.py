@@ -210,6 +210,25 @@ class TestTypographySanitizerPillars(unittest.TestCase):
         self.assertIn("sebelum titik.", res2)
         self.assertNotIn(",,", res2)
         self.assertNotIn(",.", res2)
+
+    def test_sentence_case_after_periods(self):
+        # Sentence capitalization across citation templates
+        text1 = "Gorbachev lulus dengan predikat memuaskan. {{sfnm|1a1=Medvedev|1y=1986|1p=42|2a1=McCauley|2y=1998|2p=20}} tugas akhirnya mengkaji keunggulan."
+        res1 = self.sanitizer.normalize_sentence_case_after_periods(text1)
+        self.assertIn("Tugas akhirnya mengkaji", res1)
+        self.assertNotIn("tugas akhirnya", res1)
+
+        # Sentence capitalization across ref tags
+        text2 = "Peristiwa ini resmi berakhir.<ref>Sumber</ref> sebulan kemudian mereka pindah."
+        res2 = self.sanitizer.normalize_sentence_case_after_periods(text2)
+        self.assertIn("Sebulan kemudian", res2)
+        self.assertNotIn("sebulan kemudian", res2)
+
+        # Preserves abbreviations (hlm., dkk.)
+        text3 = "Buku ini dicetak pada hlm. 45-50 dan dkk. mereka menyetujui."
+        res3 = self.sanitizer.normalize_sentence_case_after_periods(text3)
+        self.assertIn("hlm. 45", res3)
+        self.assertIn("dkk. mereka", res3)
     def test_quotation_punctuation_order(self):
         # EYD V: punctuation outside quotes
         text1 = 'Ia membintangi film "The Runner," yang diproduksi oleh Amazon.'

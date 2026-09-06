@@ -86,6 +86,10 @@ KNOWN_PROPER_NOUNS: Set[str] = {
     "vietnam", "korea", "libya", "suriah", "afganistan", "reagan", "thatcher", "yeltsin",
     "trudeau", "kursk", "pkus", "duma", "balkon", "chernobyl", "nato", "pbb",
 }
+COMMON_SENTENCE_ABBREVIATIONS: Set[str] = {
+    "hlm", "hal", "dkk", "dll", "dsb", "ca", "vol", "no", "dr", "prof",
+    "mr", "ms", "mrs", "st", "jr", "sr", "al", "vs", "etc", "ibid", "op", "cit",
+}
 
 
 class TypographySanitizer:
@@ -97,10 +101,12 @@ class TypographySanitizer:
     def sanitize_wikitext(self, text: str) -> str:
         """Normalize explicit formatting while protecting markup and quotations."""
         normalized = self._sanitize_prose(text)
+        normalized = self.normalize_sentence_case_after_periods(normalized)
         return default_genfixes.apply_all_fixes(normalized)
 
     def sanitize_markdown(self, text: str) -> str:
-        return self._sanitize_prose(text)
+        normalized = self._sanitize_prose(text)
+        return self.normalize_sentence_case_after_periods(normalized)
 
     def _sanitize_prose(self, text: str) -> str:
         if not text:
@@ -387,6 +393,41 @@ class TypographySanitizer:
         text = re.sub(r"\bdemi\s+untuk\b", "demi", text, flags=re.IGNORECASE)
         text = re.sub(r"\bbanyak\s+para\b", "para", text, flags=re.IGNORECASE)
         return text
+    def normalize_sentence_case_after_periods(self, text: str) -> str:
+        """
+        Capitalizes the first letter of a sentence following a period and optional citation templates / refs.
+        E.g.:
+        - 'memuaskan. {{sfnm|...}} tugas akhirnya' -> 'memuaskan. {{sfnm|...}} Tugas akhirnya'
+        - 'Sokolniki. {{sfnm|...}} sebulan berselang' -> 'Sokolniki. {{sfnm|...}} Sebulan berselang'
+        """
+        if not text:
+            return ""
+
+        citation_templates = r"(?:sfn|sfnm|sfnmp|r|rp|refn|sn|sfnp|cite[ _][a-z]+|citation)"
+        cite_or_space_pattern = (
+            r"(?:\s*<ref[^>]*>.*?</ref>|\s*<ref[^>]*/>|\s*\{\{\s*"
+            + citation_templates
+            + r"\b[^{}]*\}\}|\s+)+"
+        )
+        pattern = re.compile(
+            r"\b([A-Za-z0-9_-]+)\.(" + cite_or_space_pattern + r")([a-z])([a-zA-Z0-9_-]*)",
+            re.DOTALL | re.IGNORECASE,
+        )
+
+        def replacer(m: re.Match) -> str:
+            prev_word = m.group(1)
+            if prev_word.lower() in COMMON_SENTENCE_ABBREVIATIONS or len(prev_word) == 1 or prev_word.isdigit():
+                return m.group(0)
+            start_idx = max(0, m.start() - 10)
+            preceding = text[start_idx:m.start()]
+            if "http" in preceding or "www" in preceding:
+                return m.group(0)
+            cites_and_spaces = m.group(2)
+            first_char = m.group(3)
+            rest = m.group(4)
+            return f"{prev_word}.{cites_and_spaces}{first_char.upper()}{rest}"
+
+        return pattern.sub(replacer, text)
 
     def normalize_appositive_commas(self, text: str) -> str:
         """
