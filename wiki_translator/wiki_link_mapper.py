@@ -451,8 +451,27 @@ class WikiLinkMapper:
 
         from collections import defaultdict
 
-        for i in range(0, len(titles), batch_size):
-            batch = titles[i : i + batch_size]
+        to_fetch: List[str] = []
+        try:
+            conn = self._get_cache_conn()
+            cur = conn.cursor()
+            for t in titles:
+                key = normalize_title(t)
+                cur.execute("SELECT exists_on_id FROM page_link_cache WHERE en_title_lower = ?", (key,))
+                row = cur.fetchone()
+                if row is not None:
+                    results[t] = bool(row[0])
+                else:
+                    to_fetch.append(t)
+            conn.close()
+        except Exception:
+            to_fetch = list(titles)
+
+        if not to_fetch:
+            return results
+
+        for i in range(0, len(to_fetch), batch_size):
+            batch = to_fetch[i : i + batch_size]
             params = {
                 "action": "query",
                 "titles": "|".join(batch),
@@ -490,6 +509,26 @@ class WikiLinkMapper:
                 norm_title = normalize_title(title)
                 for original in target_to_batch.get(norm_title, []):
                     results[original] = exists
+
+        # Persist newly fetched results to SQLite cache
+        try:
+            conn = self._get_cache_conn()
+            with conn:
+                for t in to_fetch:
+                    if t in results:
+                        key = normalize_title(t)
+                        conn.execute(
+                            """
+                            INSERT OR REPLACE INTO page_link_cache 
+                            (en_title_lower, en_title_original, id_title, exists_on_id, source, created_at, is_disambiguation, disambiguation_target)
+                            VALUES (?, ?, ?, ?, ?, ?, 0, NULL)
+                            """,
+                            (key, t, t if results[t] else None, 1 if results[t] else 0, "id_direct", time.time())
+                        )
+            conn.close()
+        except Exception:
+            pass
+
         return results
     def check_id_disambiguation(self, titles: List[str]) -> Dict[str, Tuple[bool, List[str]]]:
         """
