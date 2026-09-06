@@ -195,6 +195,21 @@ class TestTypographySanitizerPillars(unittest.TestCase):
         text2 = "Ia mengunjungi London, Paris, dan Berlin."
         res2 = self.sanitizer.normalize_coordinating_conjunction_commas(text2)
         self.assertIn("London, Paris, dan Berlin", res2)
+
+    def test_comma_clutter_normalization(self):
+        # Double 'dan' in same sentence
+        text1 = "Penulis favoritnya meliputi Arthur Miller, Dostoyevsky, dan Chinghiz Aitmatov, dan ia juga gemar membaca kisah detektif."
+        res1 = self.sanitizer.normalize_comma_clutter(text1)
+        self.assertIn("Chinghiz Aitmatov. Selain itu, ia gemar", res1)
+        self.assertNotIn("Chinghiz Aitmatov, dan ia", res1)
+
+        # Duplicate consecutive commas and commas before period
+        text2 = "Kalimat dengan koma ganda,, dan koma sebelum titik,."
+        res2 = self.sanitizer.normalize_comma_clutter(text2)
+        self.assertIn("koma ganda, dan", res2)
+        self.assertIn("sebelum titik.", res2)
+        self.assertNotIn(",,", res2)
+        self.assertNotIn(",.", res2)
     def test_quotation_punctuation_order(self):
         # EYD V: punctuation outside quotes
         text1 = 'Ia membintangi film "The Runner," yang diproduksi oleh Amazon.'

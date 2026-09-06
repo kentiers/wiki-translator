@@ -117,6 +117,7 @@ class TypographySanitizer:
         masked = self.normalize_stylistic_collocations(masked)
         masked = self.normalize_appositive_commas(masked)
         masked = self.normalize_coordinating_conjunction_commas(masked)
+        masked = self.normalize_comma_clutter(masked)
         masked = self.normalize_number_separators(masked)
         masked = self.normalize_semicolons(masked)
         return default_slop_linter._unmask_protected_zones(masked, protected)
