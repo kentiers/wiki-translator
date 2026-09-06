@@ -452,20 +452,36 @@ class WikiLinkMapper:
         from collections import defaultdict
 
         to_fetch: List[str] = []
+        conn = None
         try:
             conn = self._get_cache_conn()
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS id_wiki_pages (
+                    id_title_lower TEXT PRIMARY KEY,
+                    id_title_original TEXT NOT NULL,
+                    exists_on_id INTEGER NOT NULL,
+                    updated_at REAL NOT NULL
+                )
+                """
+            )
             cur = conn.cursor()
             for t in titles:
                 key = normalize_title(t)
-                cur.execute("SELECT exists_on_id FROM page_link_cache WHERE en_title_lower = ?", (key,))
+                cur.execute("SELECT exists_on_id FROM id_wiki_pages WHERE id_title_lower = ?", (key,))
                 row = cur.fetchone()
                 if row is not None:
                     results[t] = bool(row[0])
                 else:
                     to_fetch.append(t)
-            conn.close()
         except Exception:
             to_fetch = list(titles)
+        finally:
+            if conn:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
 
         if not to_fetch:
             return results
@@ -511,6 +527,7 @@ class WikiLinkMapper:
                     results[original] = exists
 
         # Persist newly fetched results to SQLite cache
+        conn = None
         try:
             conn = self._get_cache_conn()
             with conn:
@@ -519,15 +536,20 @@ class WikiLinkMapper:
                         key = normalize_title(t)
                         conn.execute(
                             """
-                            INSERT OR REPLACE INTO page_link_cache 
-                            (en_title_lower, en_title_original, id_title, exists_on_id, source, created_at, is_disambiguation, disambiguation_target)
-                            VALUES (?, ?, ?, ?, ?, ?, 0, NULL)
+                            INSERT OR REPLACE INTO id_wiki_pages 
+                            (id_title_lower, id_title_original, exists_on_id, updated_at)
+                            VALUES (?, ?, ?, ?)
                             """,
-                            (key, t, t if results[t] else None, 1 if results[t] else 0, "id_direct", time.time())
+                            (key, t, 1 if results[t] else 0, time.time())
                         )
-            conn.close()
         except Exception:
             pass
+        finally:
+            if conn:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
 
         return results
     def check_id_disambiguation(self, titles: List[str]) -> Dict[str, Tuple[bool, List[str]]]:
