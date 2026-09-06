@@ -948,13 +948,19 @@ class HTMLPreviewGenerator:
         """Formats [[File:...]] and [[Berkas:...]] into standard Wikimedia thumbnail containers."""
         def parse_balanced_file(s: str, start_pos: int) -> Tuple[Optional[str], int]:
             depth = 0
-            for i in range(start_pos, len(s) - 1):
+            i = start_pos
+            n = len(s)
+            while i < n - 1:
                 if s[i : i + 2] == "[[":
                     depth += 1
+                    i += 2
                 elif s[i : i + 2] == "]]":
                     depth -= 1
+                    i += 2
                     if depth == 0:
-                        return s[start_pos : i + 2], i + 2
+                        return s[start_pos : i], i
+                else:
+                    i += 1
             return None, start_pos
 
         file_re = re.compile(r"\[\[\s*(?:File|Berkas|Image|Gambar)\s*:", re.IGNORECASE)

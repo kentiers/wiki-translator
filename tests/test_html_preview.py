@@ -69,6 +69,16 @@ class TestHTMLPreviewGenerator(unittest.TestCase):
         self.assertIn('<a href="https://id.wikipedia.org/wiki/Indonesia" title="Indonesia">Indonesia</a>', html)
         self.assertIn('<a href="https://example.com" class="external" target="_blank" rel="noopener">Situs Resmi</a>', html)
 
+    def test_offline_render_nested_wikilink_in_image_caption(self):
+        # Image caption ending with nested wikilink (]]]] brackets)
+        wikitext = "[[Berkas:Canal.png|jmpl|kanan|Pembangunan [[Kanal Besar Stavropol]]]]\nTeks paragraf berikutnya."
+        html = self.generator.render_html("Uji Gambar", wikitext, try_api_parse=False)
+
+        self.assertIn('<a href="https://id.wikipedia.org/wiki/Kanal Besar Stavropol">Kanal Besar Stavropol</a>', html)
+        self.assertNotIn("</div>]</div>", html)
+        self.assertNotIn("</div>]", html)
+        self.assertNotIn("]\n<p>Teks", html)
+
     def test_offline_render_references_and_citations(self):
         wikitext = (
             "Pernyataan ilmiah penting.<ref>{{cite web|title=Kuantum Hari Ini|url=https://quantum.org}}</ref>\n"
