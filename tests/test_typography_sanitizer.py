@@ -172,6 +172,13 @@ class TestTypographySanitizerPillars(unittest.TestCase):
         self.assertIn("demi rakyat", res3)
         self.assertNotIn("demi untuk", res3)
 
+        # Month pleonasm and introductory example phrase
+        text4 = "Pada bulan Oktober 1980, misalnya, ia mendukung imbauan Moskow."
+        res4 = self.sanitizer.normalize_stylistic_collocations(text4)
+        self.assertIn("Sebagai contoh, pada Oktober 1980 ia mendukung", res4)
+        self.assertNotIn("Pada bulan Oktober", res4)
+        self.assertNotIn("1980, misalnya,", res4)
+
     def test_appositive_comma_normalization(self):
         # Appositive comma sandwich around names should be unsandwiched
         text1 = "Saat menempuh studi, ia menikahi sesama mahasiswa, Raisa Titarenko, pada tahun 1953."

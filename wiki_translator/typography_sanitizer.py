@@ -406,6 +406,9 @@ class TypographySanitizer:
         text = re.sub(r"\bagar\s+supaya\b", "agar", text, flags=re.IGNORECASE)
         text = re.sub(r"\bdemi\s+untuk\b", "demi", text, flags=re.IGNORECASE)
         text = re.sub(r"\bbanyak\s+para\b", "para", text, flags=re.IGNORECASE)
+        MONTHS = r"(?:Januari|Februari|Maret|April|Mei|Juni|Juli|Agustus|September|Oktober|November|Desember)"
+        text = re.sub(rf"\b(pada|sejak|hingga|sampai|menjelang|selama)\s+bulan\s+({MONTHS})\b", r"\1 \2", text, flags=re.IGNORECASE)
+        text = re.sub(r"\bPada\s+([^,\n]{3,35}),\s+misalnya,\s+([a-z0-9A-Z\[])", r"Sebagai contoh, pada \1 \2", text)
         return text
     def normalize_sentence_case_after_periods(self, text: str) -> str:
         """
