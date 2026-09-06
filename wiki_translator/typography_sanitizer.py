@@ -501,7 +501,7 @@ class TypographySanitizer:
         """
         ATTRIB_NOUNS = r"(?:[Aa]yah|[Ii]bu|[Ss]audara|[Ss]audari|[Aa]dik|[Kk]akak|[Aa]nak|[Pp]utra|[Pp]utri|[Ss]uami|[Ii]stri|[Ss]ahabat|[Tt]eman|[Rr]ekan|[Kk]olega|[Pp]enulis|[Aa]rsitek|[Rr]ektor|[Mm]enteri|[Pp]residen|[Rr]aja|[Kk]aisar|[Dd]uta [Bb]esar|sesama mahasiswa)(?:nya)?"
         pattern = re.compile(
-            rf"\b({ATTRIB_NOUNS}(?:\s+\w+){{0,3}}),\s+((?:\[\[(?:[^|\]]+\|)?([^\]]+)\]\]|[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)(?:\s+\([^)]+\))*),\s+(\w+)\b"
+            rf"\b({ATTRIB_NOUNS}(?:\s+\w+){{0,7}}),\s+((?:\[\[(?:[^|\]]+\|)?([^\]]+)\]\]|[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)(?:\s+\([^)]+\))*),\s+(\w+)\b"
         )
         def clean_appositive(m: re.Match) -> str:
             desc = m.group(1)

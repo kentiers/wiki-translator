@@ -191,6 +191,12 @@ class TestTypographySanitizerPillars(unittest.TestCase):
         self.assertIn("Putrinya Irina menikah", res2)
         self.assertIn("sesama mahasiswa Anatoly Virgansky pada", res2)
 
+        # Long diplomatic title with temporal modifier
+        text3 = "percakapan dengan Menteri Luar Negeri Amerika Serikat saat itu, James Baker, ia menyatakan bahwa"
+        res3 = self.sanitizer.normalize_appositive_commas(text3)
+        self.assertIn("Menteri Luar Negeri Amerika Serikat saat itu James Baker ia menyatakan", res3)
+        self.assertNotIn("saat itu, James Baker,", res3)
+
     def test_coordinating_conjunction_comma_normalization(self):
         # Two parallel verbal predicates sharing same subject: no comma before dan/serta
         text1 = "Gorbachev belajar giat, dan lulus dengan predikat memuaskan."
