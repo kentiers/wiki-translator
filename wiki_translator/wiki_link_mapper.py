@@ -175,10 +175,13 @@ def sanitize_ill_foreign_targets(wikitext: str) -> str:
             en_target = "Mixed-sex education"
         elif en_target.lower() in ("tanah dan kebebasan", "tanah dan kebebasan (rusia)"):
             en_target = "Land and Liberty (Russia)"
-        elif en_target.lower() == target_id.lower() and re.search(r"\b(?:perhimpunan|kongres|sekolah|gerakan|partai|kementerian)\b", en_target, re.IGNORECASE):
+        elif en_target.lower() == target_id.lower() and re.search(
+            r"\b(?:perhimpunan|kongres|sekolah|gerakan|partai|kementerian|kudeta|ktt|dewan|sejarah|kematian|peran|krisis|pemberontakan|kanal|bintang|tempat|pemakaman|referendum|pemilihan|pemilu|ordo|orde|rumah sakit|universitas|institut)\b",
+            en_target,
+            re.IGNORECASE,
+        ):
             # If target_id and foreign en target are identical Indonesian phrases that don't exist on en.wiki
             return f"[[{target_id}]]"
-
         for pat, replacement in ILL_EN_DISAMBIGUATION_RULES:
             en_target = pat.sub(replacement, en_target)
 
@@ -1259,7 +1262,7 @@ class WikiLinkMapper:
         # Exclude File, Image, Berkas, Gambar, Category, Kategori
         excluded_namespaces = (
             "category:", "kategori:", "file:", "image:", "berkas:", "gambar:",
-            "template:", "templat:", "help:", "bantuan:", "wikipedia:",
+            "template:", "templat:", "help:", "bantuan:", "wikipedia:", "wp:",
         )
 
         link_pattern = re.compile(r"\[\[\s*([^\|\]]+?)\s*(?:\|\s*([^\]]+?)\s*)?\]\]")
@@ -1486,9 +1489,12 @@ class WikiLinkMapper:
         try:
             # Step 1: Map categories
             text = self.map_categories(wikitext)
-            # Step 2: Map wikilinks
+            # Step 2: Map wikilinks (defer ill generation to Step 5 when source_wikitext is provided)
+            if source_wikitext is not None:
+                self.use_ill_templates = False
             text = self.map_wikilinks(text, resolve_disambiguation=resolve_disambiguation)
-            # Step 3: Sanitize {{ill}} foreign targets
+            if source_wikitext is not None:
+                self.use_ill_templates = use_ill_templates
             text = sanitize_ill_foreign_targets(text)
             # Step 4: Validate link fidelity & convert existing links
             if hasattr(self, "fidelity_validator") and self.fidelity_validator:

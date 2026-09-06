@@ -87,6 +87,22 @@ class TestLinkFidelityValidator(unittest.TestCase):
         self.assertEqual(lang, "en")
         self.assertEqual(foreign_target, "Products and applications of OpenAI")
         self.assertEqual(label, "Produk")
+    def test_safeguard_redlinks_dynamic_source_matching_no_indonesian_leak(self):
+        """Ensures en targets are dynamically extracted from source and never leak Indonesian strings."""
+        draft = "Pada 1986, ia bertemu di [[KTT Reykjavík]]. Ada juga [[istilah lokal]]."
+        source = "In 1986, they met at the [[Reykjavík Summit]]."
+
+        # Mock check_existence_batch: both are redlinks
+        self.validator.check_existence_batch = lambda titles: {t: False for t in titles}
+        self.validator.resolve_cross_wiki_sitelinks = lambda target, native_lang=None: {"en": target}
+
+        updated, count, _ = self.validator.safeguard_redlinks_with_ill(draft, source_wikitext=source)
+
+        # Matched redlink gets exact English target from source
+        self.assertIn("{{ill|KTT Reykjavík|en|Reykjavík Summit}}", updated)
+        # Unmatched redlink is kept as clean local redlink, NEVER leaking {{ill|istilah lokal|en|istilah lokal}}
+        self.assertIn("[[istilah lokal]]", updated)
+        self.assertNotIn("{{ill|istilah lokal", updated)
 
 
 if __name__ == "__main__":

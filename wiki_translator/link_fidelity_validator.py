@@ -644,24 +644,28 @@ class LinkFidelityValidator:
                     if st.lower() == target.lower():
                         en_target = st
                         break
-                # 2. Token overlap
+                # 2. Dynamic token and proper-noun overlap scoring
                 if not en_target:
-                    t_tokens = {w.lower() for w in re.findall(r"\w+", target) if len(w) > 3}
+                    t_tokens = {w.lower() for w in re.findall(r"\w+", target) if len(w) > 2 and not w.isdigit()}
+                    best_score = 0
+                    best_st = None
                     for st, sl in source_links:
-                        st_tokens = {w.lower() for w in re.findall(r"\w+", st) if len(w) > 3}
-                        if t_tokens and st_tokens and (t_tokens.issubset(st_tokens) or st_tokens.issubset(t_tokens)):
-                            en_target = st
-                            break
-                # 3. Known historical alignments
-                if not en_target:
-                    ALIGNMENTS = {
-                        "pameran kolumbus dunia": "World's Columbian Exposition",
-                        "dmitry tolstoy": "Dmitry Tolstoy",
-                        "rochelle ruthchild": "Rochelle Ruthchild",
-                        "richard stites": "Richard Stites",
-                    }
-                    if target.lower() in ALIGNMENTS:
-                        en_target = ALIGNMENTS[target.lower()]
+                        st_tokens = {w.lower() for w in re.findall(r"\w+", st) if len(w) > 2 and not w.isdigit()}
+                        sl_tokens = {w.lower() for w in re.findall(r"\w+", sl) if len(w) > 2 and not w.isdigit()} if sl else set()
+                        all_st = st_tokens | sl_tokens
+                        overlap = len(t_tokens & all_st)
+                        proper_overlap = len({w for w in t_tokens if len(w) > 3} & {w for w in all_st if len(w) > 3})
+                        score = overlap + proper_overlap * 2
+                        if score > best_score:
+                            best_score = score
+                            best_st = st
+                    if best_st and best_score >= 2:
+                        en_target = best_st
+
+            if not en_target:
+                # Never fabricate an ill template targeting an Indonesian string as an English title.
+                # Retain as a clean local redlink instead of pointing to a 404 page on en.wiki.
+                return full_match
 
             # Query cross-wiki sitelinks (en is primary, native_lang is secondary)
             cross_wiki = self.resolve_cross_wiki_sitelinks(en_target, native_lang=native_lang)
@@ -671,11 +675,10 @@ class LinkFidelityValidator:
             ill_parts = [target]
             if en_val:
                 ill_parts.extend(["en", en_val])
+            elif en_target:
+                ill_parts.extend(["en", en_target])
             if native_val and native_val != en_val:
                 ill_parts.extend([native_lang, native_val])
-            if not en_val and not native_val:
-                en_target_fallback = en_target or target
-                ill_parts.extend(["en", en_target_fallback])
             if label and label != target:
                 ill_parts.append(f"lt={label}")
 
