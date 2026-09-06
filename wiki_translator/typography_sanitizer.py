@@ -127,6 +127,7 @@ class TypographySanitizer:
         masked = self.normalize_common_spelling_mistakes(masked)
         masked = self.normalize_appositive_commas(masked)
         masked = self.normalize_coordinating_conjunction_commas(masked)
+        masked = self.normalize_comma_clutter(masked)
         masked = self.normalize_number_separators(masked)
         masked = self.normalize_semicolons(masked)
         return default_slop_linter._unmask_protected_zones(masked, protected)
@@ -387,7 +388,7 @@ class TypographySanitizer:
         """
         ATTRIB_NOUNS = r"(?:[Aa]yah|[Ii]bu|[Ss]audara|[Ss]audari|[Aa]dik|[Kk]akak|[Aa]nak|[Pp]utra|[Pp]utri|[Ss]uami|[Ii]stri|[Ss]ahabat|[Tt]eman|[Rr]ekan|[Kk]olega|[Pp]enulis|[Aa]rsitek|[Rr]ektor|[Mm]enteri|[Pp]residen|[Rr]aja|[Kk]aisar|[Dd]uta [Bb]esar|sesama mahasiswa)(?:nya)?"
         pattern = re.compile(
-            rf"\b({ATTRIB_NOUNS}(?:\s+\w+){{0,3}}),\s+(\[\[(?:[^|\]]+\|)?([^\]]+)\]\]|[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*),\s+(\w+)\b"
+            rf"\b({ATTRIB_NOUNS}(?:\s+\w+){{0,3}}),\s+((?:\[\[(?:[^|\]]+\|)?([^\]]+)\]\]|[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)(?:\s+\([^)]+\))*),\s+(\w+)\b"
         )
         def clean_appositive(m: re.Match) -> str:
             desc = m.group(1)
@@ -416,6 +417,26 @@ class TypographySanitizer:
             return f"{w1} {conj} {w2}"
 
         return re.sub(rf"\b(\w+),\s+(dan|serta)\s+({verbs})\b", clean_conj, text, flags=re.IGNORECASE)
+
+    def normalize_comma_clutter(self, text: str) -> str:
+        """
+        Cleans comma clutter and sentence-level comma fatigue:
+        1. Breaks double coordinating conjunction in same sentence:
+           '... dan X, dan ia Y ...' -> '... dan X. Selain itu, ia Y ...'
+        2. Cleans duplicate commas (',,') and stray spaces before commas.
+        3. Cleans comma before period (',.').
+        """
+        def split_double_dan(m: re.Match) -> str:
+            left = m.group(1)
+            item1 = m.group(2)
+            rest = m.group(3)
+            return f"{left} dan {item1}. Selain itu, ia {rest}"
+
+        text = re.sub(r"(\b\w+),\s+dan\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*),\s+dan\s+ia(?:\s+juga)?\s+(\w+)", split_double_dan, text)
+        text = re.sub(r",\s*,+", ",", text)
+        text = re.sub(r"\s+,", ",", text)
+        text = re.sub(r",\s*\.", ".", text)
+        return text
 
     def normalize_semicolons(self, text: str) -> str:
         """
