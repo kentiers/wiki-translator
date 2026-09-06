@@ -144,6 +144,27 @@ a:hover {
     text-decoration: underline;
 }
 
+/* Red links (Pranala Merah) in Wikipedia Vector 2022 */
+a.new,
+a.new:visited,
+.mw-parser-output a.new,
+.mw-parser-output a.new:visited {
+    color: #d73333 !important;
+}
+
+a.new:hover,
+.mw-parser-output a.new:hover {
+    color: #b32424 !important;
+    text-decoration: underline;
+}
+
+.interlanguage-link-badge {
+    color: #72777d;
+    font-size: 85%;
+    margin-left: 3px;
+    font-style: normal;
+}
+
 /* Vector 2022 Infobox */
 .infobox {
     float: right;
@@ -615,6 +636,21 @@ class HTMLPreviewGenerator:
         text = re.sub(r"''(.*?)''", r"<em>\1</em>", text)
 
         # 6. Wikilinks [[Target|Display]] or [[Target]]
+        wikilink_targets = set()
+        for wm in re.finditer(r"\[\[([^|\]]+)(?:\|[^\]]+)?\]\]", text):
+            t = wm.group(1).strip()
+            if not t.lower().startswith(("kategori:", "category:", "file:", "berkas:", "image:", "gambar:")):
+                wikilink_targets.add(t)
+
+        redlink_targets = set()
+        if wikilink_targets:
+            try:
+                from .wiki_link_mapper import default_link_mapper
+                exist_map = default_link_mapper.check_id_wiki_pages_exist(list(wikilink_targets))
+                redlink_targets = {t for t, ex in exist_map.items() if not ex}
+            except Exception:
+                pass
+
         def link_sub(match: re.Match) -> str:
             target = match.group(1).strip()
             display = match.group(2).strip() if match.group(2) else target
@@ -626,7 +662,13 @@ class HTMLPreviewGenerator:
                 return f'<span class="mw-file-link">[Gambar: {display}]</span>'
             safe_target = urllib.parse.quote(target.replace(" ", "_"))
             href = f"https://id.wikipedia.org/wiki/{safe_target}"
-            return f'<a href="{href}" title="{html.escape(target)}">{html.escape(display)}</a>'
+
+            is_redlink = target in redlink_targets
+            cls_attr = ' class="new"' if is_redlink else ""
+            title_suffix = " (halaman belum dibuat)" if is_redlink else ""
+            title_attr = f' title="{html.escape(target)}{title_suffix}"'
+
+            return f'<a href="{href}"{cls_attr}{title_attr}>{html.escape(display)}</a>'
 
         text = re.sub(r"\[\[([^|\]]+)(?:\|([^\]]+))?\]\]", link_sub, text)
 
