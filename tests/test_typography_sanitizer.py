@@ -103,6 +103,50 @@ class TestTypographySanitizerPillars(unittest.TestCase):
         self.assertNotIn(";", res3)
         self.assertIn("Syuting selesai pada bulan Mei. Penayangan perdana dijadwalkan tahun depan.", res3)
 
+    def test_bound_morpheme_normalization(self):
+        # EYD V: Bound morphemes followed by lowercase letter must be joined without hyphen
+        text1 = "Pasca-kematian Stalin, reformasi pro-kemerdekaan dibendung faksi pasca-peristiwa itu."
+        res1 = self.sanitizer.normalize_bound_morphemes(text1)
+        self.assertIn("Pascakematian", res1)
+        self.assertIn("prokemerdekaan", res1)
+        self.assertIn("pascaperistiwa", res1)
+
+        # EYD V: Bound morphemes followed by capitalized proper nouns must retain hyphen
+        text2 = "Kelompok pro-Soviet dan faksi anti-Barat menentang kebijakan pasca-Stalin."
+        res2 = self.sanitizer.normalize_bound_morphemes(text2)
+        self.assertIn("pro-Soviet", res2)
+        self.assertIn("anti-Barat", res2)
+        self.assertIn("pasca-Stalin", res2)
+
+        # Spaced bound morphemes
+        text3 = "Perjanjian non blok diadakan pada era pasca perang."
+        res3 = self.sanitizer.normalize_bound_morphemes(text3)
+        self.assertIn("nonblok", res3)
+        self.assertIn("pascaperang", res3)
+
+    def test_appositive_comma_normalization(self):
+        # Appositive comma sandwich around names should be unsandwiched
+        text1 = "Saat menempuh studi, ia menikahi sesama mahasiswa, Raisa Titarenko, pada tahun 1953."
+        res1 = self.sanitizer.normalize_appositive_commas(text1)
+        self.assertIn("sesama mahasiswa Raisa Titarenko pada", res1)
+        self.assertNotIn("sesama mahasiswa, Raisa Titarenko,", res1)
+
+        text2 = "Putrinya, Irina, menikah dengan rekan sesama mahasiswa, Anatoly Virgansky, pada April 1978."
+        res2 = self.sanitizer.normalize_appositive_commas(text2)
+        self.assertIn("Putrinya Irina menikah", res2)
+        self.assertIn("sesama mahasiswa Anatoly Virgansky pada", res2)
+
+    def test_coordinating_conjunction_comma_normalization(self):
+        # Two parallel verbal predicates sharing same subject: no comma before dan/serta
+        text1 = "Gorbachev belajar giat, dan lulus dengan predikat memuaskan."
+        res1 = self.sanitizer.normalize_coordinating_conjunction_commas(text1)
+        self.assertIn("belajar giat dan lulus", res1)
+        self.assertNotIn("giat, dan lulus", res1)
+
+        # Serial lists (3+ items) must retain Oxford comma
+        text2 = "Ia mengunjungi London, Paris, dan Berlin."
+        res2 = self.sanitizer.normalize_coordinating_conjunction_commas(text2)
+        self.assertIn("London, Paris, dan Berlin", res2)
     def test_quotation_punctuation_order(self):
         # EYD V: punctuation outside quotes
         text1 = 'Ia membintangi film "The Runner," yang diproduksi oleh Amazon.'

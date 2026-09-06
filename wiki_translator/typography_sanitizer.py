@@ -121,6 +121,9 @@ class TypographySanitizer:
         masked, protected = default_slop_linter._mask_protected_zones(text)
         masked = self.normalize_en_dashes(masked)
         masked = self.normalize_em_dashes(masked)
+        masked = self.normalize_bound_morphemes(masked)
+        masked = self.normalize_appositive_commas(masked)
+        masked = self.normalize_coordinating_conjunction_commas(masked)
         masked = self.normalize_number_separators(masked)
         masked = self.normalize_semicolons(masked)
         return default_slop_linter._unmask_protected_zones(masked, protected)
@@ -190,6 +193,71 @@ class TypographySanitizer:
             text = text.replace(key, val)
 
         return text
+
+    def normalize_bound_morphemes(self, text: str) -> str:
+        """
+        Converts Indonesian bound morphemes (bentuk terikat) according to EYD V Bab II Huruf D.
+        - Bound morpheme + hyphen + lowercase letter -> remove hyphen (written serangkai):
+          e.g. 'pasca-kematian' -> 'pascakematian', 'pro-kemerdekaan' -> 'prokemerdekaan',
+               'pasca-peristiwa' -> 'pascaperistiwa', 'non-blok' -> 'nonblok'
+        - Preserves hyphen when followed by capitalized words / proper nouns / acronyms:
+          e.g. 'pasca-Soviet', 'pro-Yeltsin', 'anti-Barat', 'de-Stalinisasi', 'non-ASEAN'
+        - Combines common spaced bound morphemes:
+          e.g. 'pasca perang' -> 'pascaperang', 'antar bangsa' -> 'antarbangsa'
+        """
+        BOUND_PREFIXES = r"(?:pasca|pra|antar|non|multi|anti|sub|semi|ekstra|kontra|inter|intra|pro|maha|tuna|panca|tri|dwi|eka)"
+
+        def unhyphen_sub(m: re.Match) -> str:
+            pref = m.group(1)
+            word = m.group(2)
+            if word[0].isupper():
+                return m.group(0)
+            return f"{pref}{word}"
+
+        text = re.sub(rf"\b({BOUND_PREFIXES})-([a-zA-Z]\w*)", unhyphen_sub, text, flags=re.IGNORECASE)
+        SPACED_PREFIXES = r"(?:pasca|pra|non|multi|sub|kontra|tuna)"
+        text = re.sub(rf"\b({SPACED_PREFIXES})\s+([a-z]{{3,}})\b", r"\1\2", text, flags=re.IGNORECASE)
+        return text
+
+    def normalize_appositive_commas(self, text: str) -> str:
+        """
+        Cleans appositive comma sandwiches around proper nouns according to EYD V & WP:GAYA.
+        In Indonesian, direct attributive descriptions before names do not need commas:
+        e.g. 'rekan kuliah, Raisa Titarenko, pada tahun' -> 'rekan kuliah Raisa Titarenko pada tahun'
+        e.g. 'putrinya, Irina, menikah dengan' -> 'putrinya Irina menikah dengan'
+        e.g. 'sesama mahasiswa, Anatoly Virgansky, pada' -> 'sesama mahasiswa Anatoly Virgansky pada'
+        """
+        ATTRIB_NOUNS = r"(?:[Aa]yah|[Ii]bu|[Ss]audara|[Ss]audari|[Aa]dik|[Kk]akak|[Aa]nak|[Pp]utra|[Pp]utri|[Ss]uami|[Ii]stri|[Ss]ahabat|[Tt]eman|[Rr]ekan|[Kk]olega|[Pp]enulis|[Aa]rsitek|[Rr]ektor|[Mm]enteri|[Pp]residen|[Rr]aja|[Kk]aisar|[Dd]uta [Bb]esar|sesama mahasiswa)(?:nya)?"
+        pattern = re.compile(
+            rf"\b({ATTRIB_NOUNS}(?:\s+\w+){{0,3}}),\s+(\[\[(?:[^|\]]+\|)?([^\]]+)\]\]|[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*),\s+(\w+)\b"
+        )
+        def clean_appositive(m: re.Match) -> str:
+            desc = m.group(1)
+            name = m.group(2)
+            nxt = m.group(4)
+            return f"{desc} {name} {nxt}"
+
+        return pattern.sub(clean_appositive, text)
+
+    def normalize_coordinating_conjunction_commas(self, text: str) -> str:
+        """
+        Removes commas before coordinating conjunctions ('dan', 'serta') when connecting
+        two parallel verbal predicates sharing the same subject without a serial list (EYD V).
+        e.g. 'belajar giat, dan lulus' -> 'belajar giat dan lulus'
+        Does NOT remove serial/Oxford commas in 3+ item lists: 'London, Paris, dan Berlin'.
+        """
+        verbs = r"(?:me\w+|di\w+|ber\w+|ter\w+|lulus|gugur|wafat|tewas|lahir|hidup|masuk|keluar|naik|turun|pergi|pulang|kembali|ikut|turut)"
+        def clean_conj(m: re.Match) -> str:
+            full_start = m.start()
+            pre = text[max(0, full_start - 35) : full_start]
+            if "," in pre:
+                return m.group(0)
+            w1 = m.group(1)
+            conj = m.group(2)
+            w2 = m.group(3)
+            return f"{w1} {conj} {w2}"
+
+        return re.sub(rf"\b(\w+),\s+(dan|serta)\s+({verbs})\b", clean_conj, text, flags=re.IGNORECASE)
 
     def normalize_semicolons(self, text: str) -> str:
         """
