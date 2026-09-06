@@ -151,9 +151,10 @@ class TestWikiLinkMapperLinks(unittest.TestCase):
         wikitext = "Memenangkan [[Academy Award for Best Documentary Feature]] pada tahun 2000."
         mapped = self.mapper.map_wikilinks(wikitext)
         self.assertEqual(mapped, "Memenangkan [[Academy Award untuk Film Dokumenter Terbaik]] pada tahun 2000.")
+    @patch.object(WikiLinkMapper, "fetch_wikidata_id_sitelink", return_value=None)
     @patch.object(WikiLinkMapper, "fetch_en_to_id_langlinks")
     @patch.object(WikiLinkMapper, "check_id_wiki_pages_exist")
-    def test_redlink_ill_template_safeguard(self, mock_exists, mock_langlinks):
+    def test_redlink_ill_template_safeguard(self, mock_exists, mock_langlinks, mock_wd):
         mock_exists.return_value = {"Uncreated Future Subject": False}
         mock_langlinks.return_value = {"Uncreated Future Subject": None}
 
@@ -161,9 +162,10 @@ class TestWikiLinkMapperLinks(unittest.TestCase):
         mapped = self.mapper.map_wikilinks(wikitext)
         self.assertEqual(mapped, "Lihat {{ill|Uncreated Future Subject|en|Uncreated Future Subject}}.")
 
+    @patch.object(WikiLinkMapper, "fetch_wikidata_id_sitelink", return_value=None)
     @patch.object(WikiLinkMapper, "fetch_en_to_id_langlinks")
     @patch.object(WikiLinkMapper, "check_id_wiki_pages_exist")
-    def test_redlink_with_alias_ill_template(self, mock_exists, mock_langlinks):
+    def test_redlink_with_alias_ill_template(self, mock_exists, mock_langlinks, mock_wd):
         mock_exists.return_value = {"Obscure Actor": False}
         mock_langlinks.return_value = {"Obscure Actor": None}
 
@@ -171,7 +173,13 @@ class TestWikiLinkMapperLinks(unittest.TestCase):
         mapped = self.mapper.map_wikilinks(wikitext)
         self.assertEqual(mapped, "Dibintangi oleh {{ill|Aktor Terkenal|en|Obscure Actor}}.")
 
-    def test_known_page_mapping_israelis_and_action_thriller(self):
+    @patch.object(WikiLinkMapper, "check_id_wiki_pages_exist")
+    def test_known_page_mapping_israelis_and_action_thriller(self, mock_exists):
+        mock_exists.return_value = {
+            "Orang Israel": True,
+            "Film laga": True,
+            "Cerita seru laga": False,
+        }
         wikitext = "Aktris tersebut adalah [[Israelis|orang Israel]] dalam sebuah [[action thriller film]]."
         mapped = self.mapper.map_wikilinks(wikitext)
         self.assertEqual(mapped, "Aktris tersebut adalah [[Orang Israel|orang Israel]] dalam sebuah [[Film laga|cerita seru laga]].")
@@ -254,12 +262,15 @@ class TestWikiLinkMapperLinks(unittest.TestCase):
             with self.subTest(src=src):
                 self.assertEqual(sanitize_ill_foreign_targets(src), expected)
 
-    def test_process_wikitext_applies_sanitize_ill(self):
+    @patch("wiki_translator.link_fidelity_validator.LinkFidelityValidator.check_existence_batch")
+    @patch.object(WikiLinkMapper, "check_id_wiki_pages_exist")
+    def test_process_wikitext_applies_sanitize_ill(self, mock_exists, mock_fidelity_exists):
+        mock_exists.return_value = {"Kevin Macdonald": False}
+        mock_fidelity_exists.return_value = {"Kevin Macdonald": False}
         wikitext = "Sutradara: {{ill|Kevin Macdonald|en|Kevin Macdonald (sutradara)}}."
         processed = self.mapper.process_wikitext(wikitext)
         self.assertIn("{{ill|Kevin Macdonald|en|Kevin Macdonald (director)}}", processed)
         self.assertNotIn("Kevin Macdonald (sutradara)", processed)
-
 
 class TestWikiLinkMapperCaching(unittest.TestCase):
     def setUp(self):

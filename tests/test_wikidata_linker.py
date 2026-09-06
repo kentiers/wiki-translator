@@ -13,9 +13,19 @@ from wiki_translator.wikidata_linker import (
 
 
 class TestWikidataLinker(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        import logging
+        cls._prev_log_level = logging.root.manager.disable
+        logging.disable(logging.CRITICAL)
+
+    @classmethod
+    def tearDownClass(cls):
+        import logging
+        logging.disable(cls._prev_log_level)
+
     def setUp(self):
         self.linker = WikidataLinker()
-
     def test_default_instance(self):
         self.assertIsInstance(default_wikidata_linker, WikidataLinker)
 

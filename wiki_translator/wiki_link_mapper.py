@@ -25,7 +25,8 @@ from pathlib import Path
 import re
 import sqlite3
 import time
-from typing import Any, Dict, Iterable, List, Optional, Set, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Set, Tuple, Union
+from .storage_manager import default_storage_manager
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -204,7 +205,7 @@ class WikiLinkMapper:
 
     def __init__(
         self,
-        cache_db_path: str = ".cache/wiki_links_cache.db",
+        cache_db_path: Optional[Union[str, Path]] = None,
         use_ill_templates: bool = True,
         comment_uncreated_categories: bool = True,
         allow_network: bool = True,
@@ -212,7 +213,11 @@ class WikiLinkMapper:
         user_agent: Optional[str] = None,
         fidelity_validator: Optional[LinkFidelityValidator] = None,
     ):
-        self.cache_db_path = Path(cache_db_path)
+        self.cache_db_path = (
+            Path(cache_db_path)
+            if cache_db_path is not None
+            else default_storage_manager.wiki_links_cache_db
+        )
         self.use_ill_templates = use_ill_templates
         self.fidelity_validator = fidelity_validator or default_fidelity_validator
         self.comment_uncreated_categories = comment_uncreated_categories
@@ -224,11 +229,18 @@ class WikiLinkMapper:
         )
         self._init_db()
 
+    def _get_cache_conn(self) -> sqlite3.Connection:
+        conn = sqlite3.connect(self.cache_db_path, timeout=10.0)
+        conn.execute("PRAGMA synchronous=NORMAL")
+        return conn
+
     def _init_db(self) -> None:
         """Initializes SQLite schema for link and category resolution cache."""
         self.cache_db_path.parent.mkdir(parents=True, exist_ok=True)
-        conn = sqlite3.connect(self.cache_db_path)
+        conn = self._get_cache_conn()
         try:
+            conn.execute("PRAGMA journal_mode=WAL")
+            conn.execute("PRAGMA synchronous=NORMAL")
             with conn:
                 # Cache table for pages (articles & general titles)
                 conn.execute(
@@ -283,7 +295,7 @@ class WikiLinkMapper:
     def get_cached_page_link(self, en_title: str) -> Optional[LinkResolution]:
         """Retrieves cached link resolution if available."""
         key = en_title.strip().lower()
-        conn = sqlite3.connect(self.cache_db_path)
+        conn = self._get_cache_conn()
         try:
             cur = conn.cursor()
             cur.execute(
@@ -315,7 +327,7 @@ class WikiLinkMapper:
     ) -> None:
         """Saves page link resolution to SQLite cache."""
         key = en_title.strip().lower()
-        conn = sqlite3.connect(self.cache_db_path)
+        conn = self._get_cache_conn()
         try:
             with conn:
                 conn.execute(
@@ -347,7 +359,7 @@ class WikiLinkMapper:
     ) -> None:
         """Updates disambiguation flag and resolved target for a cached title."""
         key = en_title.strip().lower()
-        conn = sqlite3.connect(self.cache_db_path)
+        conn = self._get_cache_conn()
         try:
             with conn:
                 conn.execute(
@@ -368,7 +380,7 @@ class WikiLinkMapper:
     def get_cached_category(self, en_category: str) -> Optional[CategoryResolution]:
         """Retrieves cached category resolution if available."""
         key = self._normalize_cat_name(en_category).lower()
-        conn = sqlite3.connect(self.cache_db_path)
+        conn = self._get_cache_conn()
         try:
             cur = conn.cursor()
             cur.execute(
@@ -390,7 +402,7 @@ class WikiLinkMapper:
     def cache_category(self, en_category: str, id_category: Optional[str], exists_on_id: bool, source: str) -> None:
         """Saves category resolution to SQLite cache."""
         key = self._normalize_cat_name(en_category).lower()
-        conn = sqlite3.connect(self.cache_db_path)
+        conn = self._get_cache_conn()
         try:
             with conn:
                 conn.execute(
@@ -434,8 +446,14 @@ class WikiLinkMapper:
         endpoint = "https://id.wikipedia.org/w/api.php"
         batch_size = 40
 
+        def normalize_title(value: str) -> str:
+            return value.replace("_", " ").strip().casefold()
+
         for i in range(0, len(titles), batch_size):
             batch = titles[i : i + batch_size]
+            batch_lookup: Dict[str, List[str]] = {}
+            for candidate in batch:
+                batch_lookup.setdefault(normalize_title(candidate), []).append(candidate)
             params = {
                 "action": "query",
                 "titles": "|".join(batch),
@@ -449,12 +467,10 @@ class WikiLinkMapper:
                 is_missing = p.get("missing", False)
                 # If page is not missing and has pageid > 0, it exists
                 exists = not is_missing and p.get("pageid", 0) > 0
-                
-                # Match title back to batch
-                for b in batch:
-                    if b.lower() == title.lower() or b.replace("_", " ").lower() == title.lower():
-                        results[b] = exists
-
+                # Match API titles in O(n) using MediaWiki's underscore/space semantics.
+                normalized = normalize_title(title)
+                for original in batch_lookup.get(normalized, []):
+                    results[original] = exists
         return results
     def check_id_disambiguation(self, titles: List[str]) -> Dict[str, Tuple[bool, List[str]]]:
         """
@@ -985,15 +1001,21 @@ class WikiLinkMapper:
         """
         Batched resolution for multiple targets to minimize API round trips.
         """
+        # Avoid repeated cache/API work when the same target appears many times.
+        targets = list(dict.fromkeys(targets))
         resolutions: Dict[str, LinkResolution] = {}
         uncached: List[str] = []
 
         # 0. Check known page mappings first
         remaining_targets: List[str] = []
+        seen_bases: Set[str] = set()
         for t in targets:
             base = t.split("#")[0].strip()
             if not base:
                 continue
+            if base in seen_bases:
+                continue
+            seen_bases.add(base)
             lower_base = base.lower()
             if lower_base in KNOWN_PAGE_MAPPINGS:
                 resolutions[base] = LinkResolution(
@@ -1358,12 +1380,15 @@ class WikiLinkMapper:
         wikitext: str,
         use_ill_templates: bool = True,
         resolve_disambiguation: bool = True,
+        source_wikitext: Optional[str] = None,
     ) -> str:
         """
         Full pipeline:
         1. Maps and validates categories.
         2. Resolves wikilinks & red-link safeguards (with contextual disambiguation when resolve_disambiguation=True).
         3. Sanitizes {{ill}} foreign targets against corrupted Indonesian disambiguators.
+        4. Validates link fidelity & converts existing links.
+        5. Safeguards remaining naked redlinks by converting to {{ill}} cross-referenced from source.
         """
         # Temporarily adapt use_ill_templates if different
         orig_ill = self.use_ill_templates
@@ -1378,9 +1403,11 @@ class WikiLinkMapper:
             # Step 4: Validate link fidelity & convert existing links
             if hasattr(self, "fidelity_validator") and self.fidelity_validator:
                 text, _ = self.fidelity_validator.auto_convert_existing_links(text)
+                # Step 5: Safeguard remaining naked redlinks with {{ill}} when source is provided
+                if use_ill_templates and source_wikitext is not None:
+                    text, _, _ = self.fidelity_validator.safeguard_redlinks_with_ill(text, source_wikitext=source_wikitext)
             return text
         finally:
             self.use_ill_templates = orig_ill
-
 # Global default instance
 default_link_mapper = WikiLinkMapper()

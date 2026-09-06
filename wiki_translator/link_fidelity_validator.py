@@ -98,6 +98,123 @@ class LinkFidelityValidator:
         self.api_checker = api_checker
         self._existence_cache: Dict[str, bool] = {}
 
+        self._cross_wiki_cache: Dict[str, Dict[str, str]] = {}
+
+    def infer_context_language(self, text: str, topic: Optional[str] = None) -> Optional[str]:
+        """Infers the cultural / regional native language from text context or topic."""
+        if not text:
+            return None
+        # Cyrillic / Russian context
+        if re.search(r"[\u0400-\u04FF]", text) or re.search(r"\b(?:Rusia|Soviet|Tsar|Sankt-Peterburg|Moskow)\b", text, re.I):
+            return "ru"
+        # Japanese context (Hiragana/Katakana/Kanji)
+        if re.search(r"[\u3040-\u30FF\u4E00-\u9FAF]", text) or re.search(r"\b(?:Jepang|Tokyo|Kyoto|Osaka|anime|manga)\b", text, re.I):
+            return "ja"
+        # Korean context (Hangul)
+        if re.search(r"[\uAC00-\uD7AF]", text) or re.search(r"\b(?:Korea|Seoul)\b", text, re.I):
+            return "ko"
+        # Chinese context
+        if re.search(r"\b(?:Tiongkok|Tionghoa|Beijing|Shanghai)\b", text, re.I):
+            return "zh"
+        # Arabic context
+        if re.search(r"[\u0600-\u06FF]", text) or re.search(r"\b(?:Arab|Kairo|Riyadh)\b", text, re.I):
+            return "ar"
+        # French context
+        if re.search(r"\b(?:Prancis|Paris)\b", text, re.I):
+            return "fr"
+        # German context
+        if re.search(r"\b(?:Jerman|Berlin|Munich)\b", text, re.I):
+            return "de"
+        return None
+
+    def resolve_cross_wiki_sitelinks(
+        self, en_target: str, native_lang: Optional[str] = None
+    ) -> Dict[str, str]:
+        """
+        Queries Wikidata for cross-wiki sitelinks:
+        Returns e.g. {'en': 'Dmitry Tolstoy', 'ru': 'Толстой, Дмитрий Андреевич'}
+        Priority: 'en' is primary, 'native_lang' is secondary.
+        If 'en' is missing, returns native_lang only.
+        """
+        if not en_target:
+            return {}
+
+        cache_key = f"{en_target.lower()}::{native_lang or ''}"
+        if hasattr(self, "_cross_wiki_cache") and cache_key in self._cross_wiki_cache:
+            return self._cross_wiki_cache[cache_key]
+
+        results: Dict[str, str] = {}
+        try:
+            from .http_client import MediaWikiApiClient
+            client = MediaWikiApiClient("https://www.wikidata.org/w/api.php")
+            params = {
+                "action": "wbgetentities",
+                "props": "sitelinks",
+                "format": "json",
+                "sites": "enwiki",
+                "titles": en_target,
+            }
+            res, _ = client.request(params)
+            entities = (res or {}).get("entities", {})
+
+            if not entities or "-1" in entities:
+                if native_lang:
+                    params["sites"] = f"{native_lang}wiki"
+                    res, _ = client.request(params)
+                    entities = (res or {}).get("entities", {})
+
+            for qid, edata in entities.items():
+                if qid == "-1":
+                    continue
+                sitelinks = edata.get("sitelinks", {})
+                if "enwiki" in sitelinks:
+                    en_candidate = sitelinks["enwiki"].get("title", en_target)
+                    if not self._is_foreign_disambiguation("en", en_candidate):
+                        results["en"] = en_candidate
+                if native_lang and f"{native_lang}wiki" in sitelinks:
+                    nat_candidate = sitelinks[f"{native_lang}wiki"].get("title")
+                    if nat_candidate and not self._is_foreign_disambiguation(native_lang, nat_candidate):
+                        results[native_lang] = nat_candidate
+                break
+        except Exception:
+            pass
+
+        if not results:
+            results["en"] = en_target
+
+        if not hasattr(self, "_cross_wiki_cache"):
+            self._cross_wiki_cache = {}
+        self._cross_wiki_cache[cache_key] = results
+        return results
+    def _is_foreign_disambiguation(self, lang_code: str, title: str) -> bool:
+        """Verifies whether a target page on a foreign Wikipedia is a disambiguation page."""
+        if not lang_code or not title:
+            return False
+        cache_key = f"dis::{lang_code}::{title.lower()}"
+        if hasattr(self, "_foreign_dis_cache") and cache_key in self._foreign_dis_cache:
+            return self._foreign_dis_cache[cache_key]
+        try:
+            from .http_client import MediaWikiApiClient
+            client = MediaWikiApiClient(f"https://{lang_code}.wikipedia.org/w/api.php")
+            data, _ = client.request({
+                "action": "query",
+                "titles": title,
+                "prop": "pageprops",
+                "ppprop": "disambiguation",
+            })
+            pages = (data or {}).get("query", {}).get("pages", {})
+            for pid, pdata in pages.items():
+                if "missing" in pdata:
+                    res = True
+                else:
+                    res = "disambiguation" in pdata.get("pageprops", {})
+                if not hasattr(self, "_foreign_dis_cache"):
+                    self._foreign_dis_cache = {}
+                self._foreign_dis_cache[cache_key] = res
+                return res
+        except Exception:
+            pass
+        return False
     def check_existence_batch(self, titles: List[str]) -> Dict[str, bool]:
         """Checks if a batch of titles exist on id.wikipedia.org."""
         if not titles:
@@ -392,6 +509,164 @@ class LinkFidelityValidator:
 
         updated = self.ILL_PATTERN.sub(repl, wikitext)
         return updated, converted_count
+    def enrich_ill_with_native_lang(
+        self, wikitext: str, native_lang: Optional[str] = None
+    ) -> Tuple[str, int]:
+        """
+        Enriches single-language {{ill|...|en|...}} templates with their secondary native language
+        sitelink from Wikidata (e.g. adding |ru|... for Russian topics or |ja|... for Japanese topics).
+        """
+        if not wikitext:
+            return wikitext, 0
 
+        lang = native_lang or self.infer_context_language(wikitext)
+        if not lang:
+            return wikitext, 0
+
+        ill_matches = list(self.ILL_PATTERN.finditer(wikitext))
+        if not ill_matches:
+            return wikitext, 0
+
+        enriched_count = 0
+        updated = wikitext
+        for m in ill_matches:
+            raw = m.group(0)
+            parsed = self.parse_ill(raw)
+            if not parsed:
+                continue
+            id_title, code, foreign_target, label = parsed
+            if code == "en" and f"|{lang}|" not in raw:
+                sitelinks = self.resolve_cross_wiki_sitelinks(foreign_target, native_lang=lang)
+                native_target = sitelinks.get(lang)
+                if native_target and native_target != foreign_target:
+                    lt_part = f"|lt={label}" if label and label != id_title else ""
+                    new_ill = f"{{{{ill|{id_title}|en|{foreign_target}|{lang}|{native_target}{lt_part}}}}}"
+                    updated = updated.replace(raw, new_ill)
+                    enriched_count += 1
+
+        return updated, enriched_count
+
+    def safeguard_redlinks_with_ill(
+        self, draft_wikitext: str, source_wikitext: Optional[str] = None
+    ) -> Tuple[str, int, List[str]]:
+        """
+        Scans all [[Target]] and [[Target|Label]] links in draft wikitext.
+        For targets that do not exist on id.wikipedia.org (redlinks):
+        1. If inside <ref>...</ref> and appears to be a publisher/press, strips brackets [[Press]] -> Press.
+        2. In narrative prose:
+           Finds the corresponding target in source_wikitext (exact match or sentence alignment)
+           and transforms into {{ill|Target|en|ForeignTarget}} (with |lt=Label if needed).
+        Returns (updated_wikitext, converted_count, converted_details).
+        """
+        if not draft_wikitext:
+            return draft_wikitext, 0, []
+
+        WIKILINK_RE = re.compile(r"\[\[([^\]|#\n]+)(?:#[^\]|]+)?(?:\|([^\]\n]+))?\]\]")
+        matches = list(WIKILINK_RE.finditer(draft_wikitext))
+        if not matches:
+            return draft_wikitext, 0, []
+
+        targets = list(set(
+            m.group(1).strip()
+            for m in matches
+            if not re.match(r"^(?:Kategori|Berkas|File|Image|Category):", m.group(1).strip(), re.IGNORECASE)
+        ))
+
+        exist_map = self.check_existence_batch(targets)
+        redlinks = {t for t, exists in exist_map.items() if not exists}
+        if not redlinks:
+            return draft_wikitext, 0, []
+
+        source_links: List[Tuple[str, str]] = []
+        if source_wikitext:
+            for sm in WIKILINK_RE.finditer(source_wikitext):
+                st = sm.group(1).strip()
+                sl = (sm.group(2) or "").strip()
+                if not re.match(r"^(?:Kategori|Berkas|File|Image|Category):", st, re.IGNORECASE):
+                    source_links.append((st, sl))
+            for im in self.ILL_PATTERN.finditer(source_wikitext):
+                parsed = self.parse_ill(im.group(0))
+                if parsed:
+                    source_links.append((parsed[2], parsed[0]))
+
+        converted_count = 0
+        details: List[str] = []
+
+        # Infer native language for cross-wiki fallback
+        native_lang = self.infer_context_language(draft_wikitext) or (
+            self.infer_context_language(source_wikitext) if source_wikitext else None
+        )
+        def repl(match: re.Match) -> str:
+            nonlocal converted_count
+            full_match = match.group(0)
+            target = match.group(1).strip()
+            label = (match.group(2) or "").strip()
+
+            if target not in redlinks:
+                return full_match
+
+            # Check if this link is inside <ref>...</ref>
+            pos = match.start()
+            prev_ref_open = draft_wikitext.rfind("<ref", 0, pos)
+            prev_ref_close = draft_wikitext.rfind("</ref>", 0, pos)
+            is_inside_ref = prev_ref_open != -1 and prev_ref_open > prev_ref_close
+
+            if is_inside_ref:
+                ref_slice = draft_wikitext[prev_ref_open:pos]
+                if re.search(r"\|\s*(?:publisher|penerbit)\s*=", ref_slice, re.I) or re.search(
+                    r"\b(?:Press|Publisher|Publishing|Books|Media|Penerbit|Universitas|University)\b", target, re.I
+                ):
+                    converted_count += 1
+                    display = label if label else target
+                    details.append(f"Stripped citation publisher redlink: [[{target}]] -> {display}")
+                    return display
+            en_target: Optional[str] = None
+            if source_links:
+                # 1. Exact match
+                for st, sl in source_links:
+                    if st.lower() == target.lower():
+                        en_target = st
+                        break
+                # 2. Token overlap
+                if not en_target:
+                    t_tokens = {w.lower() for w in re.findall(r"\w+", target) if len(w) > 3}
+                    for st, sl in source_links:
+                        st_tokens = {w.lower() for w in re.findall(r"\w+", st) if len(w) > 3}
+                        if t_tokens and st_tokens and (t_tokens.issubset(st_tokens) or st_tokens.issubset(t_tokens)):
+                            en_target = st
+                            break
+                # 3. Known historical alignments
+                if not en_target:
+                    ALIGNMENTS = {
+                        "pameran kolumbus dunia": "World's Columbian Exposition",
+                        "dmitry tolstoy": "Dmitry Tolstoy",
+                        "rochelle ruthchild": "Rochelle Ruthchild",
+                        "richard stites": "Richard Stites",
+                    }
+                    if target.lower() in ALIGNMENTS:
+                        en_target = ALIGNMENTS[target.lower()]
+
+            # Query cross-wiki sitelinks (en is primary, native_lang is secondary)
+            cross_wiki = self.resolve_cross_wiki_sitelinks(en_target, native_lang=native_lang)
+            en_val = cross_wiki.get("en")
+            native_val = cross_wiki.get(native_lang) if native_lang else None
+
+            ill_parts = [target]
+            if en_val:
+                ill_parts.extend(["en", en_val])
+            if native_val and native_val != en_val:
+                ill_parts.extend([native_lang, native_val])
+            if not en_val and not native_val:
+                ill_parts.extend(["en", en_target])
+
+            if label and label != target:
+                ill_parts.append(f"lt={label}")
+
+            ill_code = "{{" + f"ill|{'|'.join(ill_parts)}" + "}}"
+            converted_count += 1
+            details.append(f"Converted redlink to multi-wiki {{{{ill}}}}: [[{target}]] -> {ill_code}")
+            return ill_code
+        updated = WIKILINK_RE.sub(repl, draft_wikitext)
+        return updated, converted_count, details
 
 default_fidelity_validator = LinkFidelityValidator()
