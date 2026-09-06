@@ -244,6 +244,12 @@ class TestTypographySanitizerPillars(unittest.TestCase):
         res4 = self.sanitizer.normalize_introductory_adverbial_commas(text4)
         self.assertIn("Namun, Kamerad, janganlah", res4)
 
+        # Double introductory adverbials
+        text5 = "Tak lama berselang, pada Juli, Raisa didiagnosis mengidap leukemia."
+        res5 = self.sanitizer.normalize_introductory_adverbial_commas(text5)
+        self.assertIn("Tak lama berselang, pada Juli Raisa", res5)
+        self.assertNotIn("pada Juli,", res5)
+
     def test_relative_clause_comma_normalization(self):
         # Relative clause 'yang' comma sandwich
         text1 = "Kendati demikian, banyak anggota Komite Pusat menganggap Gorbachev, yang kala itu berusia 53 tahun, masih terlalu muda dan minim pengalaman."

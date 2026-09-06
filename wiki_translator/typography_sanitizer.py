@@ -539,8 +539,18 @@ class TypographySanitizer:
         e.g. 'Sementara itu, dalam rapat Komite Pusat, tokoh' -> 'Sementara itu, dalam rapat Komite Pusat tokoh'
         Preserves vocatives (e.g. 'Namun, Kamerad, jangan...') and long subordinate clauses.
         """
-        CONNECTORS = r"(?:Namun|Selain itu|Oleh karena itu|Sementara itu|Akan tetapi|Meskipun demikian|Kendati demikian|Oleh sebab itu)"
-        ADVERB_STARTERS = r"(?:pada|di|dalam|sewaktu|saat|ketika|sesampainya|setibanya|menjelang|selama|tak lama|tidak lama|sebulan|setahun|beberapa [a-z]+)"
+        CONNECTORS = (
+            r"(?:Namun|Selain itu|Oleh karena itu|Sementara itu|Akan tetapi|Meskipun demikian|"
+            r"Kendati demikian|Oleh sebab itu|Tak lama berselang|Tidak lama kemudian|"
+            r"Tak lama kemudian|Beberapa bulan kemudian|Beberapa tahun kemudian|"
+            r"Sesaat kemudian|Setelah itu|Sebelum itu|Menjelang akhir|Sejak saat itu|"
+            r"Pada awalnya|Mulanya)"
+        )
+        ADVERB_STARTERS = (
+            r"(?:pada|di|dalam|sewaktu|saat|ketika|sesampainya|setibanya|menjelang|"
+            r"selama|tak lama|tidak lama|sebulan|setahun|beberapa [a-z]+|"
+            r"atas|menurut|berkat|seiring)"
+        )
         pattern = re.compile(
             rf"\b({CONNECTORS}),\s+({ADVERB_STARTERS}(?:\s+[^,\n]+){{0,5}}),\s+([a-z0-9A-Z\[])"
         )
