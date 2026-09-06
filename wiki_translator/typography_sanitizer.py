@@ -113,14 +113,16 @@ class TypographySanitizer:
         """Normalize explicit formatting while protecting markup and quotations."""
         normalized = self._sanitize_prose(text)
         normalized = self.clean_indirect_speech_fragmented_quotes(normalized)
+        normalized = self.clean_parenthetical_quotes(normalized)
+        normalized = self.normalize_wikilink_italics(normalized)
         normalized = self.normalize_sentence_case_after_periods(normalized)
         return default_genfixes.apply_all_fixes(normalized)
 
     def sanitize_markdown(self, text: str) -> str:
         normalized = self._sanitize_prose(text)
         normalized = self.clean_indirect_speech_fragmented_quotes(normalized)
+        normalized = self.clean_parenthetical_quotes(normalized)
         return self.normalize_sentence_case_after_periods(normalized)
-
     def _sanitize_prose(self, text: str) -> str:
         if not text:
             return ""
@@ -155,6 +157,17 @@ class TypographySanitizer:
         text = re.sub(r"\(\s*['\"]([^'\"\n]+)['\"]\s*\)", r"(\1)", text)
         return text
 
+    def clean_parenthetical_quotes(self, text: str) -> str:
+        """Cleans redundant quotation marks inside explanatory parentheses: ('kata') -> (kata)"""
+        if not text:
+            return ""
+        return re.sub(r"\(\s*['\"]([^'\"\n]+)['\"]\s*\)", r"(\1)", text)
+
+    def normalize_wikilink_italics(self, text: str) -> str:
+        """Moves italic markup outside wikilink pipes: [[Target|''Display'']] -> ''[[Target|Display]]''"""
+        if not text:
+            return ""
+        return re.sub(r"\[\[([^|\]]+)\|\'\'([^\']+)\'\'\]\]", r"''[[\1|\2]]''", text)
     def fix_quotation_punctuation_order(self, text: str) -> str:
         """
         Fixes quotation mark punctuation order according to Indonesian EYD V.

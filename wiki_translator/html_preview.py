@@ -717,8 +717,14 @@ class HTMLPreviewGenerator:
             title_suffix = " (halaman belum dibuat)" if is_redlink else ""
             title_attr = f' title="{html.escape(target)}{title_suffix}"'
 
-            return f'<a href="{href}"{cls_attr}{title_attr}>{html.escape(display)}</a>'
+            escaped_display = html.escape(display)
+            escaped_display = escaped_display.replace("&lt;em&gt;", "<em>").replace("&lt;/em&gt;", "</em>")
+            escaped_display = escaped_display.replace("&lt;strong&gt;", "<strong>").replace("&lt;/strong&gt;", "</strong>")
+            escaped_display = re.sub(r"'''''(.*?)'''''", r"<strong><em>\1</em></strong>", escaped_display)
+            escaped_display = re.sub(r"'''(.*?)'''", r"<strong>\1</strong>", escaped_display)
+            escaped_display = re.sub(r"''(.*?)''", r"<em>\1</em>", escaped_display)
 
+            return f'<a href="{href}"{cls_attr}{title_attr}>{escaped_display}</a>'
         text = re.sub(r"\[\[([^|\]]+)(?:\|([^\]]+))?\]\]", link_sub, text)
 
         # 7. External links [URL Display] or [URL]
