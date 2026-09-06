@@ -211,6 +211,26 @@ class TestTypographySanitizerPillars(unittest.TestCase):
         self.assertNotIn(",,", res2)
         self.assertNotIn(",.", res2)
 
+    def test_introductory_adverbial_comma_normalization(self):
+        # Eliminates second comma in introductory conjunction + short adverbial sandwich
+        text1 = "Namun, sesampainya di sana, ia mendapati bahwa tidak ada posisi kerja yang tersedia baginya."
+        res1 = self.sanitizer.normalize_introductory_adverbial_commas(text1)
+        self.assertIn("Namun, sesampainya di sana ia mendapati", res1)
+        self.assertNotIn("Namun, sesampainya di sana,", res1)
+
+        text2 = "Namun, pada Agustus 1968, ia diangkat menjadi Sekretaris Kedua Kraikom."
+        res2 = self.sanitizer.normalize_introductory_adverbial_commas(text2)
+        self.assertIn("Namun, pada Agustus 1968 ia diangkat", res2)
+
+        text3 = "Sementara itu, dalam rapat Komite Pusat, tokoh garis keras menuduh Gorbachev."
+        res3 = self.sanitizer.normalize_introductory_adverbial_commas(text3)
+        self.assertIn("Sementara itu, dalam rapat Komite Pusat tokoh garis keras", res3)
+
+        # Preserves vocatives with direct address
+        text4 = "Namun, Kamerad, janganlah berpikir tentang pelampung."
+        res4 = self.sanitizer.normalize_introductory_adverbial_commas(text4)
+        self.assertIn("Namun, Kamerad, janganlah", res4)
+
     def test_sentence_case_after_periods(self):
         # Sentence capitalization across citation templates
         text1 = "Gorbachev lulus dengan predikat memuaskan. {{sfnm|1a1=Medvedev|1y=1986|1p=42|2a1=McCauley|2y=1998|2p=20}} tugas akhirnya mengkaji keunggulan."

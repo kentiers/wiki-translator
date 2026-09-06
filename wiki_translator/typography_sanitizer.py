@@ -123,6 +123,7 @@ class TypographySanitizer:
         masked = self.normalize_stylistic_collocations(masked)
         masked = self.normalize_appositive_commas(masked)
         masked = self.normalize_coordinating_conjunction_commas(masked)
+        masked = self.normalize_introductory_adverbial_commas(masked)
         masked = self.normalize_comma_clutter(masked)
         masked = self.normalize_number_separators(masked)
         masked = self.normalize_semicolons(masked)
@@ -468,6 +469,30 @@ class TypographySanitizer:
             return f"{w1} {conj} {w2}"
 
         return re.sub(rf"\b(\w+),\s+(dan|serta)\s+({verbs})\b", clean_conj, text, flags=re.IGNORECASE)
+
+    def normalize_introductory_adverbial_commas(self, text: str) -> str:
+        """
+        Removes the redundant second comma in introductory conjunction + short adverbial sandwich:
+        e.g. 'Namun, sesampainya di sana, ia mendapati' -> 'Namun, sesampainya di sana ia mendapati'
+        e.g. 'Namun, pada Agustus 1968, ia diangkat' -> 'Namun, pada Agustus 1968 ia diangkat'
+        e.g. 'Sementara itu, dalam rapat Komite Pusat, tokoh' -> 'Sementara itu, dalam rapat Komite Pusat tokoh'
+        Preserves vocatives (e.g. 'Namun, Kamerad, jangan...') and long subordinate clauses.
+        """
+        CONNECTORS = r"(?:Namun|Selain itu|Oleh karena itu|Sementara itu|Akan tetapi|Meskipun demikian|Kendati demikian|Oleh sebab itu)"
+        ADVERB_STARTERS = r"(?:pada|di|dalam|sewaktu|saat|ketika|sesampainya|setibanya|menjelang|selama|tak lama|tidak lama|sebulan|setahun|beberapa [a-z]+)"
+        pattern = re.compile(
+            rf"\b({CONNECTORS}),\s+({ADVERB_STARTERS}(?:\s+[^,\n]+){{0,5}}),\s+([a-z0-9A-Z\[])"
+        )
+        def replacer(m: re.Match) -> str:
+            connector = m.group(1)
+            adverb = m.group(2)
+            nxt = m.group(3)
+            # If adverb contains a full clause (subject + action verb), preserve comma
+            if re.search(r"\b(?:ia|dia|mereka|kami|kita)\s+(?:bertolak|pergi|datang|mulai|mencapai)\b", adverb):
+                return m.group(0)
+            return f"{connector}, {adverb} {nxt}"
+
+        return pattern.sub(replacer, text)
 
     def normalize_comma_clutter(self, text: str) -> str:
         """
