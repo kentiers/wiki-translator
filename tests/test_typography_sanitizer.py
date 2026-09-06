@@ -294,6 +294,12 @@ class TestTypographySanitizerPillars(unittest.TestCase):
         text3 = 'Gorbachev menyatakan, "Kami memang berjuang merebut kekuasaan."'
         res3 = self.sanitizer.clean_indirect_speech_fragmented_quotes(text3)
         self.assertIn('"Kami memang berjuang', res3)
+
+        # Preposition + quoted common noun phrases
+        text4 = 'mengukuhkan Partai Komunis sebagai "partai penguasa" di Uni Soviet.'
+        res4 = self.sanitizer.clean_indirect_speech_fragmented_quotes(text4)
+        self.assertIn("sebagai partai penguasa di", res4)
+        self.assertNotIn('"partai penguasa"', res4)
     def test_quotation_punctuation_order(self):
         # EYD V: punctuation outside quotes
         text1 = 'Ia membintangi film "The Runner," yang diproduksi oleh Amazon.'

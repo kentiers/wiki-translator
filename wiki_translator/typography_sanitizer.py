@@ -100,6 +100,7 @@ PRESERVED_INDIRECT_SPEECH_QUOTES: Set[str] = {
     "sosialisme modern", "anarki", "kehancuran", "perestroika", "glasnost",
     "kontradiksi antagonistik", "rusia", "negarawan terkemuka pada zaman kita",
     "seorang puritan", "bapak revolusi gorbachev", "salah satu bapak unifikasi jerman",
+    "kelompok delapan", "kaum intelektual dan perestroika",
 }
 
 
@@ -483,6 +484,11 @@ class TypographySanitizer:
 
         text = pattern.sub(replacer, text)
         text = pattern.sub(replacer, text)
+
+        pattern2 = re.compile(
+            r'(\b(?:sebagai|menjadi|berperan sebagai|menerima status|semata-mata|tindakan|memiliki|guna|menerapkan)(?:\s+(?:sebuah|suatu|sedikit kadar|kadar))?\s+)\"([a-z][^\"]{2,40})\"'
+        )
+        text = pattern2.sub(replacer, text)
         return text
 
     def normalize_appositive_commas(self, text: str) -> str:
