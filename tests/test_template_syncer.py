@@ -25,7 +25,7 @@ class TestTemplateSyncer(unittest.TestCase):
         self.mock_id_client = MagicMock(spec=WikipediaClient)
         self.mock_link_mapper = MagicMock(spec=WikiLinkMapper)
         self.mock_doc_auditor = MagicMock(spec=TemplateDocAuditor)
-
+        self.mock_wikidata_linker = MagicMock(spec=WikidataLinker)
         # By default mock_en_client.fetch_wikitext returns a default navbox, but raises PageNotFoundError for /doc
         self.mock_en_doc_content = None
         def default_fetch(title, **kwargs):
@@ -63,6 +63,7 @@ class TestTemplateSyncer(unittest.TestCase):
             id_client=self.mock_id_client,
             link_mapper=self.mock_link_mapper,
             doc_auditor=self.mock_doc_auditor,
+            wikidata_linker=self.mock_wikidata_linker,
         )
 
     def test_clean_template_name(self):

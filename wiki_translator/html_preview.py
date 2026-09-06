@@ -13,7 +13,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import webbrowser
-from typing import Optional
+from typing import Optional, Tuple
 
 VECTOR_2022_CSS = """
 :root {
@@ -191,28 +191,70 @@ a:hover {
     font-weight: bold;
 }
 
-/* References block */
+/* References block (Vector 2022 2-column responsive layout) */
 .mw-references-wrap {
     font-size: 90%;
-    margin-top: 1.5em;
-    border-top: 1px solid var(--border-color-subtle);
-    padding-top: 1em;
+    margin-top: 1em;
+    margin-bottom: 1.5em;
 }
 
-.mw-references-wrap ol {
+.references-2column ol.references, .mw-references-columns ol.references {
+    column-width: 30em;
+    -webkit-column-width: 30em;
+    -moz-column-width: 30em;
+    margin-top: 0.3em;
+}
+
+ol.references {
+    list-style-type: decimal;
     padding-left: 2em;
+    margin-bottom: 0.5em;
+}
+
+ol.references li {
+    margin-bottom: 0.5em;
+    padding-left: 0.2em;
+    break-inside: avoid-column;
+    -webkit-column-break-inside: avoid;
+    word-wrap: break-word;
+}
+
+.mw-cite-backlink {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 85%;
+    font-weight: bold;
+    margin-right: 4px;
+}
+
+.mw-cite-backlink a {
+    color: var(--color-link);
+    text-decoration: none;
+    margin-right: 2px;
+}
+
+.mw-cite-backlink a:hover {
+    text-decoration: underline;
+}
+
+.reference-text {
+    color: var(--color-base);
 }
 
 sup.reference {
     font-size: 80%;
     line-height: 1;
     font-weight: normal;
+    padding-left: 1px;
 }
 
 sup.reference a {
     color: var(--color-link);
+    text-decoration: none;
 }
 
+sup.reference a:hover {
+    text-decoration: underline;
+}
 .vector-body {
     position: relative;
 }
@@ -291,31 +333,166 @@ class HTMLPreviewGenerator:
         formatting, lists, links, and references into clean HTML.
         """
         text = wikitext
+        # 1. Global <ref> citation parsing & grouping (MediaWiki Cite extension)
+        ref_pattern = re.compile(r"<ref\b([^>/]*)(?:>(.*?)</ref>|/>)", re.DOTALL | re.IGNORECASE)
+        ordered_refs = []
+        named_refs = {}
+        ref_matches = []
 
-        # 1. Extract <ref>...</ref> citations
-        references = []
+        for m in ref_pattern.finditer(text):
+            attr_str = m.group(1) or ""
+            content = (m.group(2) or "").strip()
+            name_m = re.search(r"name\s*=\s*(?:\"([^\"]+)\"|'([^']+)'|([^\s/>]+))", attr_str)
+            name = (name_m.group(1) or name_m.group(2) or name_m.group(3)) if name_m else None
 
-        def ref_sub(match: re.Match) -> str:
-            content = match.group(1).strip()
-            # Clean citation template inside ref e.g. {{cite web|...}}
-            if content.startswith("{{") and content.endswith("}}"):
-                # Extract basic params like title/url or simplify template
-                content = self._simplify_template(content)
-            references.append(content)
-            idx = len(references)
-            return f'<sup class="reference" id="cite_ref-{idx}"><a href="#cite_note-{idx}">[{idx}]</a></sup>'
+            if name:
+                if name not in named_refs:
+                    ref_num = len(ordered_refs) + 1
+                    ref_data = {
+                        "num": ref_num,
+                        "name": name,
+                        "content": self._clean_ref_content(content) if content else "",
+                        "citations": [0],
+                    }
+                    named_refs[name] = ref_data
+                    ordered_refs.append(ref_data)
+                else:
+                    if content and not named_refs[name]["content"]:
+                        named_refs[name]["content"] = self._clean_ref_content(content)
+                    named_refs[name]["citations"].append(len(named_refs[name]["citations"]))
+                ref_matches.append((m, named_refs[name]["num"]))
+            else:
+                ref_num = len(ordered_refs) + 1
+                ref_data = {
+                    "num": ref_num,
+                    "name": None,
+                    "content": self._clean_ref_content(content) if content else "",
+                    "citations": [0],
+                }
+                ordered_refs.append(ref_data)
+                ref_matches.append((m, ref_num))
 
-        def self_ref_sub(match: re.Match) -> str:
-            # Self-closing <ref name="..." />
-            return ""
+        # Reconstruct text replacing <ref> tags with proper anchors
+        cite_counters = {}
+        pos = 0
+        ref_text_parts = []
+        for m, ref_num in ref_matches:
+            ref_text_parts.append(text[pos:m.start()])
+            ref_data = ordered_refs[ref_num - 1]
+            total_cites = len(ref_data["citations"])
+            k = cite_counters.get(ref_num, 0)
+            cite_counters[ref_num] = k + 1
 
-        text = re.sub(r"<ref[^>/]*>(.*?)</ref>", ref_sub, text, flags=re.DOTALL | re.IGNORECASE)
-        text = re.sub(r"<ref[^>]*/>", self_ref_sub, text, flags=re.IGNORECASE)
+            if total_cites == 1:
+                anchor_id = f"cite_ref-{ref_num}"
+            else:
+                anchor_id = f"cite_ref-{ref_num}_{k}"
+            ref_text_parts.append(f'<sup class="reference" id="{anchor_id}"><a href="#cite_note-{ref_num}">[{ref_num}]</a></sup>')
+            pos = m.end()
 
+        ref_text_parts.append(text[pos:])
+        text = "".join(ref_text_parts)
+
+        # 2. Extract notes (Family name footnote & Efn) sequentially from top to bottom
+        efn_notes = []
+        fn_regex = re.compile(
+            r"\{\{\s*(?:Family name footnote|Eastern Slavic name|Slavic name|efn\b|efn-lr\b)",
+            re.IGNORECASE,
+        )
+
+        pos = 0
+        reconstructed_text = []
+
+        while pos < len(text):
+            m = fn_regex.search(text, pos)
+            if not m:
+                reconstructed_text.append(text[pos:])
+                break
+
+            reconstructed_text.append(text[pos:m.start()])
+
+            start_pos = m.start()
+            depth = 0
+            end_pos = -1
+            for p_idx in range(start_pos, len(text) - 1):
+                if text[p_idx : p_idx + 2] == "{{":
+                    depth += 1
+                elif text[p_idx : p_idx + 2] == "}}":
+                    depth -= 1
+                    if depth == 0:
+                        end_pos = p_idx + 2
+                        break
+
+            if end_pos == -1:
+                reconstructed_text.append(m.group(0))
+                pos = m.end()
+                continue
+
+            tpl_raw = text[start_pos:end_pos]
+            if tpl_raw.lower().startswith(("{{family name", "{{eastern slavic", "{{slavic name")):
+                inner = tpl_raw[2:-2].strip()
+                parts = []
+                cur = []
+                d = 0
+                for ch in inner:
+                    if ch in "{[":
+                        d += 1
+                    elif ch in "}]":
+                        d -= 1
+                    if ch == "|" and d == 0:
+                        parts.append("".join(cur).strip())
+                        cur = []
+                    else:
+                        cur.append(ch)
+                if cur:
+                    parts.append("".join(cur).strip())
+
+                patronymic = parts[1] if len(parts) > 1 and "=" not in parts[1] else ""
+                family = parts[2] if len(parts) > 2 and "=" not in parts[2] else ""
+
+                # Format family if ill or wikilink
+                ill_m = re.match(r"\{\{ill\|([^|}]+)\|([a-z]{2,3})\|([^|}]+)(.*?)\}\}", family, re.I)
+                if ill_m:
+                    id_t, lang, foreign = ill_m.group(1), ill_m.group(2), ill_m.group(3)
+                    family_html = f'{html.escape(id_t)} <a href="https://{lang}.wikipedia.org/wiki/{foreign}" class="extiw" target="_blank" rel="noopener">[{lang}]</a>'
+                elif re.match(r"\[\[([^\]|]+)(?:\|([^\]]+))?\]\]", family):
+                    wl_m = re.match(r"\[\[([^\]|]+)(?:\|([^\]]+))?\]\]", family)
+                    target_w, label_w = wl_m.group(1), wl_m.group(2) or wl_m.group(1)
+                    family_html = f'<a href="https://id.wikipedia.org/wiki/{target_w}">{html.escape(label_w)}</a>'
+                else:
+                    family_html = html.escape(family)
+
+                note_text = (
+                    f'Dalam nama yang mengikuti <a href="https://id.wikipedia.org/wiki/Sistem_penamaan_Slavik_Timur">kebiasaan penamaan Slavik Timur</a> ini, '
+                    f'nama patronimiknya adalah <em>{html.escape(patronymic)}</em> dan nama keluarganya adalah <em>{family_html}</em>.'
+                )
+                efn_notes.append(note_text)
+                idx = len(efn_notes)
+                letter = chr(96 + idx)
+                reconstructed_text.append(f'<sup class="reference" id="cite_ref-efn-{letter}"><a href="#cite_note-efn-{letter}">[{letter}]</a></sup>')
+                pos = end_pos
+            else:
+                raw_efn = text[start_pos:end_pos]
+                content = raw_efn[2:-2].strip()
+                content = re.sub(r"^[Ee]fn\s*\|\s*", "", content)
+                content = re.sub(r"^name\s*=\s*(?:\"[^\"]*\"|\'[^\']*\'|[^\s|]+)\s*\|\s*", "", content)
+                efn_notes.append(content)
+                idx = len(efn_notes)
+                letter = chr(96 + idx)
+                reconstructed_text.append(f'<sup class="reference" id="cite_ref-efn-{letter}"><a href="#cite_note-efn-{letter}">[{letter}]</a></sup>')
+                pos = end_pos
+
+        text = "".join(reconstructed_text)
         # 2. Extract and format Infoboxes: {{Infobox ...}} or {{Kotak info ...}}
         infobox_blocks = []
         text = self._extract_and_format_infoboxes(text, infobox_blocks)
 
+        # 2.5 Extract and format Wikitext tables / notice boxes: {| ... |}
+        text = self._extract_and_format_tables(text)
+        # 2.8 Format Multiple image templates: {{Multiple image ...}}
+        text = self._format_multiple_images(text)
+        # 2.9 Format Single File / Berkas image links: [[File:...]] or [[Berkas:...]]
+        text = self._format_single_images(text)
         # 3. Strip or format remaining general templates
         text = self._format_templates(text)
 
@@ -384,10 +561,12 @@ class HTMLPreviewGenerator:
 
             # Unordered list item
             if stripped.startswith("*"):
+                item_text = re.sub(r"^\*+\s*", "", stripped).strip()
+                if not item_text:
+                    continue
                 if not in_ul:
                     output_lines.append("<ul>")
                     in_ul = True
-                item_text = re.sub(r"^\*+\s*", "", stripped)
                 output_lines.append(f"<li>{item_text}</li>")
                 continue
 
@@ -399,10 +578,13 @@ class HTMLPreviewGenerator:
                 item_text = re.sub(r"^#+\s*", "", stripped)
                 output_lines.append(f"<li>{item_text}</li>")
                 continue
+            # HTML block elements (do not wrap in <p>)
+            if stripped.startswith(("<div", "</div", "<table", "</table", "<tr", "</tr", "<td", "<th", "<blockquote", "</blockquote")):
+                output_lines.append(stripped)
+                continue
 
             # Regular paragraph
             output_lines.append(f"<p>{stripped}</p>")
-
         if in_ul:
             output_lines.append("</ul>")
         if in_ol:
@@ -414,31 +596,239 @@ class HTMLPreviewGenerator:
         if infobox_blocks:
             body_html = "\n".join(infobox_blocks) + "\n" + body_html
 
-        # Append references section if references exist
-        if references:
+        # Inject explanatory notes (Catatan)
+        if efn_notes:
+            notes_items = []
+            for i, note in enumerate(efn_notes, start=1):
+                letter = chr(96 + i)
+                clean_note = re.sub(r"<ref[^>]*>.*?</ref>|<ref[^>]*/>", "", note)
+                def note_link(m: re.Match) -> str:
+                    t = m.group(1).strip()
+                    d = m.group(2).strip() if m.group(2) else t
+                    safe_href = urllib.parse.quote(t.replace(" ", "_"))
+                    return f'<a href="https://id.wikipedia.org/wiki/{safe_href}">{html.escape(d)}</a>'
+                clean_note = re.sub(r"\[\[([^|\]]+)(?:\|([^\]]+))?\]\]", note_link, clean_note)
+                clean_note = re.sub(r"'''(.*?)'''", r"<strong>\1</strong>", clean_note)
+                clean_note = re.sub(r"''(.*?)''", r"<em>\1</em>", clean_note)
+                notes_items.append(
+                    f'<li id="cite_note-efn-{letter}">'
+                    f'<span class="mw-cite-backlink"><a href="#cite_ref-efn-{letter}">^</a></span> {clean_note}'
+                    f'</li>'
+                )
+            notes_html = (
+                '<div class="mw-references-wrap">'
+                '<ol class="references" style="list-style-type: lower-alpha;">'
+                + "".join(notes_items)
+                + '</ol>'
+                '</div>'
+            )
+            catatan_pattern = re.compile(r"(<h2\b[^>]*>Catatan</h2>)", re.IGNORECASE)
+            if catatan_pattern.search(body_html):
+                body_html = catatan_pattern.sub(r"\1\n" + notes_html, body_html, count=1)
+
+        # Inject references (Referensi) in Vector 2022 2-column layout
+        if ordered_refs:
             ref_list_items = []
-            for i, ref in enumerate(references, start=1):
-                clean_ref = html.escape(ref)
+            for r in ordered_refs:
+                num = r["num"]
+                cites = r["citations"]
+                if len(cites) == 1:
+                    backlink = f'<span class="mw-cite-backlink"><a href="#cite_ref-{num}">^</a></span>'
+                else:
+                    letters = []
+                    for k in range(len(cites)):
+                        if k < 26:
+                            let_str = chr(97 + k)
+                        else:
+                            let_str = chr(97 + (k // 26) - 1) + chr(97 + (k % 26))
+                        letters.append(f'<a href="#cite_ref-{num}_{k}"><sup><em>{let_str}</em></sup></a>')
+                    backlink = f'<span class="mw-cite-backlink">^ {" ".join(letters)}</span>'
+
+                ref_body = r["content"] or "Rujukan tanpa rincian sitasi."
                 ref_list_items.append(
-                    f'<li id="cite_note-{i}">'
-                    f'<a href="#cite_ref-{i}">↑</a> {clean_ref}'
+                    f'<li id="cite_note-{num}">'
+                    f'{backlink} <span class="reference-text">{ref_body}</span>'
                     f'</li>'
                 )
             refs_html = (
-                '<div class="mw-references-wrap">'
+                '<div class="mw-references-wrap references-2column">'
                 '<ol class="references">'
                 + "".join(ref_list_items)
                 + '</ol>'
                 '</div>'
             )
-            # If there's already a references header or placeholder, place it or append
-            if "<h2 id=\"Referensi\">" in body_html or "<h2>Referensi</h2>" in body_html or "<h2>Rujukan</h2>" in body_html:
-                # Append to bottom of document
-                body_html += "\n" + refs_html
+            ref_header_pattern = re.compile(r"(<h2\b[^>]*>(?:Referensi|Rujukan)</h2>)", re.IGNORECASE)
+            if ref_header_pattern.search(body_html):
+                body_html = ref_header_pattern.sub(r"\1\n" + refs_html, body_html, count=1)
             else:
                 body_html += '\n<h2>Referensi</h2>\n' + refs_html
-
         return body_html
+    def _format_multiple_images(self, text: str) -> str:
+        """Formats {{Multiple image}} into responsive Wikimedia-style thumbnail containers."""
+        pat = re.compile(r"\{\{\s*Multiple[ _]image\b([\s\S]*?)\}\}", re.IGNORECASE)
+
+        def repl(m: re.Match) -> str:
+            content = m.group(1).strip()
+            parts = []
+            cur = []
+            d = 0
+            for ch in content:
+                if ch in "{[":
+                    d += 1
+                elif ch in "}]":
+                    d -= 1
+                if ch == "|" and d == 0:
+                    parts.append("".join(cur).strip())
+                    cur = []
+                else:
+                    cur.append(ch)
+            if cur:
+                parts.append("".join(cur).strip())
+
+            params = {}
+            for p in parts:
+                if "=" in p:
+                    k, v = p.split("=", 1)
+                    params[k.strip().lower()] = v.strip()
+
+            images = []
+            for i in range(1, 10):
+                img_k = f"image{i}"
+                if img_k in params and params[img_k]:
+                    images.append((
+                        params[img_k],
+                        params.get(f"caption{i}", ""),
+                        params.get(f"alt{i}", ""),
+                    ))
+
+            if not images:
+                return ""
+
+            footer = params.get("footer", params.get("keterangan", ""))
+            footer_html = re.sub(
+                r"\[\[([^\]|]+)(?:\|([^\]]+))?\]\]",
+                lambda lm: f'<a href="https://id.wikipedia.org/wiki/{lm.group(1)}">{lm.group(2) or lm.group(1)}</a>',
+                footer,
+            )
+
+            width = params.get("total_width", params.get("width", "320"))
+
+            box_lines = [
+                f'<div class="thumb tmulti tright" style="width:{width}px; float:right; margin:0.5em 0 1em 1em; padding:4px; border:1px solid #c8ccd1; background:#f8f9fa;">',
+                '<div class="thumbinner" style="display:flex; flex-direction:row; gap:4px; justify-content:center;">',
+            ]
+            for img, cap, alt in images:
+                clean_img = img.strip()
+                if clean_img.lower().startswith(("file:", "berkas:")):
+                    clean_img = clean_img.split(":", 1)[1].strip()
+                escaped_img = urllib.parse.quote(clean_img.replace(" ", "_"), safe="()-_.")
+                box_lines.append(
+                    f'<div style="flex:1; text-align:center;">'
+                    f'<img src="https://commons.wikimedia.org/wiki/Special:FilePath/{escaped_img}?width=220" alt="{html.escape(alt)}" style="max-width:100%; height:auto; display:block; margin:auto;">'
+                )
+                if cap:
+                    box_lines.append(f'<div style="font-size:12px; color:#54595d; margin-top:2px;">{html.escape(cap)}</div>')
+                box_lines.append('</div>')
+            box_lines.append('</div>')
+            if footer_html:
+                box_lines.append(f'<div class="thumbcaption" style="font-size:12px; color:#202122; margin-top:4px; line-height:1.4;">{footer_html}</div>')
+            box_lines.append('</div>')
+            return "\n".join(box_lines)
+
+        return pat.sub(repl, text)
+    def _format_single_images(self, text: str) -> str:
+        """Formats [[File:...]] and [[Berkas:...]] into standard Wikimedia thumbnail containers."""
+        def parse_balanced_file(s: str, start_pos: int) -> Tuple[Optional[str], int]:
+            depth = 0
+            for i in range(start_pos, len(s) - 1):
+                if s[i : i + 2] == "[[":
+                    depth += 1
+                elif s[i : i + 2] == "]]":
+                    depth -= 1
+                    if depth == 0:
+                        return s[start_pos : i + 2], i + 2
+            return None, start_pos
+
+        file_re = re.compile(r"\[\[\s*(?:File|Berkas|Image|Gambar)\s*:", re.IGNORECASE)
+        pos = 0
+        out = []
+        while pos < len(text):
+            m = file_re.search(text, pos)
+            if not m:
+                out.append(text[pos:])
+                break
+            out.append(text[pos : m.start()])
+            raw_file, end_pos = parse_balanced_file(text, m.start())
+            if not raw_file:
+                out.append(text[m.start() : m.end()])
+                pos = m.end()
+                continue
+
+            inner = raw_file[2:-2].strip()
+            parts = []
+            cur = []
+            d = 0
+            for ch in inner:
+                if ch in "{[":
+                    d += 1
+                elif ch in "}]":
+                    d -= 1
+                if ch == "|" and d == 0:
+                    parts.append("".join(cur).strip())
+                    cur = []
+                else:
+                    cur.append(ch)
+            if cur:
+                parts.append("".join(cur).strip())
+
+            if not parts:
+                pos = end_pos
+                continue
+
+            filename = parts[0].split(":", 1)[1].strip()
+            caption = ""
+            alt = ""
+            align = "right"
+            width = "220"
+
+            for p in parts[1:]:
+                p_low = p.lower()
+                if p_low in ("thumb", "thumbnail", "jempolan"):
+                    pass
+                elif p_low in ("right", "kanan"):
+                    align = "right"
+                elif p_low in ("left", "kiri"):
+                    align = "left"
+                elif p_low in ("center", "tengah"):
+                    align = "center"
+                elif p_low.startswith("alt="):
+                    alt = p[4:].strip()
+                elif re.match(r"^\d+px$", p_low):
+                    width = p_low[:-2]
+                elif p_low.startswith("upright"):
+                    width = "220"
+                else:
+                    caption = p
+
+            escaped_file = urllib.parse.quote(filename.replace(" ", "_"), safe="()-_.")
+            caption_html = re.sub(
+                r"\[\[([^\]|]+)(?:\|([^\]]+))?\]\]",
+                lambda lm: f'<a href="https://id.wikipedia.org/wiki/{lm.group(1)}">{lm.group(2) or lm.group(1)}</a>',
+                caption,
+            )
+            align_css = f"float:{align}; margin:0.5em 0 1em 1em;" if align == "right" else f"float:{align}; margin:0.5em 1em 1em 0;"
+
+            out.append(
+                f'<div class="thumb t{align}" style="width:{width}px; {align_css} padding:4px; border:1px solid #c8ccd1; background:#f8f9fa;">'
+                f'<div class="thumbinner" style="text-align:center;">'
+                f'<img src="https://commons.wikimedia.org/wiki/Special:FilePath/{escaped_file}?width=240" alt="{html.escape(alt)}" style="max-width:100%; height:auto; display:block; margin:auto;">'
+                f'<div class="thumbcaption" style="font-size:12px; color:#202122; margin-top:4px; line-height:1.4; text-align:left;">{caption_html}</div>'
+                f'</div></div>'
+            )
+            pos = end_pos
+
+        return "".join(out)
+
 
     def _extract_and_format_infoboxes(self, text: str, out_blocks: list) -> str:
         """Finds Infobox or Kotak info templates and converts them into Vector infobox tables."""
@@ -516,44 +906,254 @@ class HTMLPreviewGenerator:
         table_html.append("</table>")
         return "\n".join(table_html)
 
+    def _extract_and_format_tables(self, text: str) -> str:
+        """Converts wikitext tables ({| ... |}) into styled HTML tables or notice cards."""
+        table_pattern = re.compile(r"\{\|[^\n]*\n([\s\S]*?)\|\}", re.MULTILINE)
+
+        def table_replacer(match: re.Match) -> str:
+            inner = match.group(1).strip()
+
+            # Special case: Review / draft notice banner
+            if "Draf perbaikan" in inner or "ℹ️" in inner:
+                msg = re.sub(r"^\|\s*", "", inner, flags=re.MULTILINE).strip()
+                return (
+                    '<div class="preview-notice-banner" style="background:#f0f4f8; border:1px solid #c8ccd1; border-left:5px solid #36c; padding:12px 18px; border-radius:4px; margin-bottom:20px;">'
+                    f'{msg}'
+                    '</div>\n'
+                )
+
+            # General Wikitable parser
+            rows_html = []
+            cur_row = []
+            for line in inner.splitlines():
+                line = line.strip()
+                if not line:
+                    continue
+                if line.startswith("|-"):
+                    if cur_row:
+                        rows_html.append("<tr>" + "".join(cur_row) + "</tr>")
+                        cur_row = []
+                    continue
+                if line.startswith("!"):
+                    cell_text = re.sub(r"^!\s*", "", line)
+                    cur_row.append(f"<th>{cell_text}</th>")
+                elif line.startswith("|"):
+                    cell_text = re.sub(r"^\|\s*", "", line)
+                    cur_row.append(f"<td>{cell_text}</td>")
+
+            if cur_row:
+                rows_html.append("<tr>" + "".join(cur_row) + "</tr>")
+
+            return '<table class="wikitable">' + "".join(rows_html) + '</table>\n'
+
+        return table_pattern.sub(table_replacer, text)
+    def _clean_ref_content(self, content: str) -> str:
+        """Processes reference content, formatting citation templates or preserving plain text."""
+        trimmed = content.strip()
+        if trimmed.startswith("{{") and trimmed.endswith("}}"):
+            return self._simplify_template(trimmed)
+        return trimmed
+
     def _simplify_template(self, tpl: str) -> str:
         """Simplifies complex citation/formatting templates for offline reference rendering."""
-        inner = tpl.strip()[2:-2].strip()
+        clean_tpl = tpl.strip()
+        if not (clean_tpl.startswith("{{") and clean_tpl.endswith("}}")):
+            return clean_tpl
+        inner = clean_tpl[2:-2].strip()
         parts = inner.split("|")
         name = parts[0].strip().lower()
 
-        if name.startswith("cite") or name.startswith("sitasi"):
+        if name.startswith(("cite", "sitasi")):
             params = {}
             for p in parts[1:]:
                 if "=" in p:
                     k, v = p.split("=", 1)
                     params[k.strip().lower()] = v.strip()
-            title = params.get("title", params.get("judul", ""))
-            url = params.get("url", "")
-            publisher = params.get("publisher", params.get("work", params.get("penerbit", "")))
-            date = params.get("date", params.get("tanggal", ""))
 
-            summary_parts = []
-            if title:
-                summary_parts.append(f'"{title}"')
-            if publisher:
-                summary_parts.append(f"({publisher})")
-            if date:
-                summary_parts.append(f"[{date}]")
-            if url:
-                summary_parts.append(f"<{url}>")
-            return " ".join(summary_parts) or inner
+            # Authors
+            authors = []
+            last1 = params.get("last", params.get("last1", params.get("penulis", "")))
+            first1 = params.get("first", params.get("first1", ""))
+            if last1:
+                authors.append(f"{last1}, {first1}" if first1 else last1)
+            last2 = params.get("last2", "")
+            first2 = params.get("first2", "")
+            if last2:
+                authors.append(f"{last2}, {first2}" if first2 else last2)
+            last3 = params.get("last3", "")
+            first3 = params.get("first3", "")
+            if last3:
+                authors.append(f"{last3}, {first3}" if first3 else last3)
+            author_str = "; ".join(authors)
+
+            year = params.get("year", params.get("date", params.get("tahun", "")))
+            chapter = params.get("chapter", params.get("bab", ""))
+            title = params.get("title", params.get("judul", ""))
+            journal = params.get("journal", params.get("jurnal", ""))
+            publisher = params.get("publisher", params.get("work", params.get("penerbit", "")))
+            location = params.get("location", params.get("tempat", ""))
+            pages = params.get("pages", params.get("page", params.get("halaman", "")))
+            isbn = params.get("isbn", "")
+            url = params.get("url", "")
+
+            # Editors
+            ed_last = params.get("editor-last", params.get("editor-last1", ""))
+            ed_first = params.get("editor-first", params.get("editor-first1", ""))
+            editor_str = f"{ed_last}, {ed_first} (ed.)" if ed_last else ""
+
+            res_parts = []
+            if author_str:
+                res_parts.append(html.escape(author_str))
+            if year:
+                clean_yr = re.search(r"\b\d{4}\b", year)
+                res_parts.append(f"({clean_yr.group(0) if clean_yr else html.escape(year)}).")
+
+            if chapter:
+                res_parts.append(f'"{html.escape(chapter)}".')
+                if editor_str:
+                    res_parts.append(f"In {html.escape(editor_str)},")
+                if title:
+                    if url:
+                        res_parts.append(f'<em><a href="{html.escape(url)}" class="external" target="_blank" rel="noopener">{html.escape(title)}</a></em>.')
+                    else:
+                        res_parts.append(f'<em>{html.escape(title)}</em>.')
+            elif title:
+                if url:
+                    res_parts.append(f'<em><a href="{html.escape(url)}" class="external" target="_blank" rel="noopener">{html.escape(title)}</a></em>.')
+                else:
+                    res_parts.append(f'<em>{html.escape(title)}</em>.')
+
+            if journal:
+                res_parts.append(f'<em>{html.escape(journal)}</em>.')
+            if location and publisher:
+                res_parts.append(f"{html.escape(location)}: {html.escape(publisher)}.")
+            elif publisher:
+                res_parts.append(f"{html.escape(publisher)}.")
+
+            if pages:
+                norm_pages = re.sub(r"(\d+)\s*[-–]\s*(\d+)", r"\1–\2", pages)
+                res_parts.append(f"pp. {html.escape(norm_pages)}.")
+            if isbn:
+                res_parts.append(f'ISBN <a href="https://id.wikipedia.org/wiki/Istimewa:Sumber_buku/{isbn}" class="external">{html.escape(isbn)}</a>.')
+
+            return " ".join(res_parts) or inner
 
         return inner
 
     def _format_templates(self, text: str) -> str:
         """Strips or cleanly displays residual inline templates."""
+        # Strip {{notelist}} or {{daftar catatan}}
+        text = re.sub(r"\{\{\s*(?:notelist|daftar catatan|efn-lr)[^}]*\}\}", "", text, flags=re.IGNORECASE)
         # Strip {{reflist}} or {{daftar referensi}}
         text = re.sub(r"\{\{\s*(reflist|daftar pustaka|referensi|rujukan)[^}]*\}\}", "", text, flags=re.IGNORECASE)
         # Strip {{DEFAULTSORT:...}}
         text = re.sub(r"\{\{DEFAULTSORT:[^}]+\}\}", "", text, flags=re.IGNORECASE)
+        # Strip {{Authority control}} and metadata templates
+        text = re.sub(r"\{\{\s*(?:authority control|pengawasan otoritas|normdaten)[^}]*\}\}", "", text, flags=re.IGNORECASE)
+
+        # Format {{Commons-inline|...}}
+        def commons_sub(m: re.Match) -> str:
+            parts = [p.strip() for p in m.group(1).split("|")] if m.group(1) else []
+            cat = parts[0] if parts else ""
+            target = f"https://commons.wikimedia.org/wiki/{cat}" if cat else "https://commons.wikimedia.org"
+            return f'<a href="{target}" class="external" target="_blank" rel="noopener">Wikimedia Commons</a> memiliki media mengenai artikel ini.'
+        text = re.sub(r"\{\{\s*commons-inline\s*(?:\|([^}]+))?\}\}", commons_sub, text, flags=re.IGNORECASE)
+
+        # Format {{Wikisourcelang-inline|lang|Page}}
+        def wikisource_sub(m: re.Match) -> str:
+            parts = [p.strip() for p in m.group(1).split("|")]
+            lang = parts[0] if len(parts) > 0 else "id"
+            title = parts[1] if len(parts) > 1 else ""
+            clean_title = re.sub(r"^[^/]+/", "", title)
+            target = f"https://{lang}.wikisource.org/wiki/{urllib.parse.quote(title)}"
+            return f'<a href="{target}" class="external" target="_blank" rel="noopener">Wikisumber</a> memiliki naskah asli berbahasa {lang} mengenai <em>{html.escape(clean_title or title)}</em>.'
+        text = re.sub(r"\{\{\s*wikisourcelang-inline\s*\|([^}]+)\}\}", wikisource_sub, text, flags=re.IGNORECASE)
+        # Format {{ill|Title|lang|Orig...}} or {{interlanguage link|Title|lang|Orig...}}
+        def ill_sub(m: re.Match) -> str:
+            inner = m.group(1).strip()
+            parts = [p.strip() for p in inner.split("|")]
+            if parts:
+                title = parts[0]
+                lang = parts[1] if len(parts) > 1 and len(parts[1]) <= 3 and "=" not in parts[1] else ""
+                for p in parts[1:]:
+                    if p.lower().startswith("lt="):
+                        title = p.split("=", 1)[1].strip()
+                        break
+                slug = re.sub(r"[^\w\s-]", "", title).strip().replace(" ", "_")
+                badge = (
+                    f' <span class="interlanguage-link-badge" style="color:#72777d; font-size:85%;">({lang})</span>'
+                    if lang
+                    else ""
+                )
+                return f'<a href="https://id.wikipedia.org/wiki/{slug}" class="new" title="{html.escape(title)}">{html.escape(title)}</a>{badge}'
+            return ""
+
+        text = re.sub(
+            r"\{\{\s*(?:ill|interlanguage link|interlanguage link multi)\s*\|([^}]+)\}\}",
+            ill_sub,
+            text,
+            flags=re.IGNORECASE,
+        )
+
+        LANG_NAMES = {
+            "ru": "Rusia", "en": "Inggris", "fr": "Prancis", "de": "Jerman",
+            "nl": "Belanda", "es": "Spanyol", "it": "Italia", "ja": "Jepang",
+            "zh": "Tionghoa", "ar": "Arab", "la": "Latin", "el": "Yunani",
+            "ko": "Korea", "pt": "Portugis", "pl": "Polandia", "uk": "Ukraina",
+        }
+
+        # Format {{langx|lang|Text}} -> bahasa X: Text
+        def langx_sub(m: re.Match) -> str:
+            parts = [p.strip() for p in m.group(1).split("|")]
+            if len(parts) >= 2:
+                code = parts[0].lower()
+                val = ""
+                no_label = False
+                for p in parts[1:]:
+                    if p.lower() == "label=none":
+                        no_label = True
+                    elif not p.startswith("label="):
+                        val = p
+                lang_name = LANG_NAMES.get(code, code.upper())
+                if no_label:
+                    return f'<span lang="{code}">{val}</span>'
+                return (
+                    f'<a href="https://id.wikipedia.org/wiki/Bahasa_{lang_name}" title="Bahasa {lang_name}">bahasa {lang_name}</a>: '
+                    f'<span lang="{code}">{val}</span>'
+                )
+            return ""
+
+        text = re.sub(r"\{\{\s*langx\s*\|([^}]+)\}\}", langx_sub, text, flags=re.IGNORECASE)
+
+        # Format {{lang-xx|Text}} -> bahasa X: Text
+        def lang_xx_sub(m: re.Match) -> str:
+            code = m.group(1).lower()
+            parts = [p.strip() for p in m.group(2).split("|")]
+            val = parts[0] if parts else ""
+            lang_name = LANG_NAMES.get(code, code.upper())
+            return (
+                f'<a href="https://id.wikipedia.org/wiki/Bahasa_{lang_name}" title="Bahasa {lang_name}">bahasa {lang_name}</a>: '
+                f'<span lang="{code}">{val}</span>'
+            )
+
+        text = re.sub(r"\{\{\s*lang-([a-z]{2,3})\s*\|([^}]+)\}\}", lang_xx_sub, text, flags=re.IGNORECASE)
         # Format {{lang|id|...}} -> ...
         text = re.sub(r"\{\{lang(?:-[a-z]+)?\|[^|]+\|([^}]+)\}\}", r"\1", text, flags=re.IGNORECASE)
+        # Format {{OldStyleDate|new_date|year|old_date}} -> new_date year (K.J. old_date)
+        def old_style_date_sub(m: re.Match) -> str:
+            parts = [p.strip() for p in m.group(1).split("|")]
+            if len(parts) >= 3:
+                new_date, year, old_date = parts[0], parts[1], parts[2]
+                return f"{new_date} {year} (K.J. {old_date})"
+            elif len(parts) == 2:
+                return f"{parts[0]} (K.J. {parts[1]})"
+            elif len(parts) == 1:
+                return parts[0]
+            return ""
+
+        text = re.sub(r"\{\{\s*OldStyleDate\s*\|([^}]+)\}\}", old_style_date_sub, text, flags=re.IGNORECASE)
+
+
         # General templates: {{X|Y}} -> Y if single argument, else remove
         def gen_sub(m: re.Match) -> str:
             inner = m.group(1).strip()
@@ -562,6 +1162,11 @@ class HTMLPreviewGenerator:
                 return parts[1].strip()
             return ""
         text = re.sub(r"\{\{([^}]+)\}\}", gen_sub, text)
+
+        # Clean up any duplicate punctuation left by removed or inline templates
+        text = re.sub(r",\s*,+", ",", text)
+        text = re.sub(r"\s+([,.:;!?])", r"\1", text)
+        text = re.sub(r",\s*\.", ".", text)
         return text
 
     def _wrap_vector_template(self, title: str, body_content: str, is_api_parsed: bool) -> str:

@@ -20,6 +20,9 @@ from typing import Any, Dict, List, Optional
 import urllib.error
 import urllib.parse
 import urllib.request
+from .awb_genfixes import GeneralFixesEngine
+from .typography_sanitizer import TypographySanitizer
+
 
 
 class TemplateDocAuditor:
@@ -185,6 +188,11 @@ class TemplateDocAuditor:
             f"{category_tag}\n"
             f"</includeonly>\n"
         )
+        fixes = GeneralFixesEngine()
+        sanitizer = TypographySanitizer()
+        wikitext = fixes.apply_general_fixes(wikitext)
+        wikitext = sanitizer.sanitize_wikitext(wikitext)
+        wikitext = re.sub(r"==\s*Templatedata\s*==", "== TemplateData ==", wikitext, flags=re.IGNORECASE)
         return wikitext
     def generate_navbox_doc_wikitext(
         self,
@@ -285,6 +293,10 @@ class TemplateDocAuditor:
             f"{category_block}\n"
             f"</includeonly>"
         )
+        fixes = GeneralFixesEngine()
+        sanitizer = TypographySanitizer()
+        wikitext = fixes.apply_general_fixes(wikitext)
+        wikitext = sanitizer.sanitize_wikitext(wikitext)
         return wikitext
 
 

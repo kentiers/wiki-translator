@@ -658,6 +658,13 @@ class TemplateSyncer:
                     is_navbox=False,
                 )
 
+        # Standardize doc prose, headings, typography, and anti-slop to Grade A++
+        from .awb_genfixes import GeneralFixesEngine
+        from .typography_sanitizer import TypographySanitizer
+        fixes = GeneralFixesEngine()
+        sanitizer = TypographySanitizer()
+        doc_wikitext = fixes.apply_general_fixes(doc_wikitext)
+        doc_wikitext = sanitizer.sanitize_wikitext(doc_wikitext)
         # 4. Save to local output/templates/<Name>.wikitext and <Name>_doc.wikitext
         target_dir = output_dir or self.output_dir
         template_file, doc_file = self.save_templates_locally(
