@@ -1001,7 +1001,7 @@ class HTMLPreviewGenerator:
 
             for p in parts[1:]:
                 p_low = p.lower()
-                if p_low in ("thumb", "thumbnail", "jempolan"):
+                if p_low in ("thumb", "thumbnail", "jempolan", "jmpl"):
                     pass
                 elif p_low in ("right", "kanan"):
                     align = "right"
@@ -1013,12 +1013,22 @@ class HTMLPreviewGenerator:
                     alt = p[4:].strip()
                 elif re.match(r"^\d+px$", p_low):
                     width = p_low[:-2]
-                elif p_low.startswith("upright"):
-                    width = "220"
+                elif p_low.startswith("upright") or p_low.startswith("tegak"):
+                    factor_m = re.search(r"(?:upright|tegak)\s*=\s*([0-9.]+)", p_low)
+                    if factor_m:
+                        try:
+                            factor = float(factor_m.group(1))
+                            width = str(int(220 * factor))
+                        except ValueError:
+                            width = "220"
+                    else:
+                        width = "220"
+                elif p_low in ("none", "frameless", "border", "pembatas"):
+                    pass
                 else:
                     caption = p
 
-            escaped_file = urllib.parse.quote(filename.replace(" ", "_"), safe="()-_.")
+            escaped_file = urllib.parse.quote(filename.replace(" ", "_"), safe="()-_.,")
             caption_html = re.sub(
                 r"\[\[([^\]|]+)(?:\|([^\]]+))?\]\]",
                 lambda lm: f'<a href="https://id.wikipedia.org/wiki/{lm.group(1)}">{lm.group(2) or lm.group(1)}</a>',
