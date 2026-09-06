@@ -149,6 +149,8 @@ class MediaManager:
         for page_id, page_data in pages.items():
             if str(page_id) != "-1" and "missing" not in page_data:
                 return True
+            if page_data.get("imagerepository") == "shared" or "imageinfo" in page_data:
+                return True
         return False
 
     def check_en_wiki_existence(self, filename: str) -> Tuple[bool, Optional[str]]:
@@ -215,6 +217,50 @@ class MediaManager:
                 results.append((cleaned, "wikitext_link"))
 
         return results
+    def reconcile_media_fidelity(
+        self, en_wikitext: str, id_wikitext: str
+    ) -> Dict[str, Any]:
+        """
+        Compares media references between English source and Indonesian translation.
+        Identifies missing images, their Commons/en.wiki status, and whether they need upload.
+        """
+        en_refs = self.extract_media_references(en_wikitext)
+        id_refs = self.extract_media_references(id_wikitext)
+
+        id_filenames = {cleaned for cleaned, _ in id_refs}
+        missing_from_id: List[Dict[str, Any]] = []
+
+        for cleaned, ctx in en_refs:
+            if cleaned not in id_filenames:
+                is_commons = self.check_commons_existence(cleaned)
+                is_id = self.check_id_wiki_existence(cleaned)
+                en_exists, dl_url = self.check_en_wiki_existence(cleaned)
+
+                status = "unknown"
+                if is_commons:
+                    status = "commons_shared"
+                elif is_id:
+                    status = "id_wiki_exists"
+                elif en_exists:
+                    status = "local_non_free"
+                else:
+                    status = "not_found"
+
+                missing_from_id.append({
+                    "filename": cleaned,
+                    "context": ctx,
+                    "status": status,
+                    "is_commons": is_commons,
+                    "is_id_wiki": is_id,
+                    "download_url": dl_url,
+                })
+
+        return {
+            "source_count": len(en_refs),
+            "target_count": len(id_refs),
+            "missing_count": len(missing_from_id),
+            "missing_items": missing_from_id,
+        }
 
     def generate_fair_use_rationale(
         self,

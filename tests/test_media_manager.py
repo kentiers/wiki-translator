@@ -55,6 +55,41 @@ class TestMediaManager(unittest.TestCase):
         self.assertIn("Oppenheimer_filming.jpg", names)
         self.assertIn("Director_photo.png", names)
 
+    def test_reconcile_media_fidelity(self):
+        en_wiki = (
+            "{{Infobox film | image = Poster.jpg }}\n"
+            "[[File:Scene1.png|thumb|Scene]]\n"
+            "[[File:Scene2.png|thumb|Scene 2]]\n"
+        )
+        id_wiki = (
+            "{{Infobox film | image = Poster.jpg }}\n"
+            "[[File:Scene1.png|thumb|Adegan]]\n"
+        )
+        with patch.object(self.manager, "check_commons_existence", return_value=True), \
+             patch.object(self.manager, "check_id_wiki_existence", return_value=True), \
+             patch.object(self.manager, "check_en_wiki_existence", return_value=(False, None)):
+            res = self.manager.reconcile_media_fidelity(en_wiki, id_wiki)
+            self.assertEqual(res["source_count"], 3)
+            self.assertEqual(res["target_count"], 2)
+            self.assertEqual(res["missing_count"], 1)
+            self.assertEqual(res["missing_items"][0]["filename"], "Scene2.png")
+            self.assertTrue(res["missing_items"][0]["is_commons"])
+
+    def test_check_id_wiki_existence_shared_commons(self):
+        mock_response = {
+            "query": {
+                "pages": {
+                    "-1": {
+                        "missing": "",
+                        "imagerepository": "shared",
+                        "imageinfo": [{"url": "https://upload.wikimedia.org/commons/test.jpg"}]
+                    }
+                }
+            }
+        }
+        with patch.object(self.manager, "_query_api", return_value=(mock_response, None)):
+            self.assertTrue(self.manager.check_id_wiki_existence("test.jpg"))
+
     def test_generate_fair_use_rationale(self):
         rationale = self.manager.generate_fair_use_rationale(
             title="Inception",
