@@ -1489,12 +1489,8 @@ class WikiLinkMapper:
         try:
             # Step 1: Map categories
             text = self.map_categories(wikitext)
-            # Step 2: Map wikilinks (defer ill generation to Step 5 when source_wikitext is provided)
-            if source_wikitext is not None:
-                self.use_ill_templates = False
+            # Step 2: Map wikilinks (converts uncreated links into {{ill|Label_ID|en|Target_EN}})
             text = self.map_wikilinks(text, resolve_disambiguation=resolve_disambiguation)
-            if source_wikitext is not None:
-                self.use_ill_templates = use_ill_templates
             text = sanitize_ill_foreign_targets(text)
             # Step 4: Validate link fidelity & convert existing links
             if hasattr(self, "fidelity_validator") and self.fidelity_validator:
