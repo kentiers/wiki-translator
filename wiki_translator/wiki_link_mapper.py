@@ -486,6 +486,8 @@ class WikiLinkMapper:
         if not to_fetch:
             return results
 
+        import time
+
         for i in range(0, len(to_fetch), batch_size):
             batch = to_fetch[i : i + batch_size]
             params = {
@@ -495,7 +497,13 @@ class WikiLinkMapper:
                 "formatversion": "2",
                 "format": "json",
             }
-            data = self._api_get(endpoint, params)
+            data = {}
+            for attempt in range(3):
+                data = self._api_get(endpoint, params)
+                if data and "query" in data:
+                    break
+                time.sleep(0.5)
+
             query_data = data.get("query", {})
             pages = query_data.get("pages", [])
             redirects = query_data.get("redirects", [])
@@ -518,6 +526,7 @@ class WikiLinkMapper:
                     visited.add(curr)
                 target_to_batch[curr].add(candidate)
 
+            confirmed_in_batch = set()
             for p in pages:
                 title = p.get("title", "")
                 is_missing = p.get("missing", False)
@@ -525,31 +534,32 @@ class WikiLinkMapper:
                 norm_title = normalize_title(title)
                 for original in target_to_batch.get(norm_title, []):
                     results[original] = exists
+                    confirmed_in_batch.add(original)
 
-        # Persist newly fetched results to SQLite cache
-        conn = None
-        try:
-            conn = self._get_cache_conn()
-            with conn:
-                for t in to_fetch:
-                    if t in results:
-                        key = normalize_title(t)
-                        conn.execute(
-                            """
-                            INSERT OR REPLACE INTO id_wiki_pages 
-                            (id_title_lower, id_title_original, exists_on_id, updated_at)
-                            VALUES (?, ?, ?, ?)
-                            """,
-                            (key, t, 1 if results[t] else 0, time.time())
-                        )
-        except Exception:
-            pass
-        finally:
-            if conn:
+            # Persist ONLY confirmed titles to SQLite cache
+            if confirmed_in_batch:
+                conn = None
                 try:
-                    conn.close()
+                    conn = self._get_cache_conn()
+                    with conn:
+                        for original in confirmed_in_batch:
+                            key = normalize_title(original)
+                            conn.execute(
+                                """
+                                INSERT OR REPLACE INTO id_wiki_pages 
+                                (id_title_lower, id_title_original, exists_on_id, updated_at)
+                                VALUES (?, ?, ?, ?)
+                                """,
+                                (key, original, 1 if results[original] else 0, time.time())
+                            )
                 except Exception:
                     pass
+                finally:
+                    if conn:
+                        try:
+                            conn.close()
+                        except Exception:
+                            pass
 
         return results
     def check_id_disambiguation(self, titles: List[str]) -> Dict[str, Tuple[bool, List[str]]]:
