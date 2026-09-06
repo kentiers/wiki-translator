@@ -97,6 +97,14 @@ class TestHTMLPreviewGenerator(unittest.TestCase):
         self.assertIn('class="new"', html)
         self.assertIn('(halaman belum dibuat)', html)
 
+    def test_offline_render_sidebar_template_does_not_leak_parameter_text(self):
+        # Sidebar templates with section parameters must not leak parameter as body text
+        wikitext = "== Kehidupan pasca-Soviet ==\n{{Social democracy sidebar|people}}\n=== Tahun-tahun awal ==="
+        html = self.generator.render_html("Uji Sidebar", wikitext, try_api_parse=False)
+
+        self.assertNotIn("<p>people</p>", html)
+        self.assertNotIn("people", html)
+
     def test_offline_render_references_and_citations(self):
         wikitext = (
             "Pernyataan ilmiah penting.<ref>{{cite web|title=Kuantum Hari Ini|url=https://quantum.org}}</ref>\n"

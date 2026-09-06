@@ -1897,11 +1897,16 @@ class HTMLPreviewGenerator:
         text = re.sub(r"\{\{\s*OldStyleDate\s*\|([^}]+)\}\}", old_style_date_sub, text, flags=re.IGNORECASE)
 
 
-        # General templates: {{X|Y}} -> Y if single argument, else remove
+        # General templates: only recognized inline text formatting templates output their text content
+        TEXT_FORMAT_TEMPLATES = {
+            "small", "larger", "sup", "sub", "nowrap", "nobr", "b", "i", "em", "strong",
+            "mabs", "abbr", "lang-inline"
+        }
         def gen_sub(m: re.Match) -> str:
             inner = m.group(1).strip()
-            parts = inner.split("|")
-            if len(parts) == 2 and "=" not in parts[1]:
+            parts = [p.strip() for p in inner.split("|")]
+            t_name = parts[0].lower()
+            if t_name in TEXT_FORMAT_TEMPLATES and len(parts) >= 2 and "=" not in parts[1]:
                 return parts[1].strip()
             return ""
         text = re.sub(r"\{\{([^}]+)\}\}", gen_sub, text)
