@@ -1453,6 +1453,105 @@ class HTMLPreviewGenerator:
             return f'<sup class="reference sfn"><a href="#cite_note-{author}_{year}">[{html.escape(label)}]</a></sup>'
         text = re.sub(r"\{\{\s*sfn\s*\|([^}]+)\}\}", sfn_sub, text, flags=re.IGNORECASE)
 
+        # Handle {{sfnm|1a1=...|1y=...|1p=...|2a1=...}}
+        def sfnm_sub(m: re.Match) -> str:
+            inner = m.group(1).strip()
+            params = {}
+            for p in inner.split("|"):
+                if "=" in p:
+                    k, v = p.split("=", 1)
+                    params[k.strip().lower()] = v.strip()
+            groups = []
+            for g in range(1, 10):
+                a1 = params.get(f"{g}a1", "")
+                if not a1:
+                    break
+                a2 = params.get(f"{g}a2", "")
+                y = params.get(f"{g}y", "")
+                p = params.get(f"{g}p", params.get(f"{g}pp", ""))
+                authors = f"{a1} & {a2}" if a2 else a1
+                page_str = f", hlm. {p}" if p else ""
+                groups.append(f"{authors} {y}{page_str}".strip())
+            if groups:
+                label = "; ".join(groups)
+                first_a = params.get("1a1", "ref")
+                first_y = params.get("1y", "")
+                return f'<sup class="reference sfn"><a href="#cite_note-{first_a}_{first_y}">[{html.escape(label)}]</a></sup>'
+            return ""
+        text = re.sub(r"\{\{\s*sfnm\s*\|([^}]+)\}\}", sfnm_sub, text, flags=re.IGNORECASE)
+
+        # Handle {{convert|...}} and {{cvt|...}}
+        UNIT_NAMES = {
+            "mi": ("mil", 1.60934, "km"),
+            "mile": ("mil", 1.60934, "km"),
+            "miles": ("mil", 1.60934, "km"),
+            "km": ("km", 0.621371, "mil"),
+            "m": ("m", 3.28084, "kaki"),
+            "ft": ("kaki", 0.3048, "m"),
+            "feet": ("kaki", 0.3048, "m"),
+            "in": ("inci", 2.54, "cm"),
+            "inch": ("inci", 2.54, "cm"),
+            "inches": ("inci", 2.54, "cm"),
+            "cm": ("cm", 0.393701, "inci"),
+            "kg": ("kg", 2.20462, "pon"),
+            "lb": ("pon", 0.453592, "kg"),
+            "lbs": ("pon", 0.453592, "kg"),
+            "acre": ("ekar", 0.404686, "ha"),
+            "acres": ("ekar", 0.404686, "ha"),
+            "ha": ("hektare", 2.47105, "ekar"),
+        }
+        def convert_sub(m: re.Match) -> str:
+            inner = m.group(1).strip()
+            parts = [p.strip() for p in inner.split("|")]
+            if len(parts) < 2:
+                return ""
+            try:
+                val_str = parts[0]
+                val = float(val_str.replace(",", "."))
+                from_u = parts[1].lower() if len(parts) > 1 else ""
+                to_u = parts[2].lower() if len(parts) > 2 and "=" not in parts[2] else ""
+                order_flip = any("order=flip" in p.lower() for p in parts)
+                if from_u in UNIT_NAMES:
+                    id_from_u, factor, auto_to_u = UNIT_NAMES[from_u]
+                    target_u = to_u if to_u in UNIT_NAMES else auto_to_u
+                    id_to_u = UNIT_NAMES[target_u][0] if target_u in UNIT_NAMES else target_u
+                    converted_val = round(val * factor)
+                    conv_str = str(int(converted_val)) if converted_val == int(converted_val) else f"{converted_val:.1f}".replace(".", ",")
+                    val_display = str(int(val)) if val == int(val) else f"{val:.1f}".replace(".", ",")
+                    if order_flip:
+                        return f"{conv_str} {id_to_u} ({val_display} {id_from_u})"
+                    else:
+                        return f"{val_display} {id_from_u} ({conv_str} {id_to_u})"
+                return f"{val_str} {from_u}"
+            except Exception:
+                return parts[0] if parts else ""
+        text = re.sub(r"\{\{\s*(?:convert|cvt)\s*\|([^}]+)\}\}", convert_sub, text, flags=re.IGNORECASE)
+
+        # Handle Hatnote: {{Informasi lebih lanjut|...}}
+        def info_sub(m: re.Match) -> str:
+            inner = m.group(1).strip()
+            links = [f'<a href="https://id.wikipedia.org/wiki/{urllib.parse.quote(p.strip().replace(" ", "_"))}">{html.escape(p.strip())}</a>' for p in inner.split("|") if p.strip() and "=" not in p]
+            return f'<div class="hatnote navigation-not-searchable">Informasi lebih lanjut: {", ".join(links)}</div>'
+        text = re.sub(r"\{\{\s*Informasi[ _]lebih[ _]lanjut\s*\|([^}]+)\}\}", info_sub, text, flags=re.IGNORECASE)
+
+        # Language badges: {{En}}, {{Ru}}
+        text = re.sub(r"\{\{\s*En\s*\}\}", '<span class="language-badge" style="font-size:85%; color:#54595d; font-weight:bold;">(Inggris)</span>', text, flags=re.IGNORECASE)
+        text = re.sub(r"\{\{\s*Ru\s*\}\}", '<span class="language-badge" style="font-size:85%; color:#54595d; font-weight:bold;">(Rusia)</span>', text, flags=re.IGNORECASE)
+
+        # Handle {{Webarchive|url=...|date=...}}
+        def webarchive_sub(m: re.Match) -> str:
+            params = {}
+            for p in m.group(1).split("|"):
+                if "=" in p:
+                    k, v = p.split("=", 1)
+                    params[k.strip().lower()] = v.strip()
+            url = params.get("url", "")
+            date = params.get("date", "")
+            date_str = f" tanggal {date}" if date else ""
+            if url:
+                return f'<span class="webarchive" style="font-size:85%; color:#54595d;">(Diarsipkan dari <a href="{html.escape(url)}" class="external" target="_blank" rel="noopener">versi asli</a>{html.escape(date_str)})</span>'
+            return ""
+        text = re.sub(r"\{\{\s*Webarchive\s*\|([^}]+)\}\}", webarchive_sub, text, flags=re.IGNORECASE)
         # Simplify standalone citation templates in wikitext (like in === Sumber ===)
         text = re.sub(r"\{\{\s*(?:Cite|sitasi)[ _][a-z0-9_]*\b([\s\S]*?)\}\}", lambda m: self._simplify_template(m.group(0)), text, flags=re.IGNORECASE)
 
