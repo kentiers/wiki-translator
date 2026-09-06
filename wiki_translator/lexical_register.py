@@ -136,6 +136,49 @@ class LexicalRegisterReranker:
             "directness_elevation",
             "Gunakan verba inti 'mengunjungi' alih-alih frasa 'melakukan kunjungan ke'.",
         ),
+        # 8. Bureaucratic Latinate Loanwords -> Natural Core Indonesian Verbs
+        (
+            re.compile(r"\bmengimplementasikan\b", re.IGNORECASE),
+            "menerapkan",
+            "bureaucratic_loanword_elevation",
+            "Gunakan 'menerapkan' alih-alih kata serapan birokratis 'mengimplementasikan'.",
+        ),
+        (
+            re.compile(r"\bdiimplementasikan\b", re.IGNORECASE),
+            "diterapkan",
+            "bureaucratic_loanword_elevation",
+            "Gunakan 'diterapkan' alih-alih kata serapan birokratis 'diimplementasikan'.",
+        ),
+        (
+            re.compile(r"\bmenginisiasi\b", re.IGNORECASE),
+            "memprakarsai",
+            "bureaucratic_loanword_elevation",
+            "Gunakan 'memprakarsai' alih-alih kata serapan 'menginisiasi'.",
+        ),
+        (
+            re.compile(r"\bdiinisiasi\b", re.IGNORECASE),
+            "diprakarsai",
+            "bureaucratic_loanword_elevation",
+            "Gunakan 'diprakarsai' alih-alih kata serapan 'diinisiasi'.",
+        ),
+        (
+            re.compile(r"\bmerefleksikan\b", re.IGNORECASE),
+            "mencerminkan",
+            "bureaucratic_loanword_elevation",
+            "Gunakan 'mencerminkan' alih-alih kata serapan 'merefleksikan'.",
+        ),
+        (
+            re.compile(r"\bdirefleksikan\b", re.IGNORECASE),
+            "dicerminkan",
+            "bureaucratic_loanword_elevation",
+            "Gunakan 'dicerminkan' alih-alih kata serapan 'direfleksikan'.",
+        ),
+        (
+            re.compile(r"\bmeminimalisir\b", re.IGNORECASE),
+            "meminimalkan",
+            "spelling_elevation",
+            "Gunakan bentuk baku 'meminimalkan' alih-alih bentuk tidak baku 'meminimalisir'.",
+        ),
     ]
 
     def elevate_text(self, text: str) -> Tuple[str, int, List[str]]:
