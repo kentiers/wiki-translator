@@ -114,9 +114,9 @@ class TypographySanitizer:
         masked = self.normalize_quotations(masked)
         masked = self.normalize_bound_morphemes(masked)
         masked = self.normalize_common_spelling_mistakes(masked)
+        masked = self.normalize_stylistic_collocations(masked)
         masked = self.normalize_appositive_commas(masked)
         masked = self.normalize_coordinating_conjunction_commas(masked)
-        masked = self.normalize_comma_clutter(masked)
         masked = self.normalize_number_separators(masked)
         masked = self.normalize_semicolons(masked)
         return default_slop_linter._unmask_protected_zones(masked, protected)
@@ -365,6 +365,26 @@ class TypographySanitizer:
         for pat, rep in VOCAB_FIXES:
             text = re.sub(pat, rep, text, flags=re.IGNORECASE)
 
+        return text
+
+    def normalize_stylistic_collocations(self, text: str) -> str:
+        """
+        Normalizes unnatural translation collocations and pleonasms according to KBBI VI and WP:GAYA:
+        1. 'khalayak pelayat/demonstran/massa' -> 'kerumunan pelayat/demonstran/massa'
+        2. 'khalayak mahasiswa/pekerja/hadirin' -> 'para mahasiswa/pekerja/hadirin'
+        3. Classifier 'salah satu' for humans -> 'salah seorang'
+        4. 'menghabiskan waktu luang' -> 'mengisi waktu luang'
+        5. Pleonasms: 'adalah merupakan' -> 'merupakan', 'agar supaya' -> 'agar',
+           'demi untuk' -> 'demi', 'banyak para' -> 'para'.
+        """
+        text = re.sub(r"\bkhalayak\s+(pelayat|demonstran|pengunjuk rasa|massa)\b", r"kerumunan \1", text, flags=re.IGNORECASE)
+        text = re.sub(r"\bkhalayak\s+(mahasiswa|pekerja|buruh|hadirin|peserta)\b", r"para \1", text, flags=re.IGNORECASE)
+        text = re.sub(r"\bsalah\s+satu\s+(tokoh|pemimpin|orang|pria|wanita|sosok|figur)\b", r"salah seorang \1", text, flags=re.IGNORECASE)
+        text = re.sub(r"\bmenghabiskan\s+waktu\s+luang\b", "mengisi waktu luang", text, flags=re.IGNORECASE)
+        text = re.sub(r"\badalah\s+merupakan\b", "merupakan", text, flags=re.IGNORECASE)
+        text = re.sub(r"\bagar\s+supaya\b", "agar", text, flags=re.IGNORECASE)
+        text = re.sub(r"\bdemi\s+untuk\b", "demi", text, flags=re.IGNORECASE)
+        text = re.sub(r"\bbanyak\s+para\b", "para", text, flags=re.IGNORECASE)
         return text
 
     def normalize_appositive_commas(self, text: str) -> str:

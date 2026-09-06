@@ -150,6 +150,27 @@ class TestTypographySanitizerPillars(unittest.TestCase):
         self.assertIn("aktivitas", res)
         self.assertIn("di atas", res)
         self.assertIn("praktik", res)
+    def test_stylistic_collocations(self):
+        # Khalayak collocations
+        text1 = "Gorbachev berbaur dengan khalayak pelayat di Lapangan Merah."
+        res1 = self.sanitizer.normalize_stylistic_collocations(text1)
+        self.assertIn("kerumunan pelayat", res1)
+        self.assertNotIn("khalayak pelayat", res1)
+
+        # Classifier for humans
+        text2 = "Ia diakui sebagai salah satu tokoh paling berpengaruh."
+        res2 = self.sanitizer.normalize_stylistic_collocations(text2)
+        self.assertIn("salah seorang tokoh", res2)
+
+        # Pleonasms
+        text3 = "Langkah ini adalah merupakan keputusan penting agar supaya tujuan tercapai demi untuk rakyat."
+        res3 = self.sanitizer.normalize_stylistic_collocations(text3)
+        self.assertIn("merupakan keputusan", res3)
+        self.assertNotIn("adalah merupakan", res3)
+        self.assertIn("agar tujuan", res3)
+        self.assertNotIn("agar supaya", res3)
+        self.assertIn("demi rakyat", res3)
+        self.assertNotIn("demi untuk", res3)
 
     def test_appositive_comma_normalization(self):
         # Appositive comma sandwich around names should be unsandwiched
