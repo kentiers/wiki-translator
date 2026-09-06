@@ -76,26 +76,15 @@ LOWERCASE_HEADING_WORDS: Set[str] = {
 
 # Known proper names / historic events / geographic / entities in Indonesian headings that must preserve Capitalization
 KNOWN_PROPER_NOUNS: Set[str] = {
-    "indonesia",
-    "jawa",
-    "sumatra",
-    "sumatera",
-    "kalimantan",
-    "sulawesi",
-    "papua",
-    "bali",
-    "jakarta",
-    "eropa",
-    "asia",
-    "amerika",
-    "afrika",
-    "australia",
-    "inggris",
-    "pasifik",
-    "atlantik",
-    "blu-ray",
-    "perang",
-    "dunia",
+    "indonesia", "jawa", "sumatra", "sumatera", "kalimantan", "sulawesi", "papua", "bali",
+    "jakarta", "eropa", "asia", "amerika", "afrika", "australia", "inggris", "pasifik",
+    "atlantik", "blu-ray", "perang", "dunia", "rusia", "soviet", "jerman", "tiongkok",
+    "putin", "stalin", "lenin", "khrushchev", "brezhnev", "gorbachev", "komunis", "partai",
+    "kudeta", "agustus", "teluk", "kaukasus", "stavropol", "moskow", "moskwa", "komsomol",
+    "politbiro", "parlemen", "lituania", "estonia", "latvia", "ukraina", "belarus", "georgia",
+    "armenia", "moldova", "persemakmuran", "kanada", "prancis", "barat", "timur", "kuba",
+    "vietnam", "korea", "libya", "suriah", "afganistan", "reagan", "thatcher", "yeltsin",
+    "trudeau", "kursk", "pkus", "duma", "balkon", "chernobyl", "nato", "pbb",
 }
 
 
