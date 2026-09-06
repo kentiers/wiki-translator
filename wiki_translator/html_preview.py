@@ -191,6 +191,109 @@ a:hover {
     font-weight: bold;
 }
 
+
+/* Standard Wikitable (Vector 2022) */
+table.wikitable {
+    background-color: #f8f9fa;
+    color: #202122;
+    margin: 1em 0;
+    border: 1px solid #a2a9b1;
+    border-collapse: collapse;
+    font-size: 14px;
+    line-height: 1.5;
+    width: 100%;
+}
+
+table.wikitable > tr > th,
+table.wikitable > tr > td,
+table.wikitable > tbody > tr > th,
+table.wikitable > tbody > tr > td {
+    border: 1px solid #a2a9b1;
+    padding: 0.5em 0.8em;
+    vertical-align: middle;
+}
+
+table.wikitable > tr > th,
+table.wikitable > tbody > tr > th {
+    background-color: #eaecf0;
+    text-align: left;
+    font-weight: bold;
+}
+
+table.wikitable > caption {
+    font-weight: bold;
+    font-size: 95%;
+    padding: 0.4em;
+    text-align: center;
+    caption-side: bottom;
+    color: #54595d;
+}
+
+table.wikitable.sortable th {
+    padding-right: 22px;
+    position: relative;
+}
+
+table.wikitable.sortable th::after {
+    content: " ⇕";
+    font-size: 0.85em;
+    color: #72777d;
+    position: absolute;
+    right: 6px;
+    top: 50%;
+    transform: translateY(-50%);
+}
+
+table.wikitable tr:hover {
+    background-color: #f1f3f5;
+}
+/* Hatnotes (Vector 2022) */
+.hatnote {
+    font-style: italic;
+    color: #54595d;
+    padding-left: 1.6em;
+    margin: 0.5em 0 1em 0;
+    font-size: 13.5px;
+    background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 20 20"><path fill="%2354595d" d="M19 10l-7-7v4H1v6h11v4z"/></svg>') no-repeat left center;
+    background-size: 13px;
+}
+
+.hatnote a {
+    color: var(--color-link);
+    text-decoration: none;
+}
+
+.hatnote a:hover {
+    text-decoration: underline;
+}
+
+/* Sister project box */
+.sister-project-box {
+    float: right;
+    clear: right;
+    margin: 0 0 1em 1em;
+    padding: 10px 14px;
+    background: #f8f9fa;
+    border: 1px solid #c8ccd1;
+    border-radius: 4px;
+    font-size: 13px;
+    max-width: 320px;
+    line-height: 1.4;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+}
+
+/* Succession table */
+table.succession-table {
+    margin: 1.5em auto;
+    font-size: 13px;
+    width: 100%;
+    max-width: 900px;
+    border-collapse: collapse;
+}
+
+table.succession-table td {
+    padding: 8px 12px;
+}
 /* References block (Vector 2022 2-column responsive layout) */
 .mw-references-wrap {
     font-size: 90%;
@@ -579,7 +682,7 @@ class HTMLPreviewGenerator:
                 output_lines.append(f"<li>{item_text}</li>")
                 continue
             # HTML block elements (do not wrap in <p>)
-            if stripped.startswith(("<div", "</div", "<table", "</table", "<tr", "</tr", "<td", "<th", "<blockquote", "</blockquote")):
+            if stripped.startswith(("<div", "</div", "<table", "</table", "<caption", "</caption", "<thead", "</thead", "<tbody", "</tbody", "<tr", "</tr", "<td", "<th", "<blockquote", "</blockquote")):
                 output_lines.append(stripped)
                 continue
 
@@ -622,10 +725,12 @@ class HTMLPreviewGenerator:
                 + '</ol>'
                 '</div>'
             )
-            catatan_pattern = re.compile(r"(<h2\b[^>]*>Catatan</h2>)", re.IGNORECASE)
-            if catatan_pattern.search(body_html):
-                body_html = catatan_pattern.sub(r"\1\n" + notes_html, body_html, count=1)
-
+            if "<!-- NOTELIST_PLACEHOLDER -->" in body_html:
+                body_html = body_html.replace("<!-- NOTELIST_PLACEHOLDER -->", notes_html, 1)
+            else:
+                catatan_pattern = re.compile(r"(<h2\b[^>]*>Catatan</h2>)", re.IGNORECASE)
+                if catatan_pattern.search(body_html):
+                    body_html = catatan_pattern.sub(r"\1\n" + notes_html, body_html, count=1)
         # Inject references (Referensi) in Vector 2022 2-column layout
         if ordered_refs:
             ref_list_items = []
@@ -657,11 +762,18 @@ class HTMLPreviewGenerator:
                 + '</ol>'
                 '</div>'
             )
-            ref_header_pattern = re.compile(r"(<h2\b[^>]*>(?:Referensi|Rujukan)</h2>)", re.IGNORECASE)
-            if ref_header_pattern.search(body_html):
-                body_html = ref_header_pattern.sub(r"\1\n" + refs_html, body_html, count=1)
+            if "<!-- REFLIST_PLACEHOLDER -->" in body_html:
+                body_html = body_html.replace("<!-- REFLIST_PLACEHOLDER -->", refs_html, 1)
             else:
-                body_html += '\n<h2>Referensi</h2>\n' + refs_html
+                kutipan_pattern = re.compile(r"(<h3\b[^>]*>(?:Kutipan|Catatan kaki)</h3>)", re.IGNORECASE)
+                if kutipan_pattern.search(body_html):
+                    body_html = kutipan_pattern.sub(r"\1\n" + refs_html, body_html, count=1)
+                else:
+                    ref_header_pattern = re.compile(r"(<h2\b[^>]*>(?:Referensi|Rujukan)</h2>)", re.IGNORECASE)
+                    if ref_header_pattern.search(body_html):
+                        body_html = ref_header_pattern.sub(r"\1\n" + refs_html, body_html, count=1)
+                    else:
+                        body_html += '\n<h2>Referensi</h2>\n' + refs_html
         return body_html
     def _format_multiple_images(self, text: str) -> str:
         """Formats {{Multiple image}} into responsive Wikimedia-style thumbnail containers."""
@@ -841,14 +953,19 @@ class HTMLPreviewGenerator:
             start_pos = match.start()
             depth = 0
             end_pos = -1
-            for i in range(start_pos, len(text)):
+            i = start_pos
+            while i < len(text):
                 if text[i : i + 2] == "{{":
                     depth += 1
+                    i += 2
                 elif text[i : i + 2] == "}}":
                     depth -= 1
                     if depth == 0:
                         end_pos = i + 2
                         break
+                    i += 2
+                else:
+                    i += 1
 
             if end_pos == -1:
                 break
@@ -863,20 +980,51 @@ class HTMLPreviewGenerator:
 
     def _render_infobox_table(self, infobox_raw: str) -> str:
         """Parses an infobox template and generates an HTML table."""
-        # Strip outer {{ and }}
         content = infobox_raw.strip()[2:-2].strip()
-        lines = content.split("|")
-        if not lines:
+
+        # Split top-level parameters respecting nested {{...}} and [[...]]
+        parts = []
+        cur = []
+        d_brace = 0
+        d_bracket = 0
+        i = 0
+        while i < len(content):
+            if content[i : i + 2] == "{{":
+                d_brace += 1
+                cur.append(content[i : i + 2])
+                i += 2
+            elif content[i : i + 2] == "}}":
+                d_brace = max(0, d_brace - 1)
+                cur.append(content[i : i + 2])
+                i += 2
+            elif content[i : i + 2] == "[[":
+                d_bracket += 1
+                cur.append(content[i : i + 2])
+                i += 2
+            elif content[i : i + 2] == "]]":
+                d_bracket = max(0, d_bracket - 1)
+                cur.append(content[i : i + 2])
+                i += 2
+            elif content[i] == "|" and d_brace == 0 and d_bracket == 0:
+                parts.append("".join(cur).strip())
+                cur = []
+                i += 1
+            else:
+                cur.append(content[i])
+                i += 1
+        if cur:
+            parts.append("".join(cur).strip())
+
+        if not parts:
             return ""
 
-        title = lines[0].strip()
-        # Clean title
+        title = parts[0].strip()
         title = re.sub(r"^(?:Infobox|Kotak info|Kotakinfo)\s*", "", title, flags=re.IGNORECASE)
 
         rows = []
         box_title = None
 
-        for param in lines[1:]:
+        for param in parts[1:]:
             if "=" not in param:
                 continue
             k, v = param.split("=", 1)
@@ -889,7 +1037,13 @@ class HTMLPreviewGenerator:
             if key.lower() in ("nama", "name", "title", "judul"):
                 box_title = val
             else:
-                # Basic cleaning of value
+                # Clean up nested templates
+                val = re.sub(r"\{\{nobold\|([^}]+)\}\}", r"\1", val, flags=re.I)
+                val = re.sub(r"\{\{marriage\|([^|]+)\|([^|]+)\|([^|]+)(?:\|[^}]+)?\}\}", r"\1 (m. \2; w. \3)", val, flags=re.I)
+                val = re.sub(r"\{\{ill\|([^|]+)(?:\|[^}]+)*\}\}", r"\1", val, flags=re.I)
+                val = re.sub(r"\{\{small\|([^}]+)\}\}", r"<small>\1</small>", val, flags=re.I)
+                val = re.sub(r"\{\{resmi\|([^}]+)\}\}", r'<a href="\1" class="external" target="_blank" rel="noopener">\1</a>', val, flags=re.I)
+                # Wikilinks
                 clean_val = re.sub(r"\[\[(?:[^|\]]+\|)?([^\]]+)\]\]", r"\1", val)
                 clean_val = re.sub(r"'''''(.*?)'''''", r"<strong><em>\1</em></strong>", clean_val)
                 clean_val = re.sub(r"'''(.*?)'''", r"<strong>\1</strong>", clean_val)
@@ -905,12 +1059,29 @@ class HTMLPreviewGenerator:
         table_html.extend(rows)
         table_html.append("</table>")
         return "\n".join(table_html)
-
     def _extract_and_format_tables(self, text: str) -> str:
         """Converts wikitext tables ({| ... |}) into styled HTML tables or notice cards."""
         table_pattern = re.compile(r"\{\|[^\n]*\n([\s\S]*?)\|\}", re.MULTILINE)
 
+        def clean_cell_markup(raw_cell: str) -> Tuple[str, str]:
+            raw_cell = raw_cell.strip()
+            attr = ""
+            content = raw_cell
+            if "|" in raw_cell:
+                parts = raw_cell.split("|", 1)
+                if re.match(r"^\s*(?:style|class|scope|width|colspan|rowspan|align|valign|bgcolor)\s*=", parts[0], re.I):
+                    attr = " " + parts[0].strip()
+                    content = parts[1].strip()
+            content = re.sub(r"\[\[([^|\]]+)\|([^\]]+)\]\]", r'<a href="https://id.wikipedia.org/wiki/\1">\2</a>', content)
+            content = re.sub(r"\[\[([^|\]]+)\]\]", r'<a href="https://id.wikipedia.org/wiki/\1">\1</a>', content)
+            content = re.sub(r"'''''(.*?)'''''", r"<strong><em>\1</em></strong>", content)
+            content = re.sub(r"'''(.*?)'''", r"<strong>\1</strong>", content)
+            content = re.sub(r"''(.*?)''", r"<em>\1</em>", content)
+            content = re.sub(r"\{\{ISBN\|([^}]+)\}\}", r"ISBN \1", content)
+            return attr, content
+
         def table_replacer(match: re.Match) -> str:
+            raw_table = match.group(0)
             inner = match.group(1).strip()
 
             # Special case: Review / draft notice banner
@@ -918,33 +1089,63 @@ class HTMLPreviewGenerator:
                 msg = re.sub(r"^\|\s*", "", inner, flags=re.MULTILINE).strip()
                 return (
                     '<div class="preview-notice-banner" style="background:#f0f4f8; border:1px solid #c8ccd1; border-left:5px solid #36c; padding:12px 18px; border-radius:4px; margin-bottom:20px;">'
-                    f'{msg}'
-                    '</div>\n'
+                    f"{msg}"
+                    "</div>\n"
                 )
 
             # General Wikitable parser
+            header_line = raw_table.split("\n", 1)[0]
+            table_classes = ["wikitable"]
+            if "sortable" in header_line.lower():
+                table_classes.append("sortable")
+
+            caption_html = ""
             rows_html = []
             cur_row = []
+
             for line in inner.splitlines():
                 line = line.strip()
-                if not line:
+                if not line or line == "|}" or line.startswith("|}"):
                     continue
+
+                if line.startswith("|+"):
+                    cap_text = line[2:].strip()
+                    if "|" in cap_text:
+                        parts = cap_text.split("|", 1)
+                        if any(k in parts[0].lower() for k in ["align=", "style="]):
+                            cap_text = parts[1].strip()
+                    _, cap_clean = clean_cell_markup(cap_text)
+                    caption_html = f"<caption>{cap_clean}</caption>\n"
+                    continue
+
                 if line.startswith("|-"):
                     if cur_row:
-                        rows_html.append("<tr>" + "".join(cur_row) + "</tr>")
+                        rows_html.append("<tr>" + "".join(cur_row) + "</tr>\n")
                         cur_row = []
                     continue
+
                 if line.startswith("!"):
-                    cell_text = re.sub(r"^!\s*", "", line)
-                    cur_row.append(f"<th>{cell_text}</th>")
-                elif line.startswith("|"):
-                    cell_text = re.sub(r"^\|\s*", "", line)
-                    cur_row.append(f"<td>{cell_text}</td>")
+                    content = line[1:].strip()
+                    cells = re.split(r"\s*!!\s*|\s*!(?![^\[]*\]\])(?![^{]*\}\})\s*", content)
+                    for c in cells:
+                        if c.strip():
+                            attr, c_clean = clean_cell_markup(c)
+                            cur_row.append(f"<th{attr}>{c_clean}</th>")
+                    continue
+
+                if line.startswith("|"):
+                    content = line[1:].strip()
+                    cells = re.split(r"\s*\|\|\s*", content)
+                    for c in cells:
+                        attr, c_clean = clean_cell_markup(c)
+                        cur_row.append(f"<td{attr}>{c_clean}</td>")
+                    continue
 
             if cur_row:
-                rows_html.append("<tr>" + "".join(cur_row) + "</tr>")
+                rows_html.append("<tr>" + "".join(cur_row) + "</tr>\n")
 
-            return '<table class="wikitable">' + "".join(rows_html) + '</table>\n'
+            cls_str = " ".join(table_classes)
+            return f'<table class="{cls_str}">\n{caption_html}' + "".join(rows_html) + "</table>\n"
 
         return table_pattern.sub(table_replacer, text)
     def _clean_ref_content(self, content: str) -> str:
@@ -1042,15 +1243,176 @@ class HTMLPreviewGenerator:
 
     def _format_templates(self, text: str) -> str:
         """Strips or cleanly displays residual inline templates."""
-        # Strip {{notelist}} or {{daftar catatan}}
-        text = re.sub(r"\{\{\s*(?:notelist|daftar catatan|efn-lr)[^}]*\}\}", "", text, flags=re.IGNORECASE)
-        # Strip {{reflist}} or {{daftar referensi}}
-        text = re.sub(r"\{\{\s*(reflist|daftar pustaka|referensi|rujukan)[^}]*\}\}", "", text, flags=re.IGNORECASE)
+        # Convert {{notelist}} or {{daftar catatan}} to placeholder
+        text = re.sub(r"\{\{\s*(?:notelist|daftar catatan|efn-lr)[^}]*\}\}", "<!-- NOTELIST_PLACEHOLDER -->", text, flags=re.IGNORECASE)
+        # Convert {{reflist}} or {{daftar referensi}} to placeholder
+        text = re.sub(r"\{\{\s*(reflist|daftar pustaka|referensi|rujukan)[^}]*\}\}", "<!-- REFLIST_PLACEHOLDER -->", text, flags=re.IGNORECASE)
+        # Handle {{refbegin}} and {{refend}}
+        text = re.sub(r"\{\{\s*refbegin[^}]*\}\}", '<div class="mw-references-wrap references-2column" style="column-width: 30em; margin-top: 0.5em;">', text, flags=re.IGNORECASE)
+        text = re.sub(r"\{\{\s*refend\s*\}\}", "</div>", text, flags=re.IGNORECASE)
+
+        # Handle Hatnotes: {{See also|...}}, {{Lihat pula|...}}, {{Utama|...}}, {{Main|...}}
+        def hatnote_sub(m: re.Match) -> str:
+            tpl_name = m.group(1).lower().strip()
+            inner = m.group(2).strip()
+            links = []
+            for p in inner.split("|"):
+                p_clean = p.strip()
+                if p_clean and not "=" in p_clean:
+                    href = f"https://id.wikipedia.org/wiki/{urllib.parse.quote(p_clean.replace(' ', '_'))}"
+                    links.append(f'<a href="{href}">{html.escape(p_clean)}</a>')
+            label = "Artikel utama:" if tpl_name in ["utama", "main"] else "Lihat pula:"
+            links_str = ", ".join(links) or inner
+            return f'<div class="hatnote navigation-not-searchable">{label} {links_str}</div>'
+        text = re.sub(r"\{\{\s*(See also|Lihat pula|Utama|Main)\s*\|([^}]+)\}\}", hatnote_sub, text, flags=re.IGNORECASE)
+
+        # Handle sister project callouts: {{wikiquote|...}}, {{commonscat|...}}, {{commons|...}}
+        def sister_sub(m: re.Match) -> str:
+            name = m.group(1).lower().strip()
+            val = m.group(2).strip() if m.group(2) else ""
+            clean_val = val.split("|")[0].strip()
+            if "commonscat" in name or "commons" in name:
+                url = f"https://commons.wikimedia.org/wiki/Category:{clean_val.replace(' ', '_')}"
+                return (
+                    f'<div class="sister-project-box">'
+                    f'📁 <strong>Wikimedia Commons</strong> memiliki galeri mengenai <a href="{url}" class="external" target="_blank" rel="noopener"><em>{html.escape(clean_val)}</em></a>.'
+                    f'</div>'
+                )
+            elif "wikiquote" in name:
+                url = f"https://id.wikiquote.org/wiki/{clean_val.replace(' ', '_')}"
+                return (
+                    f'<div class="sister-project-box">'
+                    f'💬 <strong>Wikikutip</strong> memiliki koleksi kutipan mengenai <a href="{url}" class="external" target="_blank" rel="noopener"><em>{html.escape(clean_val)}</em></a>.'
+                    f'</div>'
+                )
+            return ""
+        text = re.sub(r"\{\{\s*(commonscat|commons|wikiquote)\s*(?:\|([^}]+))?\}\}", sister_sub, text, flags=re.IGNORECASE)
+
+        # Handle succession boxes: {{S-start}}...{{S-end}}
+        def succession_sub(m: re.Match) -> str:
+            inner = m.group(0)
+            rows = []
+            box_pat = re.compile(r"\{\{\s*Succession[ _]box\b", re.I)
+            pos = 0
+            while pos < len(inner):
+                bm = box_pat.search(inner, pos)
+                if not bm:
+                    break
+                b_start = bm.start()
+                i = b_start
+                d = 0
+                b_end = -1
+                while i < len(inner):
+                    if inner[i : i + 2] == "{{":
+                        d += 1
+                        i += 2
+                    elif inner[i : i + 2] == "}}":
+                        d -= 1
+                        if d == 0:
+                            b_end = i + 2
+                            break
+                        i += 2
+                    else:
+                        i += 1
+                if b_end == -1:
+                    pos = bm.end()
+                    continue
+
+                raw_box = inner[b_start:b_end]
+                box_content = raw_box.strip()[2:-2].strip()
+
+                params = {}
+                p_parts = []
+                p_cur = []
+                p_db = 0
+                p_dk = 0
+                pj = 0
+                while pj < len(box_content):
+                    if box_content[pj : pj + 2] == "{{":
+                        p_db += 1
+                        p_cur.append(box_content[pj : pj + 2])
+                        pj += 2
+                    elif box_content[pj : pj + 2] == "}}":
+                        p_db = max(0, p_db - 1)
+                        p_cur.append(box_content[pj : pj + 2])
+                        pj += 2
+                    elif box_content[pj : pj + 2] == "[[":
+                        p_dk += 1
+                        p_cur.append(box_content[pj : pj + 2])
+                        pj += 2
+                    elif box_content[pj : pj + 2] == "]]":
+                        p_dk = max(0, p_dk - 1)
+                        p_cur.append(box_content[pj : pj + 2])
+                        pj += 2
+                    elif box_content[pj] == "|" and p_db == 0 and p_dk == 0:
+                        p_parts.append("".join(p_cur).strip())
+                        p_cur = []
+                        pj += 1
+                    else:
+                        p_cur.append(box_content[pj])
+                        pj += 1
+                if p_cur:
+                    p_parts.append("".join(p_cur).strip())
+
+                for p in p_parts:
+                    if "=" in p:
+                        k, v = p.split("=", 1)
+                        params[k.strip().lower()] = v.strip()
+
+                before = params.get("before", "–")
+                title = params.get("title", "")
+                years = params.get("years", "")
+                after = params.get("after", "–")
+
+                def clean_succ_cell(c: str) -> str:
+                    c = re.sub(r"\{\{\s*flagicon\s*\|[^}]*\}\}\s*", "", c, flags=re.I)
+                    c = re.sub(r"\{\{\s*ill\s*\|([^|]+)(?:\|[^}]+)*\}\}", r"\1", c, flags=re.I)
+                    c = re.sub(r"\[\[([^|\]]+)\|([^\]]+)\]\]", r'<a href="https://id.wikipedia.org/wiki/\1">\2</a>', c)
+                    c = re.sub(r"\[\[([^\]]+)\]\]", r'<a href="https://id.wikipedia.org/wiki/\1">\1</a>', c)
+                    c = re.sub(r"'''''(.*?)'''''", r"<strong><em>\1</em></strong>", c)
+                    c = re.sub(r"'''(.*?)'''", r"<strong>\1</strong>", c)
+                    c = re.sub(r"''(.*?)''", r"<em>\1</em>", c)
+                    return c.strip()
+
+                rows.append(
+                    f'<tr><td style="width:30%; text-align:center; vertical-align:middle;">{clean_succ_cell(before)}</td>'
+                    f'<td style="width:40%; text-align:center; font-weight:bold; vertical-align:middle;">{clean_succ_cell(title)}<br><span style="font-weight:normal; font-size:90%; color:#555;">{clean_succ_cell(years)}</span></td>'
+                    f'<td style="width:30%; text-align:center; vertical-align:middle;">{clean_succ_cell(after)}</td></tr>'
+                )
+                pos = b_end
+
+            if rows:
+                return (
+                    '<table class="wikitable succession-table">'
+                    '<tr><th colspan="3" style="background:#eaecf0; text-align:center;">Gelar Politik & Jabatan Pemerintahan</th></tr>'
+                    + "".join(rows) +
+                    '</table>'
+                )
+            return ""
+        text = re.sub(r"\{\{\s*S-start\s*\}\}[\s\S]*?\{\{\s*S-end\s*\}\}", succession_sub, text, flags=re.IGNORECASE)
+
+        # Handle {{sfn|Author|Year|p=...}}
+        def sfn_sub(m: re.Match) -> str:
+            parts = [p.strip() for p in m.group(1).split("|")]
+            author = parts[0] if len(parts) > 0 else "Rujukan"
+            year = parts[1] if len(parts) > 1 else ""
+            page = ""
+            for p in parts[2:]:
+                if p.startswith(("p=", "page=", "halaman=", "hlm=")):
+                    page = f", hlm. {p.split('=', 1)[1]}"
+                elif not "=" in p and not page:
+                    page = f", hlm. {p}"
+            label = f"{author} {year}{page}".strip()
+            return f'<sup class="reference sfn"><a href="#cite_note-{author}_{year}">[{html.escape(label)}]</a></sup>'
+        text = re.sub(r"\{\{\s*sfn\s*\|([^}]+)\}\}", sfn_sub, text, flags=re.IGNORECASE)
+
+        # Simplify standalone citation templates in wikitext (like in === Sumber ===)
+        text = re.sub(r"\{\{\s*(?:Cite|sitasi)[ _][a-z0-9_]*\b([\s\S]*?)\}\}", lambda m: self._simplify_template(m.group(0)), text, flags=re.IGNORECASE)
+
         # Strip {{DEFAULTSORT:...}}
         text = re.sub(r"\{\{DEFAULTSORT:[^}]+\}\}", "", text, flags=re.IGNORECASE)
         # Strip {{Authority control}} and metadata templates
-        text = re.sub(r"\{\{\s*(?:authority control|pengawasan otoritas|normdaten)[^}]*\}\}", "", text, flags=re.IGNORECASE)
-
+        text = re.sub(r"\{\{\s*(?:authority control|pengawasan otoritas|normdaten|pemimpinrusia|nobel perdamaian)[^}]*\}\}", "", text, flags=re.IGNORECASE)
         # Format {{Commons-inline|...}}
         def commons_sub(m: re.Match) -> str:
             parts = [p.strip() for p in m.group(1).split("|")] if m.group(1) else []

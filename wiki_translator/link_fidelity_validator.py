@@ -657,12 +657,12 @@ class LinkFidelityValidator:
             if native_val and native_val != en_val:
                 ill_parts.extend([native_lang, native_val])
             if not en_val and not native_val:
-                ill_parts.extend(["en", en_target])
-
+                en_target_fallback = en_target or target
+                ill_parts.extend(["en", en_target_fallback])
             if label and label != target:
                 ill_parts.append(f"lt={label}")
 
-            ill_code = "{{" + f"ill|{'|'.join(ill_parts)}" + "}}"
+            ill_code = "{{" + f"ill|{'|'.join(str(p) for p in ill_parts if p is not None)}" + "}}"
             converted_count += 1
             details.append(f"Converted redlink to multi-wiki {{{{ill}}}}: [[{target}]] -> {ill_code}")
             return ill_code

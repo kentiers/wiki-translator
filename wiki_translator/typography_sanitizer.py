@@ -120,10 +120,10 @@ class TypographySanitizer:
         text = self.normalize_headings(text)
         masked, protected = default_slop_linter._mask_protected_zones(text)
         masked = self.normalize_en_dashes(masked)
+        masked = self.normalize_em_dashes(masked)
         masked = self.normalize_number_separators(masked)
         masked = self.normalize_semicolons(masked)
         return default_slop_linter._unmask_protected_zones(masked, protected)
-
     # ==========================================
     # Pillar 1: Typography & Orthography Linter
     # ==========================================
@@ -155,22 +155,40 @@ class TypographySanitizer:
 
     def normalize_em_dashes(self, text: str) -> str:
         """
-        Converts em-dashes '—' (U+2014) or '--' in narrative prose to commas or periods.
+        Converts em-dashes '—' (U+2014) or '--' in narrative prose to commas, periods, or en-dashes.
         - Parenthetical clause: 'kata — penjelasan — kata' -> 'kata, penjelasan, kata'
         - Clause-connecting em-dash: 'klausa — klausa' -> 'klausa, klausa' or 'klausa. Klausa'
+        - Bullet item description: '* [[Link]] — Keterangan' -> '* [[Link]] – Keterangan'
+        - Preserves quote attributions: '| source = — Tokoh' or '— Penulis'
         """
-        # 1. Parenthetical em-dash pair: " — ... — " or "—...—"
+        # 1. Protect quote attributions (e.g. | source = — ...)
+        attributions = {}
+        def hide_attr(m: re.Match) -> str:
+            key = f"⟦ATTR_{len(attributions)}⟧"
+            attributions[key] = m.group(0)
+            return key
+
+        text = re.sub(r"(?:\|\s*source\s*=\s*—\s*[^|\n}]+|\|\s*—\s*[^|\n}]+)", hide_attr, text, flags=re.IGNORECASE)
+
+        # 2. Bullet list separator: * [[X]] — Y -> * [[X]] – Y (en-dash with space)
+        text = re.sub(r"^(\s*\*+\s*\[\[[^\]]+\]\]\s*)—\s*", r"\1– ", text, flags=re.MULTILINE)
+
+        # 3. Parenthetical em-dash pair: " — ... — " or "—...—"
         def parenthetical_replacer(m: re.Match) -> str:
             content = m.group(1).strip()
             return f", {content}, "
 
-        # Match word/clause — explanation — word/clause
         text = re.sub(r"\s*(?:—|--)\s*([^—\n]+?)\s*(?:—|--)\s*", parenthetical_replacer, text)
 
-        # 2. Standalone em-dash connecting clauses: "kata — kata" -> "kata, kata"
+        # 4. Standalone em-dash connecting clauses: "kata — kata" -> "kata, kata"
         text = re.sub(r"\s*(?:—|--)\s*", ", ", text)
         # Clean up any accidental double commas
         text = re.sub(r",\s*,+", ",", text)
+
+        # Restore attributions
+        for key, val in attributions.items():
+            text = text.replace(key, val)
+
         return text
 
     def normalize_semicolons(self, text: str) -> str:

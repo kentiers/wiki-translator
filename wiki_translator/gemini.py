@@ -409,7 +409,7 @@ class GeminiTranslatorClient:
             for attempt in range(2):
                 if attempt:
                     credentials = self.auth_manager.load_credentials()
-                for cred in credentials:
+                for cred in sorted(credentials, key=lambda c: (c.is_exhausted, c.is_expired())):
                     if cred.is_exhausted:
                         continue
                     if cred.is_expired():
