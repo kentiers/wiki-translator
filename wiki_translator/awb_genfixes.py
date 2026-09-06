@@ -767,7 +767,8 @@ class GeneralFixesEngine:
             return ""
         def repl(m: re.Match) -> str:
             inner = m.group(1)
-            cleaned_inner = re.sub(r"\[([a-zA-Z\s]+)\]", r"\1", inner)
+            # Never corrupt double-bracket wikilinks [[...]] or piped links [[...|...]]
+            cleaned_inner = re.sub(r"(?<!\[)\[([a-zA-Z\s]+)\](?!\])", r"\1", inner)
             return f'"{cleaned_inner}"'
         return re.sub(r'"([^"\n]+)"', repl, text)
     def clean_narrative_colons(self, text: str) -> str:
