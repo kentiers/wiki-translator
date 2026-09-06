@@ -118,10 +118,12 @@ class TypographySanitizer:
             return ""
         text = self.localize_citation_dates(text)
         text = self.normalize_headings(text)
+        text = self.normalize_bound_morphemes_before_links(text)
         masked, protected = default_slop_linter._mask_protected_zones(text)
         masked = self.normalize_en_dashes(masked)
         masked = self.normalize_em_dashes(masked)
         masked = self.normalize_bound_morphemes(masked)
+        masked = self.normalize_common_spelling_mistakes(masked)
         masked = self.normalize_appositive_commas(masked)
         masked = self.normalize_coordinating_conjunction_commas(masked)
         masked = self.normalize_number_separators(masked)
@@ -194,29 +196,182 @@ class TypographySanitizer:
 
         return text
 
+    def normalize_bound_morphemes_before_links(self, text: str) -> str:
+        """
+        Normalizes bound morphemes immediately preceding a wikilink (before zone masking):
+        - 'pasca-[[Bencana Chernobyl]]' -> 'pascabencana [[Bencana Chernobyl|Chernobyl]]'
+        - 'Pasca-[[Pembubaran Uni Soviet|...]]' -> '[[Pembubaran Uni Soviet|Pascapembubaran...]]'
+        - Preserves hyphen when link target is a proper noun:
+          'pasca-[[Uni Soviet]]', 'pro-[[Barat]]'
+        """
+        BOUND_PREFIXES = r"(?:pasca|pra|antar|non|multi|anti|sub|semi|ekstra|kontra|inter|intra|pro|maha|tuna)"
+        COMMON_EVENT_NOUNS = {
+            "bencana", "pembubaran", "krisis", "invasi", "kudeta", "revolusi", "reformasi",
+            "pemilu", "pandemi", "gempa", "letusan", "kebakaran", "perang", "kematian",
+            "kejatuhan", "keruntuhan", "kelulusan", "kejadian", "peristiwa", "insiden",
+            "konferensi", "perjanjian", "kesepakatan", "pemberontakan", "era"
+        }
+        pattern = re.compile(rf"\b({BOUND_PREFIXES})-\[\[([^\]|]+)(?:\|([^\]]+))?\]\]", re.IGNORECASE)
+
+        def repl(m: re.Match) -> str:
+            pref = m.group(1)
+            target = m.group(2).strip()
+            label = m.group(3).strip() if m.group(3) else target
+            words = (label or target).split()
+            first_word_clean = words[0].lower()
+            if first_word_clean in COMMON_EVENT_NOUNS:
+                serangkai = f"{pref.lower()}{first_word_clean}"
+                if pref[0].isupper():
+                    serangkai = serangkai.capitalize()
+                rest = " ".join(words[1:])
+                if rest:
+                    return f"{serangkai} [[{target}|{rest}]]"
+                else:
+                    return f"[[{target}|{serangkai}]]"
+            return m.group(0)
+
+        return pattern.sub(repl, text)
+
     def normalize_bound_morphemes(self, text: str) -> str:
         """
         Converts Indonesian bound morphemes (bentuk terikat) according to EYD V Bab II Huruf D.
         - Bound morpheme + hyphen + lowercase letter -> remove hyphen (written serangkai):
           e.g. 'pasca-kematian' -> 'pascakematian', 'pro-kemerdekaan' -> 'prokemerdekaan',
                'pasca-peristiwa' -> 'pascaperistiwa', 'non-blok' -> 'nonblok'
-        - Preserves hyphen when followed by capitalized words / proper nouns / acronyms:
-          e.g. 'pasca-Soviet', 'pro-Yeltsin', 'anti-Barat', 'de-Stalinisasi', 'non-ASEAN'
+        - Bound morpheme before common noun inside wikilink -> write serangkai:
+          e.g. 'pasca-[[Bencana Chernobyl]]' -> 'pascabencana [[Bencana Chernobyl|Chernobyl]]',
+               'Pasca-[[Pembubaran Uni Soviet|...]]' -> '[[Pembubaran Uni Soviet|Pascapembubaran...]]'
+        - Preserves hyphen when followed by capitalized proper nouns / countries / acronyms:
+          e.g. 'pasca-Soviet', 'pro-Yeltsin', 'anti-Barat', 'de-Stalinisasi', 'non-ASEAN',
+               'pasca-[[Uni Soviet]]', 'pro-[[Barat]]'
         - Combines common spaced bound morphemes:
           e.g. 'pasca perang' -> 'pascaperang', 'antar bangsa' -> 'antarbangsa'
         """
         BOUND_PREFIXES = r"(?:pasca|pra|antar|non|multi|anti|sub|semi|ekstra|kontra|inter|intra|pro|maha|tuna|panca|tri|dwi|eka)"
+        COMMON_EVENT_NOUNS = {
+            "bencana", "pembubaran", "krisis", "invasi", "kudeta", "revolusi", "reformasi",
+            "pemilu", "pandemi", "gempa", "letusan", "kebakaran", "perang", "kematian",
+            "kejatuhan", "keruntuhan", "kelulusan", "kejadian", "peristiwa", "insiden",
+            "konferensi", "perjanjian", "kesepakatan", "pemberontakan", "era"
+        }
 
+        # 1. Prefix + hyphen + wikilink: prefix-[[Target]] or prefix-[[Target|Label]]
+        def prefix_link_sub(m: re.Match) -> str:
+            pref = m.group(1)
+            target = m.group(2).strip()
+            label = m.group(3).strip() if m.group(3) else target
+            words = (label or target).split()
+            first_word_clean = words[0].lower()
+            if first_word_clean in COMMON_EVENT_NOUNS:
+                serangkai = f"{pref.lower()}{first_word_clean}"
+                if pref[0].isupper():
+                    serangkai = serangkai.capitalize()
+                rest = " ".join(words[1:])
+                if rest:
+                    return f"{serangkai} [[{target}|{rest}]]"
+                else:
+                    return f"[[{target}|{serangkai}]]"
+            return m.group(0)
+
+        text = re.sub(rf"\b({BOUND_PREFIXES})-\[\[([^\]|]+)(?:\|([^\]]+))?\]\]", prefix_link_sub, text, flags=re.IGNORECASE)
+
+        # 2. Prefix + hyphen + word
         def unhyphen_sub(m: re.Match) -> str:
             pref = m.group(1)
             word = m.group(2)
+            word_lower = word.lower()
+            if word_lower in COMMON_EVENT_NOUNS:
+                serangkai = f"{pref.lower()}{word_lower}"
+                if pref[0].isupper():
+                    serangkai = serangkai.capitalize()
+                return serangkai
             if word[0].isupper():
                 return m.group(0)
             return f"{pref}{word}"
 
         text = re.sub(rf"\b({BOUND_PREFIXES})-([a-zA-Z]\w*)", unhyphen_sub, text, flags=re.IGNORECASE)
+
+        # 3. Spaced prefixes before common words: 'pasca perang' -> 'pascaperang', 'antar bangsa' -> 'antarbangsa'
         SPACED_PREFIXES = r"(?:pasca|pra|non|multi|sub|kontra|tuna)"
         text = re.sub(rf"\b({SPACED_PREFIXES})\s+([a-z]{{3,}})\b", r"\1\2", text, flags=re.IGNORECASE)
+        return text
+
+    def normalize_common_spelling_mistakes(self, text: str) -> str:
+        """
+        Automates multi-category standard Indonesian orthography (EYD V & KBBI VI):
+        1. Prepositions 'di ...' and 'ke ...' before spatial/locational words.
+        2. Particle 'pun' separation when meaning 'also/even'.
+        3. Standard suffixes and loanword vocabulary (PUPI / KBBI VI).
+        """
+        # 1. Glued prepositions before locational words
+        PREP_FIXES = [
+            (r"\bdiatas\b", "di atas"),
+            (r"\bdibawah\b", "di bawah"),
+            (r"\bdidalam\b", "di dalam"),
+            (r"\bdiluar\b", "di luar"),
+            (r"\bdiantara\b", "di antara"),
+            (r"\bdisamping\b", "di samping"),
+            (r"\bdisekeliling\b", "di sekeliling"),
+            (r"\bdiseluruh\b", "di seluruh"),
+            (r"\bkeatas\b", "ke atas"),
+            (r"\bkebawah\b", "ke bawah"),
+            (r"\bkedalam\b", "ke dalam"),
+            (r"\bkesamping\b", "ke samping"),
+        ]
+        for pat, rep in PREP_FIXES:
+            text = re.sub(pat, rep, text, flags=re.IGNORECASE)
+
+        # 2. Glued 'pun' particles (excluding 12 lexicalized compound words)
+        PUN_SEPARATE = [
+            (r"\bsiapapun\b", "siapa pun"),
+            (r"\bapapun\b", "apa pun"),
+            (r"\bsatupun\b", "satu pun"),
+            (r"\bmanapun\b", "mana pun"),
+            (r"\bkapanpun\b", "kapan pun"),
+            (r"\bmerekapun\b", "mereka pun"),
+            (r"\biapun\b", "ia pun"),
+            (r"\bdiapun\b", "dia pun"),
+            (r"\bkitapun\b", "kita pun"),
+            (r"\bkamupun\b", "kamu pun"),
+        ]
+        for pat, rep in PUN_SEPARATE:
+            text = re.sub(pat, rep, text, flags=re.IGNORECASE)
+
+        # 3. Standard Indonesian Vocabulary (KBBI VI)
+        VOCAB_FIXES = [
+            (r"\baktifitas\b", "aktivitas"),
+            (r"\befektifitas\b", "efektivitas"),
+            (r"\bkreatifitas\b", "kreativitas"),
+            (r"\bproduktifitas\b", "produktivitas"),
+            (r"\bkwalitas\b", "kualitas"),
+            (r"\bstandarisasi\b", "standardisasi"),
+            (r"\bteoritis\b", "teoretis"),
+            (r"\bsistimatis\b", "sistematis"),
+            (r"\bsistim\b", "sistem"),
+            (r"\banalisa\b", "analisis"),
+            (r"\bdiagnosa\b", "diagnosis"),
+            (r"\bhipotesa\b", "hipotesis"),
+            (r"\bsekedar\b", "sekadar"),
+            (r"\bekstrim\b", "ekstrem"),
+            (r"\bmerubah\b", "mengubah"),
+            (r"\bhirarki\b", "hierarki"),
+            (r"\bkonkrit\b", "konkret"),
+            (r"\bkongkrit\b", "konkret"),
+            (r"\bpraktek\b", "praktik"),
+            (r"\bresiko\b", "risiko"),
+            (r"\bjaman\b", "zaman"),
+            (r"\bijin\b", "izin"),
+            (r"\bdekrit\b", "dekret"),
+            (r"\bpropinsi\b", "provinsi"),
+            (r"\bantri\b", "antre"),
+            (r"\bcidera\b", "cedera"),
+            (r"\bpersonil\b", "personel"),
+            (r"\bmanagemen\b", "manajemen"),
+            (r"\bhakekat\b", "hakikat"),
+        ]
+        for pat, rep in VOCAB_FIXES:
+            text = re.sub(pat, rep, text, flags=re.IGNORECASE)
+
         return text
 
     def normalize_appositive_commas(self, text: str) -> str:

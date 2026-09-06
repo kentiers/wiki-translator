@@ -123,6 +123,33 @@ class TestTypographySanitizerPillars(unittest.TestCase):
         res3 = self.sanitizer.normalize_bound_morphemes(text3)
         self.assertIn("nonblok", res3)
         self.assertIn("pascaperang", res3)
+    def test_bound_morphemes_before_links(self):
+        # Bound morphemes before wikilinks with common nouns must be joined serangkai
+        text1 = "terutama pasca-[[Bencana Chernobyl]] tahun 1986."
+        res1 = self.sanitizer.normalize_bound_morphemes_before_links(text1)
+        self.assertIn("pascabencana [[Bencana Chernobyl|Chernobyl]]", res1)
+
+        text2 = "Pasca-[[Pembubaran Uni Soviet|pembubaran Uni Soviet]] pada tahun 1991."
+        res2 = self.sanitizer.normalize_bound_morphemes_before_links(text2)
+        self.assertIn("Pascapembubaran [[Pembubaran Uni Soviet|Uni Soviet]]", res2)
+
+        # Proper noun inside wikilink preserves hyphen per EYD V
+        text3 = "era pasca-[[Uni Soviet]] dan faksi pro-[[Barat]]."
+        res3 = self.sanitizer.normalize_bound_morphemes_before_links(text3)
+        self.assertIn("pasca-[[Uni Soviet]]", res3)
+        self.assertIn("pro-[[Barat]]", res3)
+
+    def test_common_spelling_mistakes(self):
+        # Glued prepositions, particle pun, and standard vocabulary
+        text = "Gorbachev tidak menemukan satupun bukti bahwa siapapun didalam partai merubah aktifitas mereka diatas meja praktek."
+        res = self.sanitizer.normalize_common_spelling_mistakes(text)
+        self.assertIn("satu pun", res)
+        self.assertIn("siapa pun", res)
+        self.assertIn("di dalam", res)
+        self.assertIn("mengubah", res)
+        self.assertIn("aktivitas", res)
+        self.assertIn("di atas", res)
+        self.assertIn("praktik", res)
 
     def test_appositive_comma_normalization(self):
         # Appositive comma sandwich around names should be unsandwiched
