@@ -574,7 +574,7 @@ class GeneralFixesEngine:
             return f"__PUNCT_MASK_{len(placeholders) - 1}__"
 
         masked = re.sub(
-            r"<(?:math|code|nowiki|syntaxhighlight)\b[^>]*>[\s\S]*?</(?:math|code|nowiki|syntaxhighlight)>|<ref\b[^>]*>[\s\S]*?</ref>",
+            r"<(?:math|code|nowiki|syntaxhighlight)\b[^>]*>[\s\S]*?</(?:math|code|nowiki|syntaxhighlight)>|<ref\b[^>]*>[\s\S]*?</ref>|\[\[\s*(?:File|Berkas|Image|Gambar)\s*:[^|\n\]]+",
             mask,
             text,
             flags=re.IGNORECASE,
@@ -589,9 +589,8 @@ class GeneralFixesEngine:
         # 3. Comma followed by period: ",." or ", ." -> "."
         masked = re.sub(r",\s*\.", ".", masked)
 
-        # 4. Period followed by comma: ".," or ". ," -> "."
-        masked = re.sub(r"\.\s*,", ".", masked)
-
+        # 4. Period followed by comma: ".," or ". ," -> "." (excluding initials like M.S., or A.B.,)
+        masked = re.sub(r"(?<!\b[A-Z])\.\s*,", ".", masked)
         # 5. Double periods: ".." but not "..." or "...."
         masked = re.sub(r"(?<!\.)\.\.(?!\.)", ".", masked)
 
