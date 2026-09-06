@@ -1,30 +1,8 @@
-"""
-Anti-AI-Slop Linter & Linguistic Guardrails for Indonesian Wikipedia Translation.
-
-Features:
-1. Automated post-generation rule-based scanner to catch machine translation cliches,
-   calques, unidiomatic Indonesian constructions, and unnatural syntax.
-2. Core rules & pattern checks:
-   - "yang berbasis di" -> "di [kota/negara]", "berpusat di", "berkantor di"
-   - "dalam upaya untuk" / "dalam upaya putus asa untuk" -> "demi", "untuk", "berusaha keras"
-   - "memainkan peran kunci" / "memainkan peran penting" -> "berperan kunci", "berperan penting", "berperan besar"
-   - "menghasilkan dampak yang signifikan" -> "berdampak besar", "berpengaruh nyata"
-   - "berfungsi sebagai" -> "menjadi", "berperan sebagai"
-   - "dikenal karena menjadi" -> "dikenal sebagai"
-   - "membuat debutnya" -> "memulai debut", "tampil perdana"
-   - "merupakan sebuah / adalah sebuah" -> "merupakan [benda]", "adalah [benda]"
-   - Unidiomatic relative "di mana" -> "tempat", "saat", "ketika", "yang"
-   - Excessive passive calques like "dipaksa untuk mematuhi" -> "dipaksa mematuhi"
-3. Readability & Naturalness Scoring:
-   - Score: 0 to 100 based on violation density and severity.
-   - Violations: tag type, severity ("high", "medium", "low"), line number, excerpt, explanation, suggestions.
-4. Auto-correction capability (`auto_fix`):
-   - Safely substitutes unambiguous calques while preserving context.
-   - Ignores matches inside `<ref>...</ref>`, `{{cite ...}}`, or URLs.
-"""
+"""Contextual Indonesian prose linting; only clear spelling errors are auto-fixed."""
 
 from dataclasses import dataclass, field
 import re
+import mwparserfromhell
 from typing import Any, Dict, List, Optional, Tuple
 
 
@@ -82,194 +60,110 @@ class AntiAISlopLinter:
         self.rules: List[SlopRule] = self._init_rules()
 
     def _init_rules(self) -> List[SlopRule]:
-        return [
-            # 1. yang berbasis di -> berpusat di / berkantor di / di
+        rules = [
             SlopRule(
-                rule_id="calque_berbasis_di",
-                pattern=re.compile(r"\byang\s+berbasis\s+di\b", re.IGNORECASE),
-                severity="high",
-                explanation="Kalkir harfiah dari 'based in'. Gunakan 'berpusat di', 'berkantor di', atau cukup 'di'.",
-                suggestions=["berpusat di", "berkantor di", "di"],
-                auto_replace="berpusat di",
-            ),
-            # 2. dalam upaya putus asa untuk -> berusaha keras untuk / demi
-            SlopRule(
-                rule_id="calque_upaya_putus_asa",
-                pattern=re.compile(r"\bdalam\s+upaya\s+putus\s+asa\s+untuk\b", re.IGNORECASE),
-                severity="high",
-                explanation="Kalkir harfiah dari 'in a desperate attempt to'. Gunakan 'berusaha keras untuk' atau 'demi'.",
-                suggestions=["berusaha keras untuk", "demi"],
-                auto_replace="berusaha keras untuk",
-            ),
-            # 3. dalam upaya untuk -> demi / untuk / agar
-            SlopRule(
-                rule_id="calque_dalam_upaya_untuk",
-                pattern=re.compile(r"\bdalam\s+upaya\s+untuk\b", re.IGNORECASE),
-                severity="medium",
-                explanation="Kalkir bertele-tele dari 'in an effort to' / 'in an attempt to'. Cukup gunakan 'demi' atau 'untuk'.",
-                suggestions=["demi", "untuk", "agar"],
-                auto_replace="demi",
-            ),
-            # 4. memainkan peran kunci / penting / besar -> berperan kunci / penting / besar
-            SlopRule(
-                rule_id="calque_memainkan_peran_kunci",
-                pattern=re.compile(r"\bmemainkan\s+peran\s+kunci\b", re.IGNORECASE),
-                severity="high",
-                explanation="Kalkir harfiah dari 'play a key role'. Bahasa Indonesia baku menggunakan 'berperan kunci'.",
-                suggestions=["berperan kunci", "sangat berperan"],
-                auto_replace="berperan kunci",
-            ),
-            SlopRule(
-                rule_id="calque_memainkan_peran_penting",
-                pattern=re.compile(r"\bmemainkan\s+peran\s+penting\b", re.IGNORECASE),
-                severity="high",
-                explanation="Kalkir harfiah dari 'play an important role'. Bahasa Indonesia baku menggunakan 'berperan penting'.",
-                suggestions=["berperan penting", "berperan besar"],
-                auto_replace="berperan penting",
-            ),
-            SlopRule(
-                rule_id="calque_memainkan_peran",
-                pattern=re.compile(r"\bmemainkan\s+peran\s+besar\b", re.IGNORECASE),
-                severity="medium",
-                explanation="Kalkir harfiah dari 'play a major role'. Gunakan 'berperan besar'.",
-                suggestions=["berperan besar"],
-                auto_replace="berperan besar",
-            ),
-            # 5. menghasilkan dampak yang signifikan -> berdampak besar / berpengaruh nyata
-            SlopRule(
-                rule_id="calque_menghasilkan_dampak",
-                pattern=re.compile(r"\bmenghasilkan\s+dampak\s+yang\s+signifikan\b", re.IGNORECASE),
-                severity="high",
-                explanation="Kalkir klise mesin dari 'produced a significant impact'. Gunakan 'berdampak besar' atau 'berpengaruh nyata'.",
-                suggestions=["berdampak besar", "berpengaruh nyata"],
-                auto_replace="berdampak besar",
-            ),
-            # 6. berfungsi sebagai -> menjadi / berperan sebagai
-            SlopRule(
-                rule_id="calque_berfungsi_sebagai",
-                pattern=re.compile(r"\bberfungsi\s+sebagai\b", re.IGNORECASE),
-                severity="medium",
-                explanation="Kalkir dari 'serves as' / 'functions as'. Lebih wajar menggunakan 'menjadi' atau 'berperan sebagai'.",
-                suggestions=["menjadi", "berperan sebagai"],
-                auto_replace="menjadi",
-            ),
-            # 7. dikenal karena menjadi -> dikenal sebagai
-            SlopRule(
-                rule_id="calque_dikenal_karena_menjadi",
-                pattern=re.compile(r"\bdikenal\s+karena\s+menjadi\b", re.IGNORECASE),
-                severity="high",
-                explanation="Kalkir kaku dari 'known for being'. Gunakan 'dikenal sebagai'.",
-                suggestions=["dikenal sebagai"],
-                auto_replace="dikenal sebagai",
-            ),
-            # 8. membuat debutnya / membuat debut -> memulai debut / tampil perdana
-            SlopRule(
-                rule_id="calque_membuat_debut",
-                pattern=re.compile(r"\bmembuat\s+debut(?:nya)?\b", re.IGNORECASE),
-                severity="high",
-                explanation="Kalkir harfiah dari 'made its/his/her debut'. Bahasa Indonesia baku menggunakan 'memulai debut' atau 'tampil perdana'.",
-                suggestions=["memulai debut", "tampil perdana"],
-                auto_replace="memulai debut",
-            ),
-            # 9. merupakan sebuah / adalah sebuah (untuk konsep abstrak/karya)
-            SlopRule(
-                rule_id="calque_merupakan_sebuah",
-                pattern=re.compile(r"\b(merupakan|adalah)\s+sebuah\b", re.IGNORECASE),
-                severity="medium",
-                explanation="Penggunaan kata penggolong 'sebuah' yang tidak perlu / terjemahan harfiah dari 'is a/an'. Cukup 'adalah' atau 'merupakan' langsung diikuti kata benda.",
-                suggestions=["merupakan", "adalah"],
-                # auto_replace can replace 'merupakan sebuah' -> 'merupakan' or 'adalah sebuah' -> 'adalah'
-                auto_replace=None,
-            ),
-            # 10. Unidiomatic relative "di mana" (e.g. "... di mana ia dilahirkan ...", "... sistem di mana data disimpan ...")
-            SlopRule(
-                rule_id="unidiomatic_di_mana",
-                pattern=re.compile(r"(?<!\?)\bdi\s+mana\b", re.IGNORECASE),
-                severity="high",
-                explanation="Penggunaan 'di mana' sebagai kata penghubung relatif (kalkir 'where' / 'in which'). Gunakan 'tempat', 'saat', 'ketika', 'yang', atau susun ulang kalimat.",
-                suggestions=["tempat", "saat", "ketika", "yang"],
-                auto_replace=None,
-            ),
-            # 11. Excessive passive calques e.g. "dipaksa untuk mematuhi" -> "dipaksa mematuhi"
-            SlopRule(
-                rule_id="calque_dipaksa_untuk",
-                pattern=re.compile(r"\b(dipaksa|didorong|dituntut|diminta)\s+untuk\s+([a-zA-Z]+)\b", re.IGNORECASE),
-                severity="medium",
-                explanation="Preposisi 'untuk' berlebih setelah verba pasif (kalkir 'forced to do', 'asked to do'). Cukup verba pasif langsung diikuti verba.",
-                suggestions=["\\1 \\2"],
-                auto_replace=None,
-            ),
-            # 12. Em-dashes in narrative prose
-            SlopRule(
-                rule_id="orthography_em_dash",
-                pattern=re.compile(r"\s*—\s*"),
-                severity="medium",
-                explanation="Hindari tanda pisah em-dash (—) di tengah kalimat narasi prosa. Gunakan koma, tanda kurung, atau pecah kalimat.",
-                suggestions=["koma (,)", "tanda kurung ()", "pecah kalimat"],
-                auto_replace=", ",
-            ),
-            # 13. Semicolons in narrative sentences
-            SlopRule(
-                rule_id="orthography_semicolon",
-                pattern=re.compile(r";(?!\s*(?:&[a-zA-Z0-9#]+;|\d+;))\s*"),
+                rule_id=rule_id,
+                pattern=re.compile(pattern, re.IGNORECASE),
                 severity="low",
-                explanation="Bahasa Indonesia ensiklopedis sangat jarang menggunakan titik koma dalam narasi. Pecah kalimat atau gunakan konjungsi koordinatif.",
-                suggestions=["pecah kalimat", ", dan ", ", tetapi "],
-                auto_replace=", dan ",
-            ),
-            # 14. Banned calque hyphens like pro-Palestina / pro-[Negara]
-            SlopRule(
-                rule_id="calque_pro_hyphen",
-                pattern=re.compile(r"\bpro-([A-Z][a-zA-Z]+)\b"),
-                severity="medium",
-                explanation="Kalkir compound hyphen bahasa Inggris ('pro-Palestina'). Gunakan 'pendukung [Entitas]' atau 'membela [Entitas]'.",
-                suggestions=["pendukung \\1", "membela \\1"],
-                auto_replace="pendukung \\1",
-            ),
-            # 15. Banned loanword/calque "reviu"
-            SlopRule(
-                rule_id="calque_reviu",
-                pattern=re.compile(r"\breviu\b", re.IGNORECASE),
-                severity="high",
-                explanation="Bentuk serapan tidak lazim / kalkir 'review'. Gunakan 'peninjauan', 'pemeriksaan', atau 'ulasan'.",
-                suggestions=["peninjauan", "pemeriksaan", "ulasan"],
-                auto_replace="peninjauan",
-            ),
+                explanation="Periksa konteks sumber sebelum menyunting; bentuk ini tidak otomatis salah.",
+                suggestions=suggestions,
+            )
+            for rule_id, pattern, suggestions in [
+                ("calque_berbasis_di", r"\byang\s+berbasis\s+di\b",
+                 ["berbasis di; berkantor di hanya jika sumber menyatakan lokasi kantor"]),
+                ("calque_upaya_putus_asa", r"\bdalam\s+upaya\s+putus\s+asa\s+untuk\b",
+                 ["susun ulang kalimat dengan mempertahankan makna keputusasaan"]),
+                ("calque_dalam_upaya", r"\bdalam\s+upaya\s+untuk\b",
+                 ["dalam upaya untuk; pertahankan makna usaha"]),
+                ("calque_memainkan_peran", r"\bmemainkan\s+peran\s+(?:kunci|penting|besar)\b",
+                 ["berperan; pertahankan tingkat peran dan konteks pemeranan"]),
+                ("calque_menghasilkan_dampak", r"\bmenghasilkan\s+dampak\s+yang\s+signifikan\b",
+                 ["berdampak signifikan; signifikansi statistik bukan besarnya efek"]),
+                ("calque_membuat_debut", r"\bmembuat\s+debut(?:nya)?\b",
+                 ["tampil perdana; pertahankan subjek dan waktunya"]),
+                ("calque_pemukiman_luar_dewan", r"\bpemukiman\s+luar\s+dewan\b",
+                 ["penyelesaian sengketa di luar pengadilan (kalkir dari out-of-court settlement)"]),
+                ("calque_pemilihan_jenderal", r"\bpemilihan\s+jenderal\b",
+                 ["pemilihan umum (kalkir keliru dari general elections)"]),
+                ("neologisme_merkenari", r"\bmerkenari\b",
+                 ["tentara bayaran (neologisme palsu dari mercenaries)"]),
+                ("neologisme_memproporsalkan", r"\bmemproporsalkan\b",
+                 ["mengusulkan (neologisme palsu dari propose)"]),
+                ("calque_pendidikan_privat", r"\b(?:pendidikan|bimbingan)\s+privat\b",
+                 ["pendidikan di rumah / bimbingan pengajar pribadi"]),
+                ("pleonasme_jamak", r"\b(berbagai|beberapa|sejumlah|para|banyak)\s+([a-zA-Z]+)-\2\b",
+                 ["pleonasme kata jamak: setelah kata penanda jamak, kata dasar tidak perlu diulang"]),
+                ("calque_salah_satu_manusia", r"\bsalah satu (?:pendidik|aktivis|penulis|menteri|presiden|arsitek|pemimpin|tokoh|ilmuwan|pahlawan|dokter|seniman|sejarawan|sutradara|pemeran|aktor|aktris)\b",
+                 ["gunakan 'salah seorang' untuk manusia/tokoh alih-alih 'salah satu'"]),
+                ("puffery_dedikasi_tanpa_pamrih", r"\b(?:dedikasi|pengabdian|perjuangan)\s+tanpa\s+pamrih(?:nya)?\b",
+                 ["hindari sanjungan subjektif (WP:NPOV/WP:PUFFERY); sebutkan pencapaian konkret secara berjarak dan netral"]),
+                ("puffery_ditangisi_secara_luas", r"\bditangisi\s+secara\s+luas\b",
+                 ["gaya bahasa obituari/eulogi emosional (WP:NPOV); paparkan peristiwa kematian secara lugas dan faktual"]),
+                ("puffery_tiada_tara", r"\b(?:kontribusi|jasa)\s+(?:yang\s+)?tiada\s+tara\b",
+                 ["klaim superlatif subjektif (WP:PUFFERY); paparkan fakta kontribusinya secara objektif"]),
+                ("puffery_jasa_tak_terhingga", r"\bjasa-jasanya\s+(?:yang\s+)?tak\s+terhingga\b",
+                 ["sanjungan emosional (WP:PUFFERY); gunakan bahasa ensiklopedis netral"]),
+                ("calque_skor_film", r"\bskor\s+film\b",
+                 ["hindari 'skor film' (konsensus Warung Kopi Bahasa); gunakan 'musik film', 'musik latar', atau 'tata musik' (FFI)"]),
+                ("calque_kedatangan_benda", r"\bkedatangan(?:nya)?\s+(?:di|ke)\s+([A-Z][a-z]+)\b",
+                 ["periksa subjek: jika merujuk pada artefak/benda/prasasti (bukan manusia), gunakan 'diboyong ke' atau 'dipindahkan ke' (tinjauan WP:AP)"]),
+                ("calque_di_tangan_kirinya", r"\bdi\s+tangan\s+(?:kiri|kanan)nya\s+ia\s+memegang\b",
+                 ["susunan terbalik kalkir bahasa Inggris; gunakan urutan alami 'ia memegang ... di tangan kiri/kanan' (tinjauan WP:AP)"]),
+            ]
         ]
+        for typo, spelling in {
+            "pernikaahn": "pernikahan",
+            "senbagai": "sebagai",
+            "aristoktrat": "aristokrat",
+            "tersbeut": "tersebut",
+            "unicersitas": "universitas",
+            "berpedapat": "berpendapat",
+        }.items():
+            rules.append(SlopRule(
+                rule_id=f"typo_{typo}",
+                pattern=re.compile(rf"\b{typo}\b", re.IGNORECASE),
+                severity="high",
+                explanation=f"Salah ketik: gunakan {spelling}.",
+                suggestions=[spelling],
+                auto_replace=spelling,
+            ))
+        return rules
 
     def _mask_protected_zones(self, text: str) -> Tuple[str, List[Tuple[str, str]]]:
-        """
-        Masks out references (<ref>...</ref>), cite templates ({{cite ...}}),
-        external links [http...], URLs, and HTML comments to prevent false positives.
-        Returns masked_text and list of (placeholder, original_text).
-        """
+        """Protect markup and quotations, retaining newlines for lint locations."""
         placeholders: List[Tuple[str, str]] = []
+        prefix = "SLOPMASK"
+        while prefix in text:
+            prefix += "_"
 
-        def repl(match: re.Match) -> str:
-            token = f"§§SLOPMASK_{len(placeholders)}§§"
-            placeholders.append((token, match.group(0)))
+        def protect(original: str) -> str:
+            token = f"{prefix}{len(placeholders)}END" + "\n" * original.count("\n")
+            placeholders.append((token, original))
             return token
 
-        # 1. Mask HTML comments <!-- ... -->
-        masked = re.sub(r"<!--[\s\S]*?-->", repl, text)
-
-        # 2. Mask <nowiki> ... </nowiki>
-        masked = re.sub(r"<nowiki\b[^>]*>[\s\S]*?</nowiki>", repl, masked, flags=re.IGNORECASE)
-
-        # 3. Mask <ref> ... </ref> and self-closing <ref ... />
-        masked = re.sub(r"<ref\b[^>]*>[\s\S]*?</ref>", repl, masked, flags=re.IGNORECASE)
-        masked = re.sub(r"<ref\b[^>]*/>", repl, masked, flags=re.IGNORECASE)
-
-        # 4. Mask {{cite ...}} or {{rujukan ...}} templates
-        masked = re.sub(r"\{\{(?:cite|rujukan)\b[^{}]*\}\}", repl, masked, flags=re.IGNORECASE)
-
-        # 5. Mask URLs (http:// or https://)
-        masked = re.sub(r"https?://[^\s<>\[\]{}]+", repl, masked, flags=re.IGNORECASE)
-
-        # 6. Mask external link brackets [http... text]
-        masked = re.sub(r"\[https?://[^\]]+\]", repl, masked, flags=re.IGNORECASE)
-
-        return masked, placeholders
+        parts = []
+        for node in mwparserfromhell.parse(text).nodes:
+            if isinstance(node, mwparserfromhell.nodes.Template):
+                t_name = str(node.name).strip().lower()
+                if t_name in ("efn", "efn-lr", "explanatory footnote"):
+                    parts.append(protect("{{Efn|"))
+                    for param in node.params:
+                        pval = str(param.value)
+                        pval = re.sub(r"<ref\b[^>]*>[\s\S]*?<\/ref>", lambda m: protect(m.group(0)), pval)
+                        pval = re.sub(r"<ref\b[^>]*/>", lambda m: protect(m.group(0)), pval)
+                        parts.append(pval)
+                    parts.append(protect("}}"))
+                    continue
+            if not isinstance(node, mwparserfromhell.nodes.Text):
+                parts.append(protect(str(node)))
+                continue
+            prose = re.sub(
+                r'https?://[^\s<>\[\]{}]+|"[^"\n]*"|“[^”\n]*”|‘[^’\n]*’',
+                lambda match: protect(match.group(0)),
+                str(node),
+            )
+            parts.append(prose)
+        return "".join(parts), placeholders
 
     def _unmask_protected_zones(self, text: str, placeholders: List[Tuple[str, str]]) -> str:
         for token, original in reversed(placeholders):
@@ -360,189 +254,23 @@ class AntiAISlopLinter:
         )
 
     def auto_fix(self, wikitext: str) -> Tuple[str, int]:
-        """
-        Safely substitutes unambiguous calques while preserving surrounding context.
-        Does NOT touch inside <ref>...</ref>, {{cite ...}}, or URLs.
-        Returns (repaired_wikitext, fix_count).
-        """
-        if not wikitext or not wikitext.strip():
-            return wikitext, 0
+        """Fix spelling only; semantic and stylistic suggestions require source review."""
+        masked, placeholders = self._mask_protected_zones(wikitext)
+        total = 0
+        for rule in self.rules:
+            if rule.auto_replace is None:
+                continue
 
-        masked_text, placeholders = self._mask_protected_zones(wikitext)
-        total_fixes = 0
+            def replace(match):
+                original = match.group(0)
+                replacement = rule.auto_replace
+                if original.isupper():
+                    return replacement.upper()
+                return replacement.capitalize() if original[0].isupper() else replacement
 
-        # Safe substitutions
-        # 1. yang berbasis di -> berpusat di
-        sub_count = 0
-        def repl_berbasis(m):
-            # Preserve capitalization of first character if capitalized
-            orig = m.group(0)
-            rep = "berpusat di"
-            if orig[0].isupper():
-                rep = "Berpusat di"
-            return rep
-        masked_text, sub_count = re.subn(r"\byang\s+berbasis\s+di\b", repl_berbasis, masked_text, flags=re.IGNORECASE)
-        total_fixes += sub_count
-
-        # 2. dalam upaya putus asa untuk -> berusaha keras untuk
-        def repl_putus_asa(m):
-            orig = m.group(0)
-            rep = "berusaha keras untuk"
-            if orig[0].isupper():
-                rep = "Berusaha keras untuk"
-            return rep
-        masked_text, sub_count = re.subn(r"\bdalam\s+upaya\s+putus\s+asa\s+untuk\b", repl_putus_asa, masked_text, flags=re.IGNORECASE)
-        total_fixes += sub_count
-
-        # 3. dalam upaya untuk -> demi
-        def repl_upaya(m):
-            orig = m.group(0)
-            rep = "demi"
-            if orig[0].isupper():
-                rep = "Demi"
-            return rep
-        masked_text, sub_count = re.subn(r"\bdalam\s+upaya\s+untuk\b", repl_upaya, masked_text, flags=re.IGNORECASE)
-        total_fixes += sub_count
-
-        # 4. memainkan peran kunci -> berperan kunci
-        def repl_peran_kunci(m):
-            orig = m.group(0)
-            rep = "berperan kunci"
-            if orig[0].isupper():
-                rep = "Berperan kunci"
-            return rep
-        masked_text, sub_count = re.subn(r"\bmemainkan\s+peran\s+kunci\b", repl_peran_kunci, masked_text, flags=re.IGNORECASE)
-        total_fixes += sub_count
-
-        # 5. memainkan peran penting -> berperan penting
-        def repl_peran_penting(m):
-            orig = m.group(0)
-            rep = "berperan penting"
-            if orig[0].isupper():
-                rep = "Berperan penting"
-            return rep
-        masked_text, sub_count = re.subn(r"\bmemainkan\s+peran\s+penting\b", repl_peran_penting, masked_text, flags=re.IGNORECASE)
-        total_fixes += sub_count
-
-        # 6. memainkan peran besar -> berperan besar
-        def repl_peran_besar(m):
-            orig = m.group(0)
-            rep = "berperan besar"
-            if orig[0].isupper():
-                rep = "Berperan besar"
-            return rep
-        masked_text, sub_count = re.subn(r"\bmemainkan\s+peran\s+besar\b", repl_peran_besar, masked_text, flags=re.IGNORECASE)
-        total_fixes += sub_count
-
-        # 7. menghasilkan dampak yang signifikan -> berdampak besar
-        def repl_dampak(m):
-            orig = m.group(0)
-            rep = "berdampak besar"
-            if orig[0].isupper():
-                rep = "Berdampak besar"
-            return rep
-        masked_text, sub_count = re.subn(r"\bmenghasilkan\s+dampak\s+yang\s+signifikan\b", repl_dampak, masked_text, flags=re.IGNORECASE)
-        total_fixes += sub_count
-
-        # 8. berfungsi sebagai -> menjadi
-        def repl_fungsi(m):
-            orig = m.group(0)
-            rep = "menjadi"
-            if orig[0].isupper():
-                rep = "Menjadi"
-            return rep
-        masked_text, sub_count = re.subn(r"\bberfungsi\s+sebagai\b", repl_fungsi, masked_text, flags=re.IGNORECASE)
-        total_fixes += sub_count
-
-        # 9. dikenal karena menjadi -> dikenal sebagai
-        def repl_dikenal(m):
-            orig = m.group(0)
-            rep = "dikenal sebagai"
-            if orig[0].isupper():
-                rep = "Dikenal sebagai"
-            return rep
-        masked_text, sub_count = re.subn(r"\bdikenal\s+karena\s+menjadi\b", repl_dikenal, masked_text, flags=re.IGNORECASE)
-        total_fixes += sub_count
-
-        # 10. membuat debutnya / membuat debut -> memulai debut
-        def repl_debut(m):
-            orig = m.group(0)
-            rep = "memulai debut"
-            if orig[0].isupper():
-                rep = "Memulai debut"
-            return rep
-        masked_text, sub_count = re.subn(r"\bmembuat\s+debut(?:nya)?\b", repl_debut, masked_text, flags=re.IGNORECASE)
-        total_fixes += sub_count
-
-        # 11. merupakan sebuah / adalah sebuah -> merupakan / adalah
-        def repl_sebuah(m):
-            verb = m.group(1)
-            return verb
-        masked_text, sub_count = re.subn(r"\b(merupakan|adalah)\s+sebuah\b", repl_sebuah, masked_text, flags=re.IGNORECASE)
-        total_fixes += sub_count
-
-        # 12. dipaksa untuk [verba] -> dipaksa [verba]
-        def repl_dipaksa(m):
-            verb1 = m.group(1)
-            verb2 = m.group(2)
-            return f"{verb1} {verb2}"
-        masked_text, sub_count = re.subn(
-            r"\b(dipaksa|didorong|dituntut|diminta)\s+untuk\s+([a-zA-Z]+)\b",
-            repl_dipaksa,
-            masked_text,
-            flags=re.IGNORECASE,
-        )
-        total_fixes += sub_count
-
-        # 13. Em-dash normalization in prose
-        def repl_em_dash_pair(m):
-            content = m.group(1).strip()
-            return f", {content}, "
-        masked_text, sub_count1 = re.subn(r"\s*(?:—|--)\s*([^—\n]+?)\s*(?:—|--)\s*", repl_em_dash_pair, masked_text)
-        masked_text, sub_count2 = re.subn(r"\s*(?:—|--)\s*", ", ", masked_text)
-        total_fixes += (sub_count1 + sub_count2)
-
-        # 14. Semicolon normalization in narrative prose
-        def repl_semi_conj(m):
-            conj = m.group(1)
-            return f", {conj}"
-        masked_text, sub_count = re.subn(r";\s*(dan|tetapi|namun|sementara|melainkan)\b", repl_semi_conj, masked_text, flags=re.IGNORECASE)
-        total_fixes += sub_count
-
-        def repl_semi_lower(m):
-            char = m.group(1)
-            return f", dan {char}"
-        masked_text, sub_count = re.subn(r";\s*([a-z])", repl_semi_lower, masked_text)
-        total_fixes += sub_count
-
-        def repl_semi_upper(m):
-            char = m.group(1)
-            return f". {char}"
-        masked_text, sub_count = re.subn(r";\s*([A-Z])", repl_semi_upper, masked_text)
-        total_fixes += sub_count
-
-        # 15. pro-[Entitas] -> pendukung [Entitas]
-        def repl_pro_entity(m):
-            entity = m.group(1)
-            return f"pendukung {entity}"
-        masked_text, sub_count = re.subn(r"\bpro-([A-Z][a-zA-Z]+)\b", repl_pro_entity, masked_text)
-        total_fixes += sub_count
-        # 16. reviu -> peninjauan
-        def repl_reviu(m):
-            orig = m.group(0)
-            rep = "peninjauan"
-            if orig[0].isupper():
-                rep = "Peninjauan"
-            return rep
-        masked_text, sub_count = re.subn(r"\breviu\b", repl_reviu, masked_text, flags=re.IGNORECASE)
-        total_fixes += sub_count
-
-
-        # Clean up any duplicate commas
-        masked_text = re.sub(r",\s*,+", ",", masked_text)
-        # Unmask protected zones
-        reconstructed = self._unmask_protected_zones(masked_text, placeholders)
-        return reconstructed, total_fixes
+            masked, count = rule.pattern.subn(replace, masked)
+            total += count
+        return self._unmask_protected_zones(masked, placeholders), total
 
 
 default_slop_linter = AntiAISlopLinter()

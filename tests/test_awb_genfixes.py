@@ -175,6 +175,52 @@ class TestGeneralFixesEngine(unittest.TestCase):
         self.assertIn("archive-url=https://web.archive.org/web/123", kept)
         self.assertIn("url-status=live", kept)
 
+    def test_purge_pleonastic_conjunctions(self):
+        s1 = "Meskipun usulan tersebut ditolak, namun ia tidak menyerah."
+        self.assertEqual(self.engine.purge_pleonastic_conjunctions(s1), "Meskipun usulan tersebut ditolak, ia tidak menyerah.")
+        s2 = "Karena ayahnya arsitek, maka ia menyukai seni."
+        self.assertEqual(self.engine.purge_pleonastic_conjunctions(s2), "Karena ayahnya arsitek, ia menyukai seni.")
+        s3 = "Walaupun ia sakit parah, tetapi ia tetap bekerja giat."
+        self.assertEqual(self.engine.purge_pleonastic_conjunctions(s3), "Walaupun ia sakit parah, ia tetap bekerja giat.")
+
+    def test_glue_and_clean_references(self):
+        r1 = "Kota Sankt-Peterburg . <ref name=\":1\" /> <ref name=\":1\" />"
+        self.assertEqual(self.engine.glue_and_clean_references(r1), "Kota Sankt-Peterburg .<ref name=\":1\" />")
+        r2 = "akhir abad ke-19 <ref name=\":5\" />"
+        self.assertEqual(self.engine.glue_and_clean_references(r2), "akhir abad ke-19<ref name=\":5\" />")
+
+    def test_capitalize_geographic_proper_nouns(self):
+        g1 = "Ia berlayar mengarungi laut Jawa menuju selat Sunda dekat gunung Krakatau dan danau Toba."
+        self.assertEqual(self.engine.capitalize_geographic_proper_nouns(g1), "Ia berlayar mengarungi Laut Jawa menuju Selat Sunda dekat Gunung Krakatau dan Danau Toba.")
+
+    def test_clean_deprecated_citation_parameters(self):
+        c1 = "{{cite web |url=https://example.com |title=Judul |dead-url=no |language=en}}"
+        res1 = self.engine.clean_deprecated_citation_parameters(c1)
+        self.assertIn("|url-status=live", res1)
+        self.assertNotIn("language=en", res1)
+
+    def test_clean_overlinked_wikilinks(self):
+        t1 = (
+            "== Kehidupan awal ==\n"
+            "Stasova lahir di [[Sankt-Peterburg]] pada 1822. Di [[Sankt-Peterburg]] ia belajar seni.\n\n"
+            "Ia kemudian pindah ke [[Moskwa]]. Di [[Sankt-Peterburg]] saudaranya bekerja."
+        )
+        res = self.engine.clean_overlinked_wikilinks(t1, window_paragraphs=2)
+        # Second Sankt-Peterburg in same paragraph should be plain text
+        self.assertIn("Stasova lahir di [[Sankt-Peterburg]] pada 1822. Di Sankt-Peterburg ia belajar seni.", res)
+        # Third Sankt-Peterburg in next paragraph should be plain text
+        self.assertIn("Di Sankt-Peterburg saudaranya bekerja.", res)
+
+    def test_deduplicate_parallel_modifiers(self):
+        p1 = "segera menjalin persahabatan erat serta persekutuan erat hingga dijuluki"
+        self.assertEqual(self.engine.deduplicate_parallel_modifiers(p1), "segera menjalin persahabatan serta persekutuan erat hingga dijuluki")
+    def test_clean_editorial_quote_brackets(self):
+        sample = 'Stites menggambarkannya sebagai "tiga tokoh [feminis] terpenting" di era itu.'
+        self.assertEqual(
+            self.engine.clean_editorial_quote_brackets(sample),
+            'Stites menggambarkannya sebagai "tiga tokoh feminis terpenting" di era itu.',
+        )
+
 
 class TestRegExTypoFixEngine(unittest.TestCase):
     def setUp(self):
@@ -183,6 +229,9 @@ class TestRegExTypoFixEngine(unittest.TestCase):
     def test_dictionary_size(self):
         """Verifies RETF dictionary contains 80+ common Indonesian typos."""
         self.assertGreaterEqual(self.retf.dictionary_size, 80)
+
+    def test_valid_words_are_not_rewritten_as_typos(self):
+        self.assertEqual(self.retf.fix_typos("Unta mempelajari tata bahasa secara sistematik."), "Unta mempelajari tata bahasa secara sistematik.")
 
     def test_common_indonesian_typos(self):
         """Tests replacement of core common typos according to KBBI VI."""

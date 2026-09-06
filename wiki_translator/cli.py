@@ -10,6 +10,7 @@ Provides:
 """
 
 import argparse
+import json
 import os
 from pathlib import Path
 import re
@@ -20,6 +21,7 @@ from typing import Any, Dict, List, Optional, Tuple, NamedTuple
 from .auth import AuthManager
 from .gemini import GeminiTranslatorClient
 from .glossary_resolver import GlossaryResolver, default_glossary_resolver
+from .glossary_memory import GlossaryMemory
 from .prompts import (
     SYSTEM_PROMPT_GRADE_A_PLUS_PLUS,
     TOPIC_GLOSSARIES,
@@ -38,6 +40,8 @@ from .attribution_generator import (
     default_attribution_generator,
 )
 from .slop_linter import AntiAISlopLinter, default_slop_linter
+from .factual_audit import default_factual_auditor
+from .article_quality import check_saved_integrity, review_claims
 from .syntax_balancer import WikitextSyntaxBalancer, default_syntax_balancer
 from .infobox_mapper import InfoboxMapper, default_infobox_mapper
 from .template_mapper import WikiTemplateMapper, default_template_mapper
@@ -81,6 +85,14 @@ from .category_curator import (
     CategoryCurator,
     default_category_curator,
 )
+from .category_reconciler import default_category_reconciler
+from .category_creator import default_category_creation_planner
+from .category_materializer import CategoryMaterializer
+from .category_tree_audit import default_category_diff_auditor, default_category_tree_planner
+from .dependency_deployer import default_dependency_deployer
+from .publish_gate import PublishGate
+from .approval_journal import ApprovalManifest
+from .category_page_sync import CategoryPageSyncResult, CategoryPageSynchronizer
 from .article_reviewer import (
     ArticleReviewer,
     default_article_reviewer,
@@ -116,71 +128,54 @@ from .page_generators import (
     PageQueueExporter,
     PageQueueItem,
 )
-def print_banner() -> None:
-    print("=" * 72)
-    print("   🌐 Wikipedia Grade A++ Translator (en.wikipedia -> id.wikipedia)")
-    print("   Powered by Google Antigravity & Gemini High-Precision LLM")
-    print("=" * 72)
-
-def slugify(text: str) -> str:
-    """Converts an article title into a clean filename slug."""
-    cleaned = re.sub(r"[^\w\s-]", "", text).strip()
-    return re.sub(r"[-\s]+", "_", cleaned).lower()
-
-
-def load_env_file(env_path: Optional[Path] = None) -> None:
-    """Searches for and loads environment variables from a .env file.
-
-    Pure-Python implementation without external dependencies.
-    Searches in the specified path, or scans current working directory, project
-    root, and parent directories for a `.env` file.
-    """
-    target_file: Optional[Path] = None
-    if env_path is not None:
-        if env_path.is_file():
-            target_file = env_path
-    else:
-        candidates: List[Path] = []
-        for base in [Path.cwd().resolve(), Path(__file__).resolve().parent.parent.resolve()]:
-            curr = base
-            while curr not in candidates:
-                candidates.append(curr)
-                if curr.parent == curr:
-                    break
-                curr = curr.parent
-        for dir_path in candidates:
-            candidate_file = dir_path / ".env"
-            if candidate_file.is_file():
-                target_file = candidate_file
-                break
-
-    if not target_file:
-        return
-
-    try:
-        content = target_file.read_text(encoding="utf-8")
-    except OSError:
-        return
-
-    for line in content.splitlines():
-        line = line.strip()
-        if not line or line.startswith("#"):
-            continue
-        if "=" not in line:
-            continue
-        key, _, val = line.partition("=")
-        key = key.strip()
-        val = val.strip()
-        if not key:
-            continue
-        if (val.startswith('"') and val.endswith('"')) or (val.startswith("'") and val.endswith("'")):
-            if len(val) >= 2:
-                val = val[1:-1]
-        if key not in os.environ:
-            os.environ[key] = val
-
+from .cli_args import build_cli_parser
+from .cli_ui import (
+    print_console_safe,
+    print_banner,
+    render_sections_table,
+    render_section_header,
+    render_review_menu,
+    render_diff_view,
+    UI,
+    ui,
+    slugify,
+    load_env_file,
+)
+from .cli_subcommands import (
+    handle_storage_commands,
+    handle_glossary_actions,
+    handle_ecosystem_and_category_commands,
+    handle_page_gen_commands,
+    handle_batch_command,
+)
 
 class WikiTranslatorCLI:
+    def _quality_gate(self, sections: List[WikiSection]) -> Tuple[bool, List[str]]:
+        """Reject incomplete or structurally unsafe output before final writes."""
+        failures: List[str] = []
+        for section in sections:
+            source = section.full_source or ""
+            draft = section.translated_content or ""
+            if not draft.strip():
+                failures.append(f"{section.title}: keluaran kosong")
+                continue
+            if source and len(draft.split()) < max(3, int(len(source.split()) * 0.15)):
+                failures.append(f"{section.title}: keluaran terpotong (terlalu pendek)")
+            topic_val = getattr(self, "topic", None)
+            factual = default_factual_auditor.audit(source, draft, topic=topic_val)
+            for warning in factual.warnings:
+                if "pembalikan makna" in warning or "Entitas penting" in warning or "Penyimpangan atribusi" in warning:
+                    failures.append(f"{section.title}: {warning}")
+            if factual.missing_numbers:
+                failures.append(f"{section.title}: angka/tanggal sumber hilang: {', '.join(factual.missing_numbers[:12])}")
+            if factual.source_references and factual.draft_references < factual.source_references:
+                failures.append(f"{section.title}: rujukan sumber berkurang")
+        # Named references may be defined in a different section of the article.
+        combined = "\n\n".join(section.translated_content or "" for section in sections)
+        for issue in self.syntax_balancer.check_balance(combined):
+            if issue.get("severity") == "error":
+                failures.append(f"Artikel: {issue.get('description', 'markup tidak seimbang')}")
+        return not failures, failures
     def __init__(
         self,
         model: str = "gemini-3.8-flash",
@@ -232,6 +227,7 @@ class WikiTranslatorCLI:
         include_proyek_wiki: bool = False,
         by_paragraph: bool = True,
         paragraph_translator: Optional[ParagraphTranslator] = None,
+        qa_pipeline: Optional[EditorialQAPipeline] = None,
     ):
         self.auth_manager = AuthManager()
         self.cache = default_cache if enable_cache else None
@@ -247,6 +243,8 @@ class WikiTranslatorCLI:
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.topic = topic
+        self.model = model
+        self.thinking = thinking
         self.enable_cache = enable_cache
         self.enable_compression = enable_compression
         self.enable_delta_skip = enable_delta_skip
@@ -293,12 +291,55 @@ class WikiTranslatorCLI:
         self.include_proyek_wiki = include_proyek_wiki
         self.by_paragraph = by_paragraph
         self.paragraph_translator = paragraph_translator or default_paragraph_translator
+        self.qa_pipeline = qa_pipeline or default_qa_pipeline
+        # Results from the last save are exposed to callers (especially batch mode)
+        # without changing the backwards-compatible SavedOutputs return type.
+        self.last_pipeline_errors: List[str] = []
+        self.last_pipeline_warnings: List[str] = []
+
+    @staticmethod
+    def _run_result(
+        *,
+        success: bool,
+        status: str,
+        error: Optional[str] = None,
+        output_files: Optional[Dict[str, str]] = None,
+        qa_report: Optional[QAAuditReport] = None,
+        publication_ready: bool = False,
+        pipeline_errors: Optional[List[str]] = None,
+        pipeline_warnings: Optional[List[str]] = None,
+    ) -> Dict[str, Any]:
+        """Build the stable result contract used by interactive and batch callers."""
+        result: Dict[str, Any] = {
+            "success": bool(success),
+            "status": status,
+            "output_files": output_files or {},
+            "qa_approved": bool(qa_report and qa_report.is_approved()),
+            "qa_score": getattr(qa_report, "overall_score", None),
+            "publication_ready": bool(publication_ready),
+            "pipeline_errors": list(pipeline_errors or []),
+            "pipeline_warnings": list(pipeline_warnings or []),
+        }
+        if error:
+            result["error"] = str(error)
+        return result
+
+    @staticmethod
+    def _saved_output_dict(saved_paths: Any) -> Dict[str, str]:
+        """Convert SavedOutputs paths to JSON-friendly values for callers."""
+        output_files: Dict[str, str] = {}
+        for name in ("wikitext", "markdown", "talk", "preview"):
+            value = getattr(saved_paths, name, None)
+            if value is not None:
+                output_files[name] = str(value)
+        return output_files
     def run_interactive(
         self,
         article_title: Optional[str] = None,
         auto_approve: bool = False,
         revid: Optional[int] = None,
-    ) -> None:
+    ) -> Dict[str, Any]:
+        self._require_claim_review = True
         print_banner()
 
         # Check credentials
@@ -317,11 +358,11 @@ class WikiTranslatorCLI:
                 article_title = input("\n[?] Enter English Wikipedia article title: ").strip()
             except (KeyboardInterrupt, EOFError):
                 print("\nOperation cancelled.")
-                return
+                return self._run_result(success=False, status="cancelled", error="Operation cancelled")
 
         if not article_title:
             print("[!] Article title cannot be empty.")
-            return
+            return self._run_result(success=False, status="invalid_title", error="Article title cannot be empty")
 
         if revid is not None:
             print(f"\n[*] Fetching wikitext from en.wikipedia.org for '{article_title}' (revid: {revid})...")
@@ -331,16 +372,11 @@ class WikiTranslatorCLI:
             sections = self.wiki_client.fetch_sections(article_title, revid=revid)
         except Exception as e:
             print(f"[!] Error fetching article: {e}")
-            return
+            return self._run_result(success=False, status="fetch_failed", error=str(e))
 
         total_chars = sum(s.char_count for s in sections)
         print(f"[+] Successfully fetched {total_chars:,} characters across {len(sections)} sections.")
-        print("-" * 72)
-        print(f"{'#':<4} {'Level':<6} {'Words':<8} {'Chars':<8} {'Section Title'}")
-        print("-" * 72)
-        for s in sections:
-            print(f"{s.index:<4} {s.level:<6} {s.word_count:<8} {s.char_count:<8} {s.title}")
-        print("-" * 72)
+        render_sections_table(sections)
 
         # Select topic if not set
         if not self.topic:
@@ -353,8 +389,18 @@ class WikiTranslatorCLI:
             print("  [5] Physics & Mathematics")
             print("  [6] Medicine & Biology")
             print("  [7] History & Social Sciences")
+            print("  [8] Aerospace & Jet Aviation (Dirgantara & Mesin Jet)")
+            print("  [9] Mechanical Engineering & Thermodynamics (Teknik Mesin)")
+            print("  [10] Pure Mathematics & Statistics (Matematika & Statistika)")
+            print("  [11] Chemistry & Materials Science (Kimia & Material)")
+            print("  [12] Earth Sciences & Environment (Ilmu Kebumian & Lingkungan)")
+            print("  [13] Economics & Finance (Ekonomi & Keuangan)")
+            print("  [14] Military & Defense Technology (Militer & Pertahanan)")
+            print("  [15] Music & Fine Arts (Musik & Seni Rupa)")
+            print("  [16] Law & Jurisprudence (Hukum & Yurisprudensi)")
+            print("  [17] Religion & Theology (Agama & Teologi)")
             try:
-                choice = input("Select choice [0-7] (default: 0): ").strip()
+                choice = input("Select choice [0-17] (default: 0): ").strip()
                 if choice == "1":
                     self.topic = "film"
                 elif choice == "2":
@@ -369,6 +415,26 @@ class WikiTranslatorCLI:
                     self.topic = "medical_biology"
                 elif choice == "7":
                     self.topic = "history_social"
+                elif choice == "8":
+                    self.topic = "aerospace_aviation"
+                elif choice == "9":
+                    self.topic = "mechanical_engineering"
+                elif choice == "10":
+                    self.topic = "mathematics_statistics"
+                elif choice == "11":
+                    self.topic = "chemistry_materials"
+                elif choice == "12":
+                    self.topic = "earth_environment"
+                elif choice == "13":
+                    self.topic = "economics_finance"
+                elif choice == "14":
+                    self.topic = "military_defense"
+                elif choice == "15":
+                    self.topic = "music_arts"
+                elif choice == "16":
+                    self.topic = "law_jurisprudence"
+                elif choice == "17":
+                    self.topic = "religion"
             except (KeyboardInterrupt, EOFError):
                 pass
 
@@ -395,10 +461,7 @@ class WikiTranslatorCLI:
             if not s.content.strip() and not s.header_raw.strip():
                 continue
 
-            print(f"\n" + "=" * 72)
-            print(f"[*] Processing Section [{s.index}/{len(sections)-1}]: {s.title}")
-            print(f"    Words: {s.word_count} | Chars: {s.char_count}")
-            print("=" * 72)
+            render_section_header(s.index, len(sections) - 1, s.title, s.word_count, s.char_count)
 
             # 1. Smart Delta Skip check (References, External links, etc.)
             if self.enable_delta_skip:
@@ -416,12 +479,30 @@ class WikiTranslatorCLI:
                     translated_sections.append(s)
                     continue
 
+            # Resolve the glossary before cache lookup so the key matches the prompt.
+            resolved_glossary = None
+            if self.enable_auto_glossary and self.glossary_resolver:
+                try:
+                    resolved_glossary = self.glossary_resolver.resolve_section_terms(
+                        wikitext=s.full_source,
+                        topic=self.topic,
+                        custom_glossary=self.custom_glossary,
+                    )
+                except Exception as e:
+                    print(f"[!] [GlossaryResolver] Warning: term resolution failed ({e})")
+            cache_glossary = dict(resolved_glossary or {})
+            cache_glossary.update(self.custom_glossary or {})
+
             # 2. Semantic Cache lookup
             if self.enable_cache and self.cache:
                 cached_res = self.cache.get(
                     source_text=s.full_source,
                     section_title=s.title,
                     topic=self.topic,
+                    model=self.model,
+                    thinking_level=self.thinking,
+                    glossary=cache_glossary,
+                    polish=self.enable_polish,
                 )
                 if cached_res:
                     s.translated_content = cached_res
@@ -461,18 +542,8 @@ class WikiTranslatorCLI:
                             f"({compressed_obj.token_savings_percent:.1f}% reduction)"
                         )
 
-                resolved_glossary = None
-                if self.enable_auto_glossary and self.glossary_resolver:
-                    try:
-                        resolved_glossary = self.glossary_resolver.resolve_section_terms(
-                            wikitext=s.full_source,
-                            topic=self.topic,
-                            custom_glossary=self.custom_glossary,
-                        )
-                        if resolved_glossary:
-                            print(f"[*] [GlossaryResolver] Injected {len(resolved_glossary)} dynamic terms/exonyms for section '{s.title}'")
-                    except Exception as e:
-                        print(f"[!] [GlossaryResolver] Warning: term resolution failed ({e})")
+                if resolved_glossary:
+                    print(f"[*] [GlossaryResolver] Injected {len(resolved_glossary)} dynamic terms/exonyms for section '{s.title}'")
 
                 prompt = build_translation_prompt(
                     section_title=s.title,
@@ -501,9 +572,11 @@ class WikiTranslatorCLI:
 
                 print("\n[Translating...] Live stream:")
                 print("-" * 72)
-
                 def on_chunk(chunk: str) -> None:
-                    sys.stdout.write(chunk)
+                    try:
+                        sys.stdout.write(chunk)
+                    except UnicodeEncodeError:
+                        sys.stdout.buffer.write(chunk.encode("utf-8", errors="replace"))
                     sys.stdout.flush()
 
                 try:
@@ -555,14 +628,37 @@ class WikiTranslatorCLI:
                     print("\n" + "-" * 72)
                 except Exception as e:
                     print(f"\n[!] Translation error on section '{s.title}': {e}")
+                    if auto_approve:
+                        return self._run_result(
+                            success=False,
+                            status="translation_failed",
+                            error=f"Section '{s.title}': {e}",
+                        )
                     retry = input("\n[?] Retry translation? [Y/n/s (skip)]: ").strip().lower()
                     if retry == "s":
                         translated_text = s.full_source  # keep original
                         break
                     elif retry == "n":
-                        return
+                        return self._run_result(
+                            success=False,
+                            status="translation_cancelled",
+                            error=f"Section '{s.title}' translation cancelled",
+                        )
                     else:
                         continue
+
+                if not isinstance(raw_llm_output, str) or not raw_llm_output.strip():
+                    message = f"LLM returned an empty translation for section '{s.title}'"
+                    print(f"[!] {message}")
+                    if auto_approve:
+                        return self._run_result(success=False, status="empty_translation", error=message)
+                    retry = input("\n[?] Retry translation? [Y/n/s (skip)]: ").strip().lower()
+                    if retry == "s":
+                        translated_text = s.full_source
+                        break
+                    if retry == "n":
+                        return self._run_result(success=False, status="translation_cancelled", error=message)
+                    continue
 
                 # Rehydrate placeholders if compressed
                 if self.enable_compression and placeholders:
@@ -581,6 +677,9 @@ class WikiTranslatorCLI:
                         polished_text = self.gemini_client.polish_section(
                             source_en=s.full_source,
                             draft_id=translated_text,
+                            topic=self.topic,
+                            glossary=cache_glossary,
+                            context_notes=context_notes,
                             stream_callback=on_polish_chunk,
                         )
                         print("\n" + "-" * 72)
@@ -599,16 +698,19 @@ class WikiTranslatorCLI:
 
                 s.translated_content = translated_text
 
-                # Save to cache
-                if self.enable_cache and self.cache:
-                    self.cache.put(
-                        source_text=s.full_source,
-                        translated_text=translated_text,
-                        section_title=s.title,
-                        topic=self.topic,
-                    )
-
                 if auto_approve:
+                    if self.enable_cache and self.cache:
+                        self.cache.put(
+                            source_text=s.full_source,
+                            translated_text=translated_text,
+                            section_title=s.title,
+                            topic=self.topic,
+                            model=self.model,
+                            thinking_level=self.thinking,
+                            glossary=cache_glossary,
+                            context=context_notes,
+                            polish=self.enable_polish,
+                        )
                     print("[+] Auto-approved section.")
                     break
                 # Slop Linter inspection before review
@@ -624,22 +726,25 @@ class WikiTranslatorCLI:
                             print(f"    ... dan {len(lint_result.violations) - 4} temuan lainnya.")
 
                 # Semi-automatic review prompt
-                print("\n[?] Review Section Translation:")
-                print("  [A] Approve & Continue")
-                print("  [D] Diff / Side-by-side comparison (Source EN vs Draft ID)")
-                print("  [V] View in Browser (HTML Preview)")
-                print("  [F] Auto-fix Slop & Syntax Balancer")
-                print("  [P] Polish / Humanize (Redaktur 2nd Pass)")
-                print("  [R] Retry / Regenerate")
-                print("  [E] Add Context Note / Glossary & Retry")
-                print("  [S] Skip / Keep Original Wikitext")
-                print("  [Q] Quit & Save Draft")
+                render_review_menu(s.title)
                 try:
                     action = input("Select action [A/v/d/f/p/r/e/s/q] (default: A): ").strip().upper()
                 except (KeyboardInterrupt, EOFError):
                     action = "Q"
 
                 if action in ("", "A"):
+                    if self.enable_cache and self.cache:
+                        self.cache.put(
+                            source_text=s.full_source,
+                            translated_text=translated_text,
+                            section_title=s.title,
+                            topic=self.topic,
+                            model=self.model,
+                            thinking_level=self.thinking,
+                            glossary=cache_glossary,
+                            context=context_notes,
+                            polish=self.enable_polish,
+                        )
                     print("[+] Approved.")
                     break
                 elif action == "V":
@@ -705,14 +810,37 @@ class WikiTranslatorCLI:
                     break
                 elif action == "Q":
                     print("\n[*] Saving current progress before exit...")
-                    self._save_output(slug, article_title, sections[: s.index], oldid=revid)
-                    return
+                    saved = self._save_output(slug, article_title, translated_sections, oldid=revid)
+                    output_files = self._saved_output_dict(saved)
+                    return self._run_result(
+                        success=False,
+                        status="partial_saved",
+                        error="Translation stopped by user",
+                        output_files=output_files,
+                        pipeline_errors=self.last_pipeline_errors,
+                        pipeline_warnings=self.last_pipeline_warnings,
+                    )
             translated_sections.append(s)
 
         # Final save
         print("\n" + "=" * 72)
         print("[*] All sections completed! Saving outputs...")
-        saved_paths = self._save_output(slug, article_title, sections, oldid=revid)
+        quality_ok, quality_failures = self._quality_gate(sections)
+        if not quality_ok:
+            print("[!] Quality gate blocked final save:")
+            for failure in quality_failures[:20]:
+                print(f"    - {failure}")
+            return self._run_result(
+                success=False,
+                status="quality_gate_failed",
+                error="; ".join(quality_failures),
+                pipeline_errors=quality_failures,
+                pipeline_warnings=self.last_pipeline_warnings,
+            )
+        try:
+            saved_paths = self._save_output(slug, article_title, sections, oldid=revid)
+        except ValueError as exc:
+            return self._run_result(success=False, status="quality_gate_failed", error=str(exc))
         wikitext_path, md_path, talk_path, preview_path = (
             saved_paths.wikitext,
             saved_paths.markdown,
@@ -737,34 +865,72 @@ class WikiTranslatorCLI:
             except Exception as e:
                 print(f"[!] Warning: Could not open browser preview: {e}")
 
-        # Run Multi-Layer Editorial QA Pipeline audit before publication
-        qa_report = default_qa_pipeline.audit(
-            wikitext=wikitext_path.read_text(encoding="utf-8"),
-            talk_wikitext=talk_path.read_text(encoding="utf-8") if talk_path.exists() else None,
-            title=article_title,
-        )
-        print("\n" + qa_report.render_terminal_scorecard())
+        # Run Multi-Layer Editorial QA Pipeline audit before publication.
+        try:
+            qa_report = self.qa_pipeline.audit(
+                wikitext=wikitext_path.read_text(encoding="utf-8"),
+                talk_wikitext=talk_path.read_text(encoding="utf-8") if talk_path.exists() else None,
+                title=article_title,
+                source_wikitext="\n\n".join(section.full_source for section in sections),
+            )
+        except Exception as e:
+            message = f"Editorial QA failed: {e}"
+            print(f"[!] {message}")
+            self.last_pipeline_errors.append(message)
+            return self._run_result(
+                success=False,
+                status="qa_failed",
+                error=message,
+                output_files=self._saved_output_dict(saved_paths),
+                pipeline_errors=self.last_pipeline_errors,
+                pipeline_warnings=self.last_pipeline_warnings,
+            )
+        print_console_safe("\n" + qa_report.render_terminal_scorecard())
         # Interactive Red-Link selection if in interactive mode
         if not auto_approve and self.stub_generator and not self.create_stubs:
             self._process_red_links_and_stubs(wikitext_path.read_text(encoding="utf-8"), is_interactive=True)
 
-        if qa_report.is_approved():
+        if qa_report.is_approved() and not self.last_pipeline_errors:
             self._handle_sandbox_publishing(article_title, wikitext_path, talk_path, auto_approve=auto_approve)
         else:
-            print("[!] Editorial QA Scorecard did not pass minimum publication thresholds (Score < 80 or Critical Errors present).")
+            if self.last_pipeline_errors:
+                print("[!] Publication blocked because one or more integrity stages failed:")
+                for message in self.last_pipeline_errors:
+                    print(f"    - {message}")
+            else:
+                print("[!] Editorial QA Scorecard did not pass minimum publication thresholds (Score < 80 or Critical Errors present).")
             print("[!] Sandbox publishing skipped until revisions are made.")
+        qa_approved = qa_report.is_approved()
+        publication_ready = qa_approved and not self.last_pipeline_errors
+        return self._run_result(
+            success=publication_ready,
+            status="completed" if publication_ready else ("pipeline_failed" if self.last_pipeline_errors else "qa_rejected"),
+            output_files=self._saved_output_dict(saved_paths),
+            qa_report=qa_report,
+            publication_ready=publication_ready,
+            pipeline_errors=self.last_pipeline_errors,
+            pipeline_warnings=self.last_pipeline_warnings,
+        )
     def _show_diff_comparison(self, source_en: str, draft_id: str) -> None:
         """Displays a structured side-by-side or dual-pane comparison between source EN and draft ID."""
-        print("\n" + "=" * 36 + " [SOURCE EN] " + "=" * 24)
-        print(source_en.strip())
-        print("\n" + "=" * 36 + " [DRAFT ID]  " + "=" * 24)
-        print(draft_id.strip())
-        print("=" * 72)
+        render_diff_view(source_en, draft_id)
+
+    _check_saved_integrity = staticmethod(check_saved_integrity)
 
     def _save_output(
         self, slug: str, title: str, sections: List[WikiSection], oldid: Optional[int] = None
     ) -> Any:
         """Saves accumulated translated sections to wikitext, markdown, talk page, and HTML preview files."""
+        self.last_pipeline_errors = []
+        self.last_pipeline_warnings = []
+
+        def record_pipeline_issue(stage: str, exc: Exception, *, blocking: bool = True) -> None:
+            message = f"{stage}: {exc}"
+            if blocking:
+                self.last_pipeline_errors.append(message)
+            else:
+                self.last_pipeline_warnings.append(message)
+
         wikitext_file = self.output_dir / f"{slug}.wikitext"
         md_file = self.output_dir / f"{slug}.md"
         talk_file = self.output_dir / f"{slug}.talk.wikitext"
@@ -777,6 +943,7 @@ class WikiTranslatorCLI:
                 full_wikitext_parts.append(content)
 
         final_wikitext = "\n\n".join(full_wikitext_parts) + "\n"
+        original_draft = final_wikitext
 
         # Apply cross-wiki template mapping & safeguard if enabled
         if self.enable_template_mapper and self.template_mapper:
@@ -786,15 +953,18 @@ class WikiTranslatorCLI:
                 print("[+] Templates mapped and safeguards applied.")
             except Exception as e:
                 print(f"[!] Warning: Template mapping encountered an issue: {e}")
+                record_pipeline_issue("template_mapping", e)
 
         # Apply automated link & category mapping if enabled
         if self.enable_map_links and self.link_mapper:
             print("[*] Running automated Wikipedia Live Link & Category Validator/Mapper...")
             try:
-                final_wikitext = self.link_mapper.process_wikitext(final_wikitext)
+                full_source_text = "\n\n".join(s.full_source for s in sections if s.full_source)
+                final_wikitext = self.link_mapper.process_wikitext(final_wikitext, source_wikitext=full_source_text)
                 print("[+] Wikilinks and categories successfully validated and mapped.")
             except Exception as e:
                 print(f"[!] Warning: Link mapping encountered an issue: {e}")
+                record_pipeline_issue("link_mapping", e)
         # Apply Typography & Reference Date Standardization if enabled
         if self.enable_typography_sanitizer and self.typography_sanitizer:
             print("[*] Running Wikipedia ID Typography & Reference Date Sanitizer (MoS / EYD V)...")
@@ -803,6 +973,7 @@ class WikiTranslatorCLI:
                 print("[+] Typography, reference dates, and heading sentence-casing standardized.")
             except Exception as e:
                 print(f"[!] Warning: Typography sanitization encountered an issue: {e}")
+                record_pipeline_issue("typography_sanitization", e)
         # Apply anti-ai slop auto-fix if enabled
         if self.enable_slop_linter and self.slop_linter:
             print("[*] Running Anti-AI-Slop Linter auto-fix...")
@@ -811,6 +982,7 @@ class WikiTranslatorCLI:
                 print(f"[+] Anti-AI-Slop Linter completed: {fix_c} calque issues corrected.")
             except Exception as e:
                 print(f"[!] Warning: Anti-AI-Slop auto-fix encountered an issue: {e}")
+                record_pipeline_issue("slop_linter", e)
 
         # Apply wikitext syntax balancer auto-repair if enabled
         if self.enable_syntax_balancer and self.syntax_balancer:
@@ -820,17 +992,20 @@ class WikiTranslatorCLI:
                 print("[+] Wikitext syntax balanced and repaired.")
             except Exception as e:
                 print(f"[!] Warning: Syntax balancing encountered an issue: {e}")
+                record_pipeline_issue("syntax_balancer", e)
         # Normalize infobox parameter keys back to canonical English to avoid Lua unknown parameter errors
         try:
             final_wikitext = default_infobox_mapper.normalize_infobox_keys(final_wikitext)
         except Exception as e:
             print(f"[!] Warning: Infobox key normalization encountered an issue: {e}")
+            record_pipeline_issue("infobox_normalization", e)
         # Apply Metric-First Normalization (WP:GAYA - enabled by default)
         if getattr(self, "metric_first", True):
             try:
                 final_wikitext = default_unit_converter.normalize_metric_first(final_wikitext)
             except Exception as e:
                 print(f"[!] Warning: Metric-first normalization encountered an issue: {e}")
+                record_pipeline_issue("metric_normalization", e)
 
         # Apply automated Wayback Machine archive-url injection (--enrich-archives)
         if getattr(self, "enrich_archives", False):
@@ -840,6 +1015,7 @@ class WikiTranslatorCLI:
                 print("[+] Citations successfully enriched with archive backups.")
             except Exception as e:
                 print(f"[!] Warning: Reference archive enrichment encountered an issue: {e}")
+                record_pipeline_issue("archive_enrichment", e, blocking=False)
 
         # Audit or upload article media (--check-media or --upload-media)
         if getattr(self, "check_media", False) or getattr(self, "upload_media", False):
@@ -876,6 +1052,7 @@ class WikiTranslatorCLI:
                         print("[!] Warning: --upload-media requested but WIKI_USERNAME or WIKI_BOT_PASSWORD not found in environment.")
             except Exception as me:
                 print(f"[!] Warning: Media manager encountered an issue: {me}")
+                record_pipeline_issue("media_manager", me, blocking=False)
 
         # Record translated terms into workspace shared memory
         try:
@@ -884,8 +1061,16 @@ class WikiTranslatorCLI:
                     default_shared_memory.remember_term(en_term, id_term, topic=self.topic)
         except Exception as me:
             print(f"[!] Warning: Could not record terms to shared memory: {me}")
+            record_pipeline_issue("shared_memory", me, blocking=False)
 
 
+        # Validate the actual bytes about to be saved, after every transformation.
+        self._check_saved_integrity(original_draft, final_wikitext)
+        if getattr(self, "_require_claim_review", False):
+            print("[*] Checking source claims against the final article...")
+            findings = review_claims("\n\n".join(s.full_source for s in sections), final_wikitext, self.gemini_client)
+            if findings:
+                raise ValueError("Quality gate klaim: " + "; ".join(findings))
         with open(wikitext_file, "w", encoding="utf-8") as f:
             f.write(final_wikitext)
 
@@ -901,6 +1086,7 @@ class WikiTranslatorCLI:
                 final_md = self.typography_sanitizer.sanitize_markdown(final_md)
             except Exception as e:
                 print(f"[!] Warning: Markdown typography sanitization encountered an issue: {e}")
+                record_pipeline_issue("markdown_typography", e, blocking=False)
         with open(md_file, "w", encoding="utf-8") as f:
             f.write(final_md)
 
@@ -926,6 +1112,7 @@ class WikiTranslatorCLI:
             )
         except Exception as e:
             print(f"[!] Warning: HTML preview generation encountered an issue: {e}")
+            record_pipeline_issue("html_preview", e, blocking=False)
         # 1. Wikipedia Redirect Generation (opt-in via --generate-redirects)
         if self.enable_redirects and self.redirect_generator:
             print("[*] Generating Wikipedia ID redirects for maximum discoverability...")
@@ -935,6 +1122,7 @@ class WikiTranslatorCLI:
                 print(f"[+] Saved {len(saved_redirects)} redirect(s) to {self.output_dir / 'redirects'}")
             except Exception as e:
                 print(f"[!] Warning: Redirect generation encountered an issue: {e}")
+                record_pipeline_issue("redirect_generation", e, blocking=False)
 
         # 2. High-value Red-Link Stub Generation
         if self.stub_generator:
@@ -977,9 +1165,11 @@ class WikiTranslatorCLI:
                             generated_navboxes += 1
                     except Exception as ne:
                         print(f"[!] Warning: Could not process navbox '{nb}': {ne}")
+                        record_pipeline_issue(f"navbox:{nb}", ne, blocking=False)
                 print(f"[+] Audited navboxes: Generated {generated_navboxes} missing navbox draft(s) in {self.output_dir / 'templates'}")
             except Exception as e:
                 print(f"[!] Warning: Navbox audit encountered an issue: {e}")
+                record_pipeline_issue("navbox_audit", e, blocking=False)
 
         # 4. Category Curation Audit (--curate-categories)
         if self.curate_categories and self.category_curator:
@@ -997,6 +1187,7 @@ class WikiTranslatorCLI:
                     print(f"    - [{status}] {c['category_name']}: {c['article_count']} artikel terkait.")
             except Exception as e:
                 print(f"[!] Warning: Category curation encountered an issue: {e}")
+                record_pipeline_issue("category_curation", e, blocking=False)
 
         class SavedOutputs(tuple):
             """Tuple supporting backwards-compatible (wikitext, md, talk) and 4-tuple (..., preview)."""
@@ -1025,6 +1216,10 @@ class WikiTranslatorCLI:
             def as_four(self):
                 return (self[0], self[1], self[2], self[3])
 
+        manifest = ApprovalManifest.create(
+            f"article:{title}", [wikitext_file, md_file, talk_file]
+        )
+        manifest.write(self.output_dir / "approval-manifest.json")
         return SavedOutputs(wikitext_file, md_file, talk_file, preview_file)
     def scan_red_links(self, wikitext: str) -> List[Dict[str, str]]:
         """
@@ -1163,6 +1358,24 @@ class WikiTranslatorCLI:
         dry_run = not bool(bot_password)
         chosen_summary = self.summary
 
+        if not dry_run:
+            manifest_path = self.output_dir / "approval-manifest.json"
+            if not manifest_path.exists() and (self.publish_main or self.promote_draft):
+                print("[!] Publish blocked: approval-manifest.json is missing.")
+                return
+            if manifest_path.exists():
+                gate_result = PublishGate().check(
+                    title,
+                    manifest_path,
+                    allow_existing=bool(
+                        self.force_overwrite
+                        or (not self.publish_main and not self.promote_draft)
+                    ),
+                )
+                if not gate_result.allowed:
+                    print(f"[!] Publish blocked by gate: {'; '.join(gate_result.reasons)}")
+                    return
+
         try:
             wikitext_content = wikitext_file.read_text(encoding="utf-8")
             talk_content = talk_file.read_text(encoding="utf-8") if talk_file.exists() else None
@@ -1272,345 +1485,18 @@ class WikiTranslatorCLI:
                 print(f"[!] Pemindahan draf gagal: {move_res.get('error')}")
 def main() -> None:
     load_env_file()
-    parser = argparse.ArgumentParser(
-        description="Semi-Automatic Grade A++ Wikipedia Translator (EN -> ID)"
-    )
-    parser.add_argument(
-        "title",
-        nargs="?",
-        default=None,
-        help="English Wikipedia article title (e.g., 'Quantum computing')",
-    )
-    parser.add_argument(
-        "--model",
-        default="gemini-3.8-flash",
-        help="Gemini model to use (gemini-3.8-flash, gemini-3.7-flash-tiered)",
-    )
-    parser.add_argument(
-        "--thinking",
-        "--thinking-level",
-        dest="thinking",
-        choices=["auto", "low", "medium", "high"],
-        default="auto",
-        help="Thinking budget tier for Gemini 3.8 Flash (choices: auto, low, medium, high; default: auto)",
-    )
-    parser.add_argument(
-        "--topic",
-        choices=[
-            "film",
-            "cinema",
-            "tv_series",
-            "television",
-            "entertainment",
-            "media",
-            "computing_science",
-            "physics_mathematics",
-            "medical_biology",
-            "history_social",
-        ],
-        default=None,
-        help="Specific topic glossary to apply",
-    )
-    parser.add_argument(
-        "--oldid",
-        "--revid",
-        dest="revid",
-        type=int,
-        default=None,
-        help="Pin translation to a specific Wikipedia revision ID (oldid)",
-    )
-    parser.add_argument(
-        "--auto-approve",
-        action="store_true",
-        help="Auto-approve all sections without interactive prompt",
-    )
-    parser.add_argument(
-        "--output-dir",
-        default="output",
-        help="Directory to save generated wikitext and markdown",
-    )
-    parser.add_argument(
-        "--no-cache",
-        action="store_true",
-        help="Disable persistent semantic cache",
-    )
-    parser.add_argument(
-        "--no-compression",
-        action="store_true",
-        help="Disable markup / citation compression",
-    )
-    parser.add_argument(
-        "--no-delta-skip",
-        action="store_true",
-        help="Disable smart delta skip for boilerplate sections",
-    )
-    parser.add_argument(
-        "--auto-glossary",
-        "--resolve-terms",
-        dest="auto_glossary",
-        action="store_true",
-        default=True,
-        help="Enable dynamic term and exonym resolution (default: True)",
-    )
-    parser.add_argument(
-        "--no-glossary",
-        dest="auto_glossary",
-        action="store_false",
-        help="Disable dynamic term and exonym resolution",
-    )
-    parser.add_argument(
-        "--map-links",
-        dest="map_links",
-        action="store_true",
-        default=True,
-        help="Enable automated Wikipedia live link and category validation and mapping (default: True)",
-    )
-    parser.add_argument(
-        "--no-map-links",
-        dest="map_links",
-        action="store_false",
-        help="Disable automated Wikipedia live link and category validation and mapping",
-    )
-    parser.add_argument(
-        "--polish",
-        "--humanize",
-        dest="polish",
-        action="store_true",
-        default=False,
-        help="Enable 2-pass Polish / Humanize mode for refined Indonesian journalistic cadence",
-    )
-    parser.add_argument(
-        "--no-typography",
-        "--no-sanitize",
-        dest="typography",
-        action="store_false",
-        default=True,
-        help="Disable automatic Wikipedia ID typography and reference date sanitization",
-    )
-    parser.add_argument(
-        "--no-slop-linter",
-        dest="slop_linter",
-        action="store_false",
-        default=True,
-        help="Disable Anti-AI-Slop and calque linter",
-    )
-    parser.add_argument(
-        "--no-syntax-balancer",
-        dest="syntax_balancer",
-        action="store_false",
-        default=True,
-        help="Disable wikitext syntax balancer auto-repair",
-    )
-    parser.add_argument(
-        "--no-template-mapper",
-        dest="template_mapper",
-        action="store_false",
-        default=True,
-        help="Disable cross-wiki template mapper and missing template safeguard",
-    )
-    parser.add_argument(
-        "--preview",
-        action="store_true",
-        help="Automatically open HTML preview in default browser when finished",
-    )
-    parser.add_argument(
-        "--publish-sandbox",
-        default=None,
-        help="Indonesian Wikipedia username for sandbox publishing",
-    )
-    parser.add_argument(
-        "--publish-main",
-        default=None,
-        help="Publish directly to the specified mainspace title",
-    )
-    parser.add_argument(
-        "--promote-draft",
-        default=None,
-        help="Move the current or existing sandbox draft to the specified mainspace title",
-    )
-    parser.add_argument(
-        "--force-overwrite",
-        action="store_true",
-        default=False,
-        help="Allow overwriting an existing mainspace article if explicitly requested",
-    )
-    parser.add_argument(
-        "--sandbox-slug",
-        default=None,
-        help="Custom slug between Bak_pasir and article title (default: <project-slug>/YYYY-MM)",
-    )
-    parser.add_argument(
-        "--sandbox-project",
-        "--project-slug",
-        dest="sandbox_project",
-        default="Draf",
-        help="Project/folder slug before YYYY-MM in sandbox hierarchy (default: Draf)",
-    )
-    parser.add_argument(
-        "-m",
-        "--summary",
-        dest="summary",
-        default=None,
-        help="Custom Wikipedia edit summary (ringkasan suntingan). If omitted, natural human summaries are used.",
-    )
-    parser.add_argument(
-        "--create-stubs",
-        dest="create_stubs",
-        action="store_true",
-        default=False,
-        help="Optional stub generation for high-value red links ({{ill}}), saving compliant stubs to output/stubs/",
-    )
-    parser.add_argument(
-        "--audit-navboxes",
-        dest="audit_navboxes",
-        action="store_true",
-        default=False,
-        help="Checks bottom navboxes in the article, generating drafts in output/templates/ for any missing on id.wiki",
-    )
-    parser.add_argument(
-        "--curate-categories",
-        dest="curate_categories",
-        action="store_true",
-        default=False,
-        help="Audits categories against id.wiki's WP:PEDKAT (finding related articles)",
-    )
-    parser.add_argument(
-        "--generate-redirects",
-        dest="enable_redirects",
-        action="store_true",
-        default=False,
-        help="Generates Wikipedia redirect files (opt-in per WP:PENGALIHAN; default is disabled)",
-    )
-    parser.add_argument(
-        "--batch",
-        dest="batch_file",
-        default=None,
-        help="Path to a text file containing article titles (one per line) for sequential batch translation",
-    )
-    parser.add_argument(
-        "--gen-category",
-        dest="gen_category",
-        default=None,
-        help="Generates translation queue of missing id.wiki articles from an en.wiki category",
-    )
-    parser.add_argument(
-        "--gen-backlinks",
-        dest="gen_backlinks",
-        default=None,
-        help="Generates translation queue of missing id.wiki articles from backlinks/transclusions to an en.wiki page",
-    )
-    parser.add_argument(
-        "--output-queue",
-        dest="output_queue",
-        default=None,
-        help="Specifies output text file for generated translation queue (e.g. output/queues/queue.txt)",
-    )
-    parser.add_argument(
-        "--dry-run-queue",
-        dest="dry_run_queue",
-        action="store_true",
-        default=False,
-        help="Prints generated page queue to console without writing to file",
-    )
-    parser.add_argument(
-        "--queue-limit",
-        dest="queue_limit",
-        type=int,
-        default=50,
-        help="Maximum number of missing articles to generate in queue (default: 50)",
-    )
-    parser.add_argument(
-        "--queue-recursive",
-        dest="queue_recursive",
-        action="store_true",
-        default=False,
-        help="Enables recursive subcategory traversal for --gen-category (default: False)",
-    )
-    parser.add_argument(
-        "--check-media",
-        dest="check_media",
-        action="store_true",
-        default=False,
-        help="Audit article media/posters with default_media_manager",
-    )
-    parser.add_argument(
-        "--upload-media",
-        dest="upload_media",
-        action="store_true",
-        default=False,
-        help="Enable automated non-free poster/media uploading to id.wikipedia.org via default_media_manager using bot credentials",
-    )
-    parser.add_argument(
-        "--enrich-archives",
-        dest="enrich_archives",
-        action="store_true",
-        default=False,
-        help="Enable automated Wayback Machine archive-url injection via default_reference_checker",
-    )
-    parser.add_argument(
-        "--no-metric-first",
-        dest="metric_first",
-        action="store_false",
-        default=True,
-        help="Disable metric-first normalization (enabled by default per WP:GAYA)",
-    )
-    parser.add_argument(
-        "--proyek-wiki",
-        dest="include_proyek_wiki",
-        action="store_true",
-        default=False,
-        help="Include ProyekWiki community banners in talk page (default: False)",
-    )
-    parser.add_argument(
-        "--sync-template",
-        "--update-template",
-        dest="sync_template",
-        default=None,
-        help="Sync and update a template and its documentation from en.wiki",
-    )
-    parser.add_argument(
-        "--scan-template-deps",
-        dest="scan_template_deps",
-        default=None,
-        help="Recursively scans and prints full dependency tree for a Wikipedia template/module",
-    )
-    parser.add_argument(
-        "--sync-ecosystem",
-        dest="sync_ecosystem",
-        default=None,
-        help="Orchestrates recursive sync with sandbox/testcases for a Wikipedia template/module",
-    )
-    parser.add_argument(
-        "--publish-template",
-        dest="publish_template",
-        action="store_true",
-        default=False,
-        help="Publish synced template directly to id.wikipedia.org",
-    )
-    parser.add_argument(
-        "--review-article",
-        dest="review_article",
-        default=None,
-        help="Audit and review an existing Indonesian Wikipedia article against en.wiki and WP:KAP",
-    )
-    parser.add_argument(
-        "--by-paragraph",
-        dest="by_paragraph",
-        action="store_true",
-        default=True,
-        help="Enable context-aware paragraph-by-paragraph translation for multi-paragraph sections (default: True)",
-    )
-    parser.add_argument(
-        "--no-paragraph-split",
-        "--no-by-paragraph",
-        dest="by_paragraph",
-        action="store_false",
-        help="Disable paragraph-by-paragraph translation and translate entire section as single prompt",
-    )
-
-
+    # Keep Unicode status tables and streamed translations printable on Windows.
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    parser = build_cli_parser()
     args = parser.parse_args()
+    if handle_storage_commands(args, parser):
+        return
+
+    if handle_glossary_actions(args, parser):
+        return
     cli = WikiTranslatorCLI(
+        glossary_resolver=GlossaryResolver(memory=GlossaryMemory(args.glossary_memory)),
         model=(
             f"gemini-3.8-flash-{args.thinking}"
             if args.model == "gemini-3.8-flash" and args.thinking != "auto"
@@ -1648,157 +1534,37 @@ def main() -> None:
         include_proyek_wiki=args.include_proyek_wiki,
         by_paragraph=args.by_paragraph,
     )
-    if args.review_article:
-        print(f"[*] Auditing and reviewing article '{args.review_article}' against en.wiki and WP:KAP...")
-        report, review_text, polished = default_article_reviewer.audit_and_report(args.review_article)
-        clean_filename = re.sub(r'[\\/*?:"<>| ]', "_", args.review_article)
-        review_path = Path("output/reviews") / f"{clean_filename}_review.md"
-        polished_path = Path("output/reviews") / f"{clean_filename}_polished.wikitext"
-        print("\n" + "=" * 60)
-        print(f" WP:KAP AUDIT SCORECARD: {report.title}")
-        print("=" * 60)
-        print(f" Skor Keseluruhan   : {report.overall_score}/100")
-        print(f" Status Kelayakan   : {report.verdict}")
-        print(f" Kesalahan Fatal    : {len(report.fatal_errors)}")
-        print(f" Kalkir / Slop MT   : {len(report.calque_issues)}")
-        print(f" Tipografi / EYD    : {len(report.typo_issues)}")
-        print(f" Rujukan / Kategori : {len(report.reference_issues)}")
-        print("=" * 60)
-        print(f"[+] Laporan ulasan komunitas disimpan ke: {review_path}")
-        print(f"[+] Teks wikitext terpoles disimpan ke   : {polished_path}")
-        print("=" * 60 + "\n")
+
+    if handle_ecosystem_and_category_commands(args, parser, cli):
         return
 
+    if handle_page_gen_commands(args, parser):
+        return
 
-    if args.sync_template:
-        print(f"[*] Synchronizing template '{args.sync_template}' from en.wiki...")
-        sync_res = default_template_syncer.sync_template(
-            args.sync_template,
-            publish=args.publish_template,
-            output_dir=Path(args.output_dir) / "templates" if args.output_dir else None,
+    if handle_batch_command(args, cli):
+        return
+    if getattr(args, "delink_ill", None):
+        from .ill_delinker import default_ill_delinker
+        target = args.delink_ill.strip()
+        print(f"[*] Scanning Wikipedia backlinks for '{{{{ill}}}}' referencing '{target}'...")
+        user = os.environ.get("WIKI_USERNAME")
+        pwd = os.environ.get("WIKI_BOT_PASSWORD")
+        dry_run = not (user and pwd)
+        if dry_run:
+            print("[*] Running in DRY-RUN mode (credentials not found in environment)...")
+        delink_res = default_ill_delinker.delink_target_across_wikipedia(
+            target_title=target,
+            username=user or "User",
+            bot_password=pwd or "pass",
+            dry_run=dry_run,
         )
-        print(f"[+] Template synced: {sync_res['id_title']} saved to {sync_res['template_file']}")
-        print(f"[+] Documentation saved to {sync_res['doc_file']}")
-        if args.publish_template:
-            if sync_res.get("published"):
-                print(f"[+] Published {sync_res['id_title']} and {sync_res['doc_title']} to id.wikipedia.org successfully.")
-                wiki_info = sync_res.get("wikidata", {})
-                if wiki_info:
-                    if wiki_info.get("success"):
-                        print(f"[+] Wikidata Terhubung   : {wiki_info.get('item_id')} -> {wiki_info.get('url')}")
-                    else:
-                        print(f"[!] Wikidata Linker Info : {wiki_info.get('error')}")
-            else:
-                err = sync_res.get("publish_results", {}).get("error", "Unknown error")
-                print(f"[!] Warning: Failed to publish template: {err}")
+        print(f"[+] Referring articles found: {delink_res['referring_articles_count']}")
+        print(f"[+] Articles requiring delink: {delink_res['modified_articles_count']}")
+        for r in delink_res.get("results", []):
+            stat = "simulated" if r.get("status") == "simulated" else ("success" if r.get("success") else "failed")
+            print(f"    - {r['title']}: {r['converted_links']} link(s) converted [{stat}]")
         return
 
-    if args.scan_template_deps:
-        print(f"[*] Scanning recursive dependency tree for '{args.scan_template_deps}'...")
-        nodes = default_ecosystem_manager.scanner.scan_dependencies_recursive(args.scan_template_deps)
-        topo = default_ecosystem_manager.scanner.topological_sort(nodes)
-        print(f"[+] Total components discovered: {len(nodes)}")
-        print("\n" + "=" * 60)
-        print(" TOPOLOGICAL RESOLUTION ORDER (Prerequisites first):")
-        print("=" * 60)
-        for idx, title in enumerate(topo, 1):
-            node = nodes.get(title)
-            status = "[ADA]" if (node and node.exists_on_id) else "[BELUM ADA]"
-            kind = node.kind.value if node else "item"
-            deps_count = len(node.dependencies) if node else 0
-            print(f"  {idx}. {status} ({kind}) {title} - {deps_count} sub-dependencies")
-        print("=" * 60 + "\n")
-        return
-
-    if args.sync_ecosystem:
-        print(f"[*] Orchestrating template & module ecosystem sync for '{args.sync_ecosystem}'...")
-        eco_res = default_ecosystem_manager.sync_ecosystem(
-            args.sync_ecosystem,
-            publish_sandbox=True,
-            promote=args.publish_template,
-            output_dir=Path(args.output_dir) / "ecosystem" if args.output_dir else None,
-        )
-        print(f"[+] Root component        : {eco_res['root_title']}")
-        print(f"[+] Discovered components : {len(eco_res['dependency_tree'])}")
-        print(f"[+] Missing on id.wiki    : {len(eco_res['missing_dependencies'])}")
-        print(f"[+] Sandbox Page          : {eco_res['sandbox']['title']}")
-        print(f"[+] Testcases Page        : {eco_res['testcases']['title']}")
-        val = eco_res.get("validation", {})
-        print(f"[+] Pre-flight Validation : {'VALID' if val.get('is_valid') else 'INVALID'}")
-        promo = eco_res.get("promotion", {})
-        print(f"[+] Promotion Gate        : {promo.get('message')}")
-        if args.publish_template and promo.get("promoted"):
-            print("[+] Promoted successfully to mainspace!")
-        return
-    if args.gen_category or args.gen_backlinks:
-        items: List[PageQueueItem] = []
-        source_desc = ""
-        limit = getattr(args, "queue_limit", 50)
-        recursive = getattr(args, "queue_recursive", False)
-
-        if args.gen_category:
-            source_desc = f"en.wiki Category: {args.gen_category}"
-            print(f"[*] AWB Smart Page Generator: Scanning en.wiki category '{args.gen_category}' (limit={limit}, recursive={recursive})...")
-            generator = CategoryPageGenerator(
-                en_category=args.gen_category,
-                limit=limit,
-                recursive=recursive,
-            )
-            items = generator.generate()
-        elif args.gen_backlinks:
-            source_desc = f"en.wiki Backlinks: {args.gen_backlinks}"
-            print(f"[*] AWB Smart Page Generator: Scanning inbound links/transclusions to '{args.gen_backlinks}' (limit={limit})...")
-            generator = WhatLinksHerePageGenerator(
-                en_target_page=args.gen_backlinks,
-                limit=limit,
-            )
-            items = generator.generate()
-
-        print(f"[+] Found {len(items)} article(s) missing on id.wikipedia.org.")
-
-        if args.dry_run_queue:
-            print("\n--- Dry Run Queue (Console Output) ---")
-            for idx, it in enumerate(items, 1):
-                print(f"  [{idx}] {it.en_title} -> {it.predicted_id_title} ({it.status})")
-            print("--------------------------------------\n")
-            return
-
-        # Determine output queue file path
-        out_file = args.output_queue
-        if not out_file:
-            slug = slugify(args.gen_category or args.gen_backlinks or "queue")
-            prefix = "category" if args.gen_category else "backlinks"
-            out_file = f"output/queues/{prefix}_{slug}.txt"
-
-        saved_path = PageQueueExporter.export_to_file(
-            items=items,
-            output_path=out_file,
-            source_description=source_desc,
-        )
-        print(f"[+] Translation queue exported successfully to: {saved_path}")
-        print(f"[*] You can run translation with: uv run python -m wiki_translator.cli --batch {saved_path}")
-        return
-
-
-    if args.batch_file:
-        print(f"[*] Batch Translation Mode: Reading queue from '{args.batch_file}'...")
-        def run_single_article(title_to_translate: str) -> Dict[str, Any]:
-            try:
-                cli.run_interactive(
-                    article_title=title_to_translate,
-                    auto_approve=True if args.auto_approve else True,
-                    revid=args.revid,
-                )
-                return {"success": True}
-            except Exception as exc:
-                return {"success": False, "error": str(exc)}
-
-        report = default_batch_runner.run_batch_from_file(
-            queue_file_path=args.batch_file,
-            translate_fn=run_single_article,
-        )
-        print(f"\n[+] Batch Run Completed: {report.succeeded}/{report.total_articles} succeeded in {round(report.total_elapsed_seconds, 2)}s.")
-        return
 
     cli.run_interactive(
         article_title=args.title,

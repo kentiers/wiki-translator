@@ -16,12 +16,14 @@ import os
 from pathlib import Path
 import re
 import sqlite3
-from typing import Dict, Iterable, List, Optional, Set, Tuple
+from typing import Dict, Iterable, List, Optional, Set, Tuple, Union
 import urllib.error
 import urllib.parse
 import urllib.request
 
 from .prompts import TOPIC_GLOSSARIES
+from .glossary_memory import GlossaryMemory
+from .storage_manager import default_storage_manager
 
 # Default common glossary terms / exonyms
 BASE_EXONYMS_AND_TERMS: Dict[str, str] = {
@@ -106,7 +108,7 @@ BASE_EXONYMS_AND_TERMS: Dict[str, str] = {
     "metacritic": "Metacritic",
     "miniseries": "serial mini",
     "nomination": "nominasi",
-    "original score": "jalur suara asli / musik tema",
+    "original score": "musik orisinal",
     "pilot episode": "episode perintis / episode pilot",
     "plot summary": "ringkasan alur cerita",
     "post-credits scene": "adegan pascakredit",
@@ -168,8 +170,8 @@ IDIOM_AND_PHRASE_MAPPINGS: Dict[str, str] = {
     "behind the scenes": "di balik layar",
     "household name": "nama yang dikenal luas",
     "in full swing": "sedang berada di puncaknya / berjalan lancar",
-    "outlive": "hidup lebih lama daripada / berpulang mendahului",
-    "outliving": "hidup lebih lama daripada / berpulang mendahului",
+    "outlive": "hidup lebih lama daripada",
+    "outliving": "hidup lebih lama daripada",
     "sewing work": "pekerjaan menjahit",
     "conservative backlash": "reaksi keras kaum konservatif",
     # Additional common English idioms and figurative expressions
@@ -339,10 +341,16 @@ class GlossaryResolver:
 
     def __init__(
         self,
-        cache_db_path: str = ".cache/glossary_cache.db",
+        cache_db_path: Optional[Union[str, Path]] = None,
         user_agent: Optional[str] = None,
+        memory: Optional[GlossaryMemory] = None,
     ):
-        self.cache_db_path = Path(cache_db_path)
+        self.cache_db_path = (
+            Path(cache_db_path)
+            if cache_db_path is not None
+            else default_storage_manager.glossary_cache_db
+        )
+        self.memory = memory
         self.user_agent = user_agent or "WikiTranslatorGlossaryResolver/1.0 (https://id.wikipedia.org; translator-tool)"
         self._init_db()
 
@@ -496,6 +504,8 @@ class GlossaryResolver:
         """
         term_clean = term.strip()
         term_lower = term_clean.lower()
+        approved = self.memory.approved_terms(topic) if self.memory else {}
+        custom_glossary = {**approved, **(custom_glossary or {})}
 
         # 1a. Custom glossary check
         if custom_glossary:
@@ -503,18 +513,22 @@ class GlossaryResolver:
                 if k.lower() == term_lower:
                     return v
 
-        # 1b. Topic glossary check
+        # 1b. Warung Kopi community consensus lexicon (highest community authority)
+        try:
+            from .warung_kopi_harvester import default_warung_kopi_harvester
+            wk_lex = default_warung_kopi_harvester.export_lexicon_dict()
+            if topic and topic in wk_lex and term_lower in wk_lex[topic]:
+                return wk_lex[topic][term_lower]
+            if "general" in wk_lex and term_lower in wk_lex["general"]:
+                return wk_lex["general"][term_lower]
+        except Exception:
+            pass
+
+        # 1c. Topic glossary check
         if topic and topic in TOPIC_GLOSSARIES:
             for k, v in TOPIC_GLOSSARIES[topic].items():
                 if k.lower() == term_lower:
                     return v
-
-        # Check all topic glossaries
-        for t_dict in TOPIC_GLOSSARIES.values():
-            for k, v in t_dict.items():
-                if k.lower() == term_lower:
-                    return v
-
         # 1c. Base exonyms & standard terms
         if term_lower in BASE_EXONYMS_AND_TERMS:
             return BASE_EXONYMS_AND_TERMS[term_lower]
@@ -555,6 +569,8 @@ class GlossaryResolver:
         Returns a dictionary of {en_term: id_term}.
         """
         resolved: Dict[str, str] = {}
+        approved = self.memory.approved_terms(topic) if self.memory else {}
+        custom_glossary = {**approved, **(custom_glossary or {})}
         
         # 1. Start with any matching entries from custom glossary & active topic glossary
         active_dict: Dict[str, str] = {}
@@ -562,10 +578,21 @@ class GlossaryResolver:
             active_dict.update(TOPIC_GLOSSARIES[topic])
         if custom_glossary:
             active_dict.update(custom_glossary)
+        # Inject Warung Kopi consensus terms matching active topic
+        try:
+            from .warung_kopi_harvester import default_warung_kopi_harvester
+            wk_lex = default_warung_kopi_harvester.export_lexicon_dict()
+            if topic and topic in wk_lex:
+                active_dict.update(wk_lex[topic])
+            if "general" in wk_lex:
+                active_dict.update(wk_lex["general"])
+        except Exception:
+            pass
+
 
         wikitext_lower = wikitext.lower()
         for k, v in active_dict.items():
-            if k.lower() in wikitext_lower:
+            if re.search(r"(?<!\w)" + re.escape(k.lower()) + r"(?!\w)", wikitext_lower):
                 resolved[k] = v
 
         # 1. First inject any matching idioms/figurative phrases directly from wikitext
@@ -573,7 +600,7 @@ class GlossaryResolver:
         for idiom_key, idiom_val in IDIOM_AND_PHRASE_MAPPINGS.items():
             pattern = r"\b" + re.escape(idiom_key) + r"\b"
             if re.search(pattern, wikitext_clean_lower, flags=re.IGNORECASE):
-                resolved[idiom_key] = idiom_val
+                resolved.setdefault(idiom_key, idiom_val)
 
         # 2. Candidate terms resolution
         candidates = extract_candidate_terms(wikitext, max_terms=max_candidates)
@@ -583,19 +610,7 @@ class GlossaryResolver:
             if cand_lower in (k.lower() for k in resolved.keys()):
                 continue
 
-            # Check built-in topic/base glossaries
-            found_static = False
-            for t_dict in TOPIC_GLOSSARIES.values():
-                for k, v in t_dict.items():
-                    if k.lower() == cand_lower:
-                        resolved[cand] = v
-                        found_static = True
-                        break
-                if found_static:
-                    break
-
-            if found_static:
-                continue
+            # Active topic terms were added above; do not borrow unrelated senses.
 
             if cand_lower in BASE_EXONYMS_AND_TERMS:
                 resolved[cand] = BASE_EXONYMS_AND_TERMS[cand_lower]
@@ -636,4 +651,4 @@ class GlossaryResolver:
 
 
 # Global singleton resolver instance
-default_glossary_resolver = GlossaryResolver()
+default_glossary_resolver = GlossaryResolver(memory=GlossaryMemory())
