@@ -122,6 +122,7 @@ class TypographySanitizer:
         masked, protected = default_slop_linter._mask_protected_zones(text)
         masked = self.normalize_en_dashes(masked)
         masked = self.normalize_em_dashes(masked)
+        masked = self.normalize_quotations(masked)
         masked = self.normalize_bound_morphemes(masked)
         masked = self.normalize_common_spelling_mistakes(masked)
         masked = self.normalize_appositive_commas(masked)
@@ -134,10 +135,12 @@ class TypographySanitizer:
     # ==========================================
 
     def normalize_quotations(self, text: str) -> str:
-        """Normalizes curly quotation marks to standard straight quotes."""
+        """Normalizes curly quotation marks to standard straight quotes and cleans redundant quotes inside parentheses."""
         text = text.replace("“", '"').replace("”", '"').replace("„", '"')
         text = text.replace("«", '"').replace("»", '"')
         text = text.replace("‘", "'").replace("’", "'")
+        # Clean redundant single/double quotes inside explanatory parentheses: ('keterbukaan') -> (keterbukaan)
+        text = re.sub(r"\(\s*['\"]([^'\"\n]+)['\"]\s*\)", r"(\1)", text)
         return text
 
     def fix_quotation_punctuation_order(self, text: str) -> str:
