@@ -88,6 +88,15 @@ class TestHTMLPreviewGenerator(unittest.TestCase):
         self.assertIn('(ru)</a>', html)
         self.assertIn('https://ru.wikipedia.org/wiki/', html)
 
+    def test_offline_render_hatnote_redlinks(self):
+        # Hatnotes linking to uncreated articles must receive class="new"
+        wikitext = "{{Utama|Masa jabatan Mikhail Gorbachev sebagai Sekretaris Jenderal}}"
+        html = self.generator.render_html("Uji Hatnote", wikitext, try_api_parse=False)
+
+        self.assertIn('class="hatnote navigation-not-searchable">Artikel utama:', html)
+        self.assertIn('class="new"', html)
+        self.assertIn('(halaman belum dibuat)', html)
+
     def test_offline_render_references_and_citations(self):
         wikitext = (
             "Pernyataan ilmiah penting.<ref>{{cite web|title=Kuantum Hari Ini|url=https://quantum.org}}</ref>\n"

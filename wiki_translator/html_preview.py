@@ -1486,14 +1486,19 @@ class HTMLPreviewGenerator:
             links = []
             for p in inner.split("|"):
                 p_clean = p.strip()
-                if p_clean and not "=" in p_clean:
-                    href = f"https://id.wikipedia.org/wiki/{urllib.parse.quote(p_clean.replace(' ', '_'))}"
-                    links.append(f'<a href="{href}">{html.escape(p_clean)}</a>')
+                if p_clean and "=" not in p_clean:
+                    links.append(f"[[{p_clean}]]")
             label = "Artikel utama:" if tpl_name in ["utama", "main"] else "Lihat pula:"
             links_str = ", ".join(links) or inner
             return f'<div class="hatnote navigation-not-searchable">{label} {links_str}</div>'
         text = re.sub(r"\{\{\s*(See also|Lihat pula|Utama|Main)\s*\|([^}]+)\}\}", hatnote_sub, text, flags=re.IGNORECASE)
 
+        # Handle Hatnote: {{Informasi lebih lanjut|...}}, {{Further|...}}
+        def info_sub(m: re.Match) -> str:
+            inner = m.group(1).strip()
+            links = [f"[[{p.strip()}]]" for p in inner.split("|") if p.strip() and "=" not in p]
+            return f'<div class="hatnote navigation-not-searchable">Informasi lebih lanjut: {", ".join(links)}</div>'
+        text = re.sub(r"\{\{\s*(?:Informasi[ _]lebih[ _]lanjut|Further)\s*\|([^}]+)\}\}", info_sub, text, flags=re.IGNORECASE)
         # Handle sister project callouts: {{wikiquote|...}}, {{commonscat|...}}, {{commons|...}}
         def sister_sub(m: re.Match) -> str:
             name = m.group(1).lower().strip()
@@ -1708,12 +1713,6 @@ class HTMLPreviewGenerator:
                 return parts[0] if parts else ""
         text = re.sub(r"\{\{\s*(?:convert|cvt)\s*\|([^}]+)\}\}", convert_sub, text, flags=re.IGNORECASE)
 
-        # Handle Hatnote: {{Informasi lebih lanjut|...}}
-        def info_sub(m: re.Match) -> str:
-            inner = m.group(1).strip()
-            links = [f'<a href="https://id.wikipedia.org/wiki/{urllib.parse.quote(p.strip().replace(" ", "_"))}">{html.escape(p.strip())}</a>' for p in inner.split("|") if p.strip() and "=" not in p]
-            return f'<div class="hatnote navigation-not-searchable">Informasi lebih lanjut: {", ".join(links)}</div>'
-        text = re.sub(r"\{\{\s*Informasi[ _]lebih[ _]lanjut\s*\|([^}]+)\}\}", info_sub, text, flags=re.IGNORECASE)
 
         # Language badges: {{En}}, {{Ru}}
         text = re.sub(r"\{\{\s*En\s*\}\}", '<span class="language-badge" style="font-size:85%; color:#54595d; font-weight:bold;">(Inggris)</span>', text, flags=re.IGNORECASE)
