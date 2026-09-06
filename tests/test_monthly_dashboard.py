@@ -210,7 +210,8 @@ Halaman ini mencatat seluruh portofolio aktivitas terjemahan baru dan peninjauan
                         self.assertIn("* '''Sudah tayang:''' 1", kwargs["text"])
                         self.assertEqual(kwargs["summary"], DEFAULT_DASHBOARD_SUMMARY)
     def test_mainspace_publisher_updates_dashboard_on_move(self):
-        mainspace_pub = MainspacePublisher(sandbox_publisher=self.publisher)
+        mock_wd = MagicMock()
+        mainspace_pub = MainspacePublisher(sandbox_publisher=self.publisher, wikidata_linker=mock_wd)
         with patch.object(mainspace_pub, "_authenticate_bot_password", return_value=(True, None)):
             with patch.object(mainspace_pub, "_get_csrf_token", return_value=("csrf_test", None)):
                 with patch.object(mainspace_pub, "_make_request", return_value=({"move": {"from": "Pengguna:Baloo_Official/Bak_pasir/Draf/2026-09/Kevin_Macdonald", "to": "Kevin Macdonald"}}, None)):

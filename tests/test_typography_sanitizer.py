@@ -48,7 +48,7 @@ class TestTypographySanitizerPillars(unittest.TestCase):
 
     def test_quotation_mark_normalization(self):
         text = 'Dia berkata “Ini adalah kutipan luar biasa” dan ‘kutipan tunggal’.'
-        result = self.sanitizer.sanitize_wikitext(text)
+        result = self.sanitizer.normalize_quotations(text)
         self.assertIn('"Ini adalah kutipan luar biasa"', result)
         self.assertIn("'kutipan tunggal'", result)
 
@@ -69,13 +69,13 @@ class TestTypographySanitizerPillars(unittest.TestCase):
     def test_em_dash_normalization(self):
         # Parenthetical em-dash
         text1 = "Sutradara film tersebut — seorang sineas berpengalaman — memulai proses syuting di London."
-        res1 = self.sanitizer.sanitize_wikitext(text1)
+        res1 = self.sanitizer.normalize_em_dashes(text1)
         self.assertNotIn("—", res1)
         self.assertIn("Sutradara film tersebut, seorang sineas berpengalaman, memulai proses syuting di London.", res1)
 
         # Connecting em-dash
         text2 = "Film ini menuai pujian — ulasannya sangat positif."
-        res2 = self.sanitizer.sanitize_wikitext(text2)
+        res2 = self.sanitizer.normalize_em_dashes(text2)
         self.assertNotIn("—", res2)
         self.assertIn("Film ini menuai pujian, ulasannya sangat positif.", res2)
 
@@ -87,47 +87,47 @@ class TestTypographySanitizerPillars(unittest.TestCase):
     def test_semicolon_normalization(self):
         # Semicolon followed by conjunction
         text1 = "Produksi film dimulai pada musim semi; namun jadwal syuting tertunda."
-        res1 = self.sanitizer.sanitize_wikitext(text1)
+        res1 = self.sanitizer.normalize_semicolons(text1)
         self.assertNotIn(";", res1)
         self.assertIn("Produksi film dimulai pada musim semi, namun jadwal syuting tertunda.", res1)
 
         # Semicolon followed by lowercase letter
         text2 = "Aktris tersebut tiba di lokasi; para kru bersiap."
-        res2 = self.sanitizer.sanitize_wikitext(text2)
+        res2 = self.sanitizer.normalize_semicolons(text2)
         self.assertNotIn(";", res2)
         self.assertIn("Aktris tersebut tiba di lokasi, dan para kru bersiap.", res2)
 
         # Semicolon followed by uppercase letter
         text3 = "Syuting selesai pada bulan Mei; Penayangan perdana dijadwalkan tahun depan."
-        res3 = self.sanitizer.sanitize_wikitext(text3)
+        res3 = self.sanitizer.normalize_semicolons(text3)
         self.assertNotIn(";", res3)
         self.assertIn("Syuting selesai pada bulan Mei. Penayangan perdana dijadwalkan tahun depan.", res3)
 
     def test_quotation_punctuation_order(self):
         # EYD V: punctuation outside quotes
         text1 = 'Ia membintangi film "The Runner," yang diproduksi oleh Amazon.'
-        res1 = self.sanitizer.sanitize_wikitext(text1)
+        res1 = self.sanitizer.fix_quotation_punctuation_order(text1)
         self.assertIn('"The Runner",', res1)
 
         text2 = 'Judul proyek ini adalah "The Runner."'
-        res2 = self.sanitizer.sanitize_wikitext(text2)
+        res2 = self.sanitizer.fix_quotation_punctuation_order(text2)
         self.assertIn('"The Runner".', res2)
 
         # Wikitext italics
         text3 = "Proyek ini berjudul ''The Runner.'' Sutradara mengumumkan rilis."
-        res3 = self.sanitizer.sanitize_wikitext(text3)
+        res3 = self.sanitizer.fix_quotation_punctuation_order(text3)
         self.assertIn("''The Runner''.", res3)
 
     def test_compound_hyphens_and_bound_forms(self):
         # pro-Palestina -> pendukung Palestina
         text1 = "Delapan pengunjuk rasa pro-Palestina ditangkap di London."
-        res1 = self.sanitizer.sanitize_wikitext(text1)
+        res1 = self.sanitizer.normalize_compound_hyphens(text1)
         self.assertNotIn("pro-Palestina", res1)
         self.assertIn("pengunjuk rasa pendukung Palestina", res1)
 
         # Bound forms joined without hyphen before lowercase
         text2 = "Universitas ini membuka program pasca-sarjana dan non-blok antarkota multi-nasional."
-        res2 = self.sanitizer.sanitize_wikitext(text2)
+        res2 = self.sanitizer.normalize_compound_hyphens(text2)
         self.assertIn("pascasarjana", res2)
         self.assertIn("nonblok", res2)
         self.assertIn("multinasional", res2)

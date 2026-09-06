@@ -233,7 +233,7 @@ class RecursiveDependencyScanner:
         """
         templates: List[str] = []
         # Match {{ ... }} non-greedy or balanced enough for template name
-        matches = re.finditer(r"\{\{\s*([^{}\[\]\|#\n\r]+)(?:[\s\|\}]|$)", wikitext)
+        matches = re.finditer(r"\{\{\s*([^{}\[\]<>\|#\n\r]+)(?:[\s\|\}]|$)", wikitext)
         seen: Set[str] = set()
 
         for m in matches:
@@ -1032,7 +1032,7 @@ class SandboxTestcaseEngine:
                 "title": title,
                 "text": wikitext,
                 "contentmodel": "wikitext",
-                "prop": "text|warnings",
+                "prop": "text",
                 "disablelimitreport": "1",
                 "format": "json",
             }

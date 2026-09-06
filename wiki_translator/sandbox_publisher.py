@@ -14,6 +14,7 @@ import urllib.parse
 import urllib.request
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
+from .http_client import MediaWikiApiClient
 
 DEFAULT_PROJECT_SLUG = "Draf"
 DEFAULT_DASHBOARD_SUMMARY = "pemutakhiran indeks"
@@ -155,10 +156,25 @@ class SandboxPublisher:
     DEFAULT_UPDATE_SUMMARY = "pemutakhiran draf"
     DEFAULT_TALK_SUMMARY = "atribusi terjemahan"
     USER_AGENT = "WikiTranslatorUserScript/1.0 (https://id.wikipedia.org/wiki/Pengguna:Baloo_Official; User sandbox draft helper)"
-    def __init__(self, api_url: str = API_URL, user_agent: str = USER_AGENT):
+    def __init__(
+        self,
+        api_url: str = API_URL,
+        user_agent: str = USER_AGENT,
+        http_client: Optional[MediaWikiApiClient] = None,
+    ):
         self.api_url = api_url
         self.user_agent = user_agent
-        self._cookie_jar: Dict[str, str] = {}
+        self.http_client = http_client or MediaWikiApiClient(
+            api_url=self.api_url, user_agent=self.user_agent
+        )
+
+    @property
+    def _cookie_jar(self) -> Dict[str, str]:
+        return self.http_client._cookie_jar
+
+    @_cookie_jar.setter
+    def _cookie_jar(self, value: Dict[str, str]) -> None:
+        self.http_client._cookie_jar = value
 
     def build_sandbox_titles(
         self,
@@ -323,34 +339,57 @@ class SandboxPublisher:
 
             if table_type == "review":
                 # Review table columns:
-                # No | Judul / Judul Artikel | Dari / Pemohon / Mitra | Status / Status Reviu | Tanggal | Draf / Draf Polesan di Bak Pasir | Artikel / Status Artikel
-                if len(cells) >= 5:
-                    no = cells[0]
-                    raw_title = cells[1]
-                    link_m = re.search(r"\[\[(?:[^|\]]+\|)?([^\]]+)\]\]", raw_title)
-                    article_title = link_m.group(1).strip() if link_m else raw_title.strip()
-                    # Clean leading colon in [[:Title]]
-                    if article_title.startswith(":"):
-                        article_title = article_title[1:].strip()
+                # 7-col: No | Judul Artikel | Dari / Pemohon / Mitra | Status Reviu | Tanggal | Draf Polesan | Status Artikel
+                # 6-col (clean/private): No | Judul Artikel | Status Reviu | Tanggal | Draf Polesan | Status Artikel
+                has_req_col = bool(re.search(r"!\s*(?:Dari|Pemohon|Mitra)\b", table_wikitext, re.IGNORECASE))
+                if has_req_col or len(cells) >= 7:
+                    if len(cells) >= 5:
+                        no = cells[0]
+                        raw_title = cells[1]
+                        link_m = re.search(r"\[\[(?:[^|\]]+\|)?([^\]]+)\]\]", raw_title)
+                        article_title = link_m.group(1).strip() if link_m else raw_title.strip()
+                        if article_title.startswith(":"):
+                            article_title = article_title[1:].strip()
 
-                    requester = cells[2]
-                    # extract requester from [[Pengguna:X|X]] or raw
-                    req_m = re.search(r"\[\[(?:Pengguna:)?([^|\]]+)(?:\|[^\]]+)?\]\]", requester)
-                    clean_requester = req_m.group(1).strip() if req_m else requester.strip()
+                        requester = cells[2] if len(cells) > 2 else "-"
+                        req_m = re.search(r"\[\[(?:Pengguna:)?([^|\]]+)(?:\|[^\]]+)?\]\]", requester)
+                        clean_requester = req_m.group(1).strip() if req_m else requester.strip()
 
-                    review_status = cells[3]
-                    date = cells[4]
-                    sandbox_draft = cells[5] if len(cells) >= 6 else "-"
-                    article_status = cells[6] if len(cells) >= 7 else "-"
-                    rows.append({
-                        "no": no,
-                        "title": article_title,
-                        "requester": clean_requester,
-                        "review_status": review_status,
-                        "date": date,
-                        "sandbox_draft": sandbox_draft,
-                        "article_status": article_status,
-                    })
+                        review_status = cells[3] if len(cells) > 3 else "-"
+                        date = cells[4] if len(cells) > 4 else "-"
+                        sandbox_draft = cells[5] if len(cells) > 5 else "-"
+                        article_status = cells[6] if len(cells) > 6 else "-"
+                        rows.append({
+                            "no": no,
+                            "title": article_title,
+                            "requester": clean_requester,
+                            "review_status": review_status,
+                            "date": date,
+                            "sandbox_draft": sandbox_draft,
+                            "article_status": article_status,
+                        })
+                else:
+                    if len(cells) >= 5:
+                        no = cells[0]
+                        raw_title = cells[1]
+                        link_m = re.search(r"\[\[(?:[^|\]]+\|)?([^\]]+)\]\]", raw_title)
+                        article_title = link_m.group(1).strip() if link_m else raw_title.strip()
+                        if article_title.startswith(":"):
+                            article_title = article_title[1:].strip()
+
+                        review_status = cells[2]
+                        date = cells[3] if len(cells) > 3 else "-"
+                        sandbox_draft = cells[4] if len(cells) > 4 else "-"
+                        article_status = cells[5] if len(cells) > 5 else "-"
+                        rows.append({
+                            "no": no,
+                            "title": article_title,
+                            "requester": None,
+                            "review_status": review_status,
+                            "date": date,
+                            "sandbox_draft": sandbox_draft,
+                            "article_status": article_status,
+                        })
             else:
                 # Translation table columns:
                 # No | Judul Draf | Topik | Status | Tanggal | Artikel Resmi
@@ -379,43 +418,38 @@ class SandboxPublisher:
     def format_dashboard_wikitext(
         self,
         index_title: str,
-        rows: Any,
+        rows: List[Dict[str, str]],
         year: int,
         month: int,
         review_rows: Optional[List[Dict[str, str]]] = None,
+        include_requester: bool = False,
     ) -> str:
         """
-        Generates ultra-clean, simple, and direct wikitext for the monthly dashboard with two tables:
-        1. Terjemahan Baru
-        2. Perbaikan Artikel
-
-        Supports legacy format calls where rows is List[Dict[str, str]] or Tuple[List, List].
+        Renders monthly dashboard wikitext with modern Vector-compliant sortable tables:
+        1. Draf Terjemahan Baru
+        2. Draf Peninjauan & Pemolesan Artikel (clean 6-col without Dari by default for user privacy)
+        3. Ringkasan Statistik Bulanan
         """
-        if isinstance(rows, tuple):
-            trans_rows, parsed_rev_rows = rows
-            if review_rows is None:
-                review_rows = parsed_rev_rows
-        else:
-            trans_rows = rows
-            if review_rows is None:
-                review_rows = []
-
         month_name = MONTH_NAMES_ID.get(month, f"{month:02d}")
-        new_trans_count = len(trans_rows)
+        new_trans_count = len(rows)
+        review_rows = review_rows or []
         reviews_count = len(review_rows)
 
-        # Count promoted in translation table (published to mainspace)
+        # Count promoted articles across both lists
         promoted_count = 0
-        for r in trans_rows:
-            if "tayang" in r.get("status", "").lower() or r.get("mainspace_link", "-") not in ("-", "", "None"):
+        for r in rows:
+            main_link = r.get("mainspace_link", "-")
+            status_text = r.get("status", "")
+            if main_link != "-" or "tayang" in status_text.lower():
                 promoted_count += 1
         for r in review_rows:
             art_status = r.get("article_status", "")
             if "tayang" in art_status.lower():
                 promoted_count += 1
+
         # Table 1: Draf Terjemahan Baru
         trans_table_rows = []
-        for idx, r in enumerate(trans_rows, start=1):
+        for idx, r in enumerate(rows, start=1):
             title_val = r["title"]
             if "[[" not in title_val:
                 clean_subpage = title_val.replace(" ", "_")
@@ -444,18 +478,10 @@ class SandboxPublisher:
         review_table_rows = []
         for idx, r in enumerate(review_rows, start=1):
             raw_title = r["title"]
-            # Title should link to mainspace or [[:Title]]
             if not raw_title.startswith("[["):
                 title_link = f"[[:{raw_title}]]"
             else:
                 title_link = raw_title
-
-            requester_val = r.get("requester", "Glorious Engine")
-            if "[[" not in requester_val and requester_val != "-":
-                clean_req = requester_val.replace("Pengguna:", "")
-                req_link = f"[[Pengguna:{clean_req}|{clean_req}]]"
-            else:
-                req_link = requester_val
 
             sandbox_val = r.get("sandbox_draft", "-")
             if sandbox_val != "-" and "[[" not in sandbox_val:
@@ -466,12 +492,26 @@ class SandboxPublisher:
             if not art_status_val.startswith("[[") and art_status_val not in ("-", "None", ""):
                 clean_art = raw_title.replace(" ", "_")
                 art_status_val = f"[[:{clean_art}]]"
-            row_str = (
-                f"|-\n"
-                f"| {idx} || {title_link} || {req_link} || "
-                f"{r.get('review_status', 'Audit selesai')} || {r.get('date', '-')} || "
-                f"{sandbox_val} || {art_status_val}"
-            )
+
+            if include_requester:
+                requester_val = r.get("requester") or "-"
+                if "[[" in requester_val:
+                    clean_req = re.sub(r"\[\[(?:Pengguna:)?([^|\]]+)(?:\|[^\]]+)?\]\]", r"\1", requester_val).strip()
+                else:
+                    clean_req = requester_val.replace("Pengguna:", "").strip()
+                row_str = (
+                    f"|-\n"
+                    f"| {idx} || {title_link} || {clean_req} || "
+                    f"{r.get('review_status', 'Audit selesai')} || {r.get('date', '-')} || "
+                    f"{sandbox_val} || {art_status_val}"
+                )
+            else:
+                row_str = (
+                    f"|-\n"
+                    f"| {idx} || {title_link} || "
+                    f"{r.get('review_status', 'Audit selesai')} || {r.get('date', '-')} || "
+                    f"{sandbox_val} || {art_status_val}"
+                )
             review_table_rows.append(row_str)
 
         rev_body = "\n".join(review_table_rows)
@@ -480,6 +520,7 @@ class SandboxPublisher:
         else:
             rev_body = "\n"
 
+        req_header_line = "! Dari\n" if include_requester else ""
         wikitext = (
             f"== Draf {month_name} {year} ==\n\n"
             f"=== Terjemahan Baru ===\n"
@@ -497,7 +538,7 @@ class SandboxPublisher:
             f"|-\n"
             f"! No\n"
             f"! Judul\n"
-            f"! Dari\n"
+            f"{req_header_line}"
             f"! Status\n"
             f"! Tanggal\n"
             f"! Draf\n"
@@ -576,12 +617,11 @@ class SandboxPublisher:
         norm_target = article_title.strip().replace("_", " ").lower()
         if activity_type == "review":
             found = False
-            resolved_requester = requester or "Glorious Engine"
+            resolved_requester = requester
             resolved_rev_status = review_status or status or "Audit selesai"
             clean_subpage = article_title.strip().replace(" ", "_")
             resolved_sandbox = sandbox_draft or f"[[{index_title}/{clean_subpage}|{article_title.strip()} (Draf Polesan)]]"
             resolved_art_status = article_status or (f"[[:{article_title.strip()}]]" if not article_title.startswith("[[") else article_title.strip())
-
             for r in review_rows:
                 norm_row_title = r["title"].strip().replace("_", " ").lower()
                 if norm_row_title == norm_target:
@@ -630,12 +670,14 @@ class SandboxPublisher:
                     "mainspace_link": resolved_mainspace,
                 })
 
+        should_include_req = bool(requester)
         updated_wikitext = self.format_dashboard_wikitext(
             index_title=index_title,
             rows=trans_rows,
             year=year,
             month=month,
             review_rows=review_rows,
+            include_requester=should_include_req,
         )
 
         total_items = len(trans_rows) + len(review_rows)
@@ -869,45 +911,12 @@ class SandboxPublisher:
         return result
 
     def _make_request(
-        self, params: Dict[str, str], method: str = "GET"
+        self, params: Dict[str, Any], method: str = "GET"
     ) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
         """Executes an HTTP request to MediaWiki API with session cookie management."""
-        params["format"] = "json"
-
-        cookie_header = "; ".join(f"{k}={v}" for k, v in self._cookie_jar.items())
-        headers = {
-            "User-Agent": self.user_agent,
-        }
-        if cookie_header:
-            headers["Cookie"] = cookie_header
-
-        data = None
-        url = self.api_url
-
-        if method == "POST":
-            headers["Content-Type"] = "application/x-www-form-urlencoded"
-            data = urllib.parse.urlencode(params).encode("utf-8")
-        else:
-            query_str = urllib.parse.urlencode(params)
-            url = f"{self.api_url}?{query_str}"
-
-        req = urllib.request.Request(url, data=data, headers=headers, method=method)
-
-        try:
-            with urllib.request.urlopen(req, timeout=15.0) as resp:
-                # Capture Set-Cookie headers
-                cookie_headers = resp.headers.get_all("Set-Cookie") or []
-                for c in cookie_headers:
-                    parts = c.split(";")[0].split("=", 1)
-                    if len(parts) == 2:
-                        self._cookie_jar[parts[0].strip()] = parts[1].strip()
-
-                body = resp.read().decode("utf-8")
-                payload = json.loads(body)
-                return payload, None
-        except Exception as e:
-            return None, str(e)
-
+        self.http_client.api_url = self.api_url
+        self.http_client.user_agent = self.user_agent
+        return self.http_client.request(params, method=method)
     def _authenticate_bot_password(
         self, username: str, bot_password: str
     ) -> Tuple[bool, Optional[str]]:

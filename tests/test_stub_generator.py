@@ -179,6 +179,18 @@ class TestStubGenerator(unittest.TestCase):
         self.assertIn("tentang pembunuhan 11 atlet Israel pada tahun 1972 yang memenangkannya", res)
         self.assertNotIn("tentang 1972 pembunuhan", res)
     def test_generate_stub_with_custom_lead(self):
+        from wiki_translator.wiki_link_mapper import CategoryResolution
+        self.generator.fetch_en_full_wikitext = MagicMock(return_value="")
+        self.generator.fetch_en_categories = MagicMock(return_value=["Scottish film directors"])
+        mock_link = MagicMock()
+        mock_link.process_wikitext.side_effect = lambda t: t
+        mock_link.map_wikilinks.side_effect = lambda t: t
+        mock_link.resolve_category.return_value = CategoryResolution(
+            original_category="Scottish film directors",
+            id_category="Sutradara film Skotlandia",
+            exists_on_id=True,
+        )
+        self.generator.link_mapper = mock_link
         custom_lead = (
             "{{Infobox filmmaker\n| name = Kevin Macdonald\n}}\n\n"
             "'''Kevin Macdonald''' (born 28 October 1967) is a Scottish film director.<ref>Citation</ref>\n\n"
@@ -714,7 +726,14 @@ class TestStubGenerator(unittest.TestCase):
             "Kevin Macdonald": True,
             "NonExistentNavboxXYZ": False,
         }
-        gen = StubGenerator(template_mapper=mock_mapper)
+        mock_link = MagicMock()
+        mock_link.process_wikitext.side_effect = lambda t: t
+        mock_link.map_wikilinks.side_effect = lambda t: t
+        mock_link.resolve_category.return_value = None
+        gen = StubGenerator(template_mapper=mock_mapper, link_mapper=mock_link)
+        gen._translator_initialized = True
+        gen.translator_client = None
+        gen.fetch_en_categories = MagicMock(return_value=[])
         res = gen.generate_stub("Sample Director", custom_full_wikitext=wikitext)
         content = res["wikitext"]
 
@@ -740,7 +759,15 @@ class TestStubGenerator(unittest.TestCase):
     def test_generate_stub_runs_typography_sanitizer(self):
         mock_sanitizer = MagicMock()
         mock_sanitizer.sanitize_wikitext.side_effect = lambda wt: wt + "\n<!-- sanitized -->"
-        gen = StubGenerator(typography_sanitizer=mock_sanitizer)
+        mock_link = MagicMock()
+        mock_link.process_wikitext.side_effect = lambda t: t
+        mock_link.map_wikilinks.side_effect = lambda t: t
+        mock_link.resolve_category.return_value = None
+        gen = StubGenerator(typography_sanitizer=mock_sanitizer, link_mapper=mock_link)
+        gen._translator_initialized = True
+        gen.translator_client = None
+        gen.fetch_en_full_wikitext = MagicMock(return_value="")
+        gen.fetch_en_categories = MagicMock(return_value=[])
         res = gen.generate_stub(
             "Sample Subject",
             custom_lead="'''Sample Subject''' is a person.<ref>Ref</ref>",

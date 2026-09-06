@@ -16,3 +16,12 @@ output/
 line_*.txt
 *.tmp
 .cache/
+.test-tmp-*/
+.test-tmp-*
+.codebase-memory/
+.serena/cache/
+.serena/project.local.yml
+*.sqlite
+*.sqlite3
+*.db
+.venv/

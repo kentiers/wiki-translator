@@ -114,7 +114,7 @@ class TestCLIPublisherAndPreviewIntegration(unittest.TestCase):
         wiki_f.write_text("== Konten ==", encoding="utf-8")
         talk_f.write_text("== Talk ==", encoding="utf-8")
 
-        with patch.dict("os.environ", {}, clear=True), patch("getpass.getpass", return_value=""):
+        with patch.dict("os.environ", {}, clear=True), patch("getpass.getpass", return_value=""), patch("builtins.input", return_value="1"):
             cli._handle_sandbox_publishing("Uji", wiki_f, talk_f)
         mock_publisher.publish_to_sandbox.assert_called_once_with(
             username="TestUser",
@@ -270,7 +270,7 @@ class TestCLIPublisherAndPreviewIntegration(unittest.TestCase):
                 "WIKI_BOT_PASSWORD": "SecretBotPassword123",
             },
             clear=True,
-        ):
+        ), patch("builtins.input", return_value="1"):
             cli._handle_sandbox_publishing("Uji", wiki_f, talk_f)
 
         mock_publisher.publish_to_sandbox.assert_called_once_with(

@@ -1,4 +1,4 @@
-# PowerShell launcher for Tmdb / Wiki Translator
+# PowerShell launcher for Wiki Translator Suite
 
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $mainPy = Join-Path $scriptDir "main.py"

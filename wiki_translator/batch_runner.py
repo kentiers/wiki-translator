@@ -158,9 +158,16 @@ class BatchRunner:
             try:
                 fn_result = translate_fn(title)
                 if isinstance(fn_result, dict):
-                    success = bool(fn_result.get("success", True))
-                    err_msg = fn_result.get("error")
-                    output_files = fn_result.get("output_files", {})
+                    # A batch callback must explicitly report its outcome.  Treating a
+                    # missing flag as success hides cancelled/partial CLI runs.
+                    if "success" not in fn_result:
+                        success = False
+                        err_msg = "translate_fn returned no explicit success status"
+                    else:
+                        success = bool(fn_result["success"])
+                        err_msg = fn_result.get("error")
+                    raw_output_files = fn_result.get("output_files", {})
+                    output_files = raw_output_files if isinstance(raw_output_files, dict) else {}
                     # If translate_fn provided tokens_saved explicitly, use it
                     if "tokens_saved" in fn_result:
                         item_tokens_saved = int(fn_result["tokens_saved"])
@@ -168,9 +175,8 @@ class BatchRunner:
                         tokens_after = getattr(self.token_tracker, "total_saved_tokens", 0)
                         item_tokens_saved = max(0, tokens_after - tokens_before)
                 else:
-                    success = True
-                    tokens_after = getattr(self.token_tracker, "total_saved_tokens", 0)
-                    item_tokens_saved = max(0, tokens_after - tokens_before)
+                    success = False
+                    err_msg = "translate_fn must return a result dictionary"
             except Exception as exc:
                 success = False
                 err_msg = str(exc)

@@ -14,7 +14,13 @@ from wiki_translator.mainspace_publisher import (
 
 class TestMainspacePublisher(unittest.TestCase):
     def setUp(self):
-        self.publisher = MainspacePublisher()
+        self.mock_wikidata_linker = MagicMock()
+        self.mock_wikidata_linker.get_item_id_from_enwiki.return_value = None
+        self.mock_sandbox_publisher = MagicMock()
+        self.publisher = MainspacePublisher(
+            sandbox_publisher=self.mock_sandbox_publisher,
+            wikidata_linker=self.mock_wikidata_linker,
+        )
 
     def test_default_instance(self):
         self.assertIsInstance(default_mainspace_publisher, MainspacePublisher)

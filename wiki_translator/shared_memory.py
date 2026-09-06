@@ -8,7 +8,8 @@ from __future__ import annotations
 import sqlite3
 import time
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, Optional, Union
+from .storage_manager import default_storage_manager
 
 
 class WorkspaceSharedMemory:
@@ -18,8 +19,12 @@ class WorkspaceSharedMemory:
     consistent translations across articles in the same topic or workspace.
     """
 
-    def __init__(self, db_path: str = ".cache/workspace_glossary.db") -> None:
-        self.db_path = Path(db_path)
+    def __init__(self, db_path: Optional[Union[str, Path]] = None) -> None:
+        self.db_path = (
+            Path(db_path)
+            if db_path is not None
+            else default_storage_manager.workspace_glossary_db
+        )
         self._init_db()
 
     def _init_db(self) -> None:

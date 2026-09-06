@@ -46,11 +46,9 @@ class TestCLISlopAndSyntaxIntegration(unittest.TestCase):
         self.assertTrue(talk_path.exists())
         with open(wiki_path, "r", encoding="utf-8") as f:
             content = f.read()
-        # Check slop corrected
-        self.assertNotIn("memainkan peran penting", content)
-        self.assertIn("berperan penting", content)
-        self.assertNotIn("yang berbasis di", content)
-        self.assertIn("berpusat di", content)
+        # Contextual style suggestions must not silently rewrite the saved text.
+        self.assertIn("memainkan peran penting", content)
+        self.assertIn("yang berbasis di", content)
 
         # Check template mapped
         self.assertIn("{{Utama|Sejarah}}", content)

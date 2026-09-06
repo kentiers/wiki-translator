@@ -26,6 +26,7 @@ import sqlite3
 import time
 from typing import Any, Dict, List, Optional, Set, Tuple
 
+from .storage_manager import default_storage_manager
 
 PROMPT_VERSION = "v1.0"
 
@@ -211,9 +212,7 @@ class TranslationCache:
 
     def __init__(self, db_path: Optional[str] = None):
         if db_path is None:
-            cache_dir = Path(".cache")
-            cache_dir.mkdir(parents=True, exist_ok=True)
-            self.db_path = cache_dir / "translation_cache.db"
+            self.db_path = default_storage_manager.translation_cache_db
         else:
             self.db_path = Path(db_path)
             self.db_path.parent.mkdir(parents=True, exist_ok=True)
@@ -221,12 +220,15 @@ class TranslationCache:
         self._init_db()
 
     def _get_conn(self) -> sqlite3.Connection:
-        return sqlite3.connect(self.db_path, timeout=10.0)
+        conn = sqlite3.connect(self.db_path, timeout=10.0)
+        conn.execute("PRAGMA synchronous=NORMAL")
+        return conn
 
     def _init_db(self) -> None:
         conn = self._get_conn()
         try:
             with conn:
+                conn.execute("PRAGMA journal_mode=WAL")
                 conn.execute(
                     """
                     CREATE TABLE IF NOT EXISTS section_translations (
@@ -237,13 +239,28 @@ class TranslationCache:
                         source_text TEXT,
                         translated_text TEXT,
                         raw_tokens INTEGER,
-                        created_at REAL
+                        created_at REAL,
+                        model TEXT,
+                        thinking_level TEXT,
+                        polish INTEGER,
+                        context TEXT
                     )
                     """
                 )
                 conn.execute(
                     "CREATE INDEX IF NOT EXISTS idx_cache_created ON section_translations(created_at)"
                 )
+                cur = conn.cursor()
+                cur.execute("PRAGMA table_info(section_translations)")
+                existing_cols = {row[1] for row in cur.fetchall()}
+                for col, col_type in [
+                    ("model", "TEXT"),
+                    ("thinking_level", "TEXT"),
+                    ("polish", "INTEGER"),
+                    ("context", "TEXT"),
+                ]:
+                    if col not in existing_cols:
+                        conn.execute(f"ALTER TABLE section_translations ADD COLUMN {col} {col_type}")
         finally:
             conn.close()
     @staticmethod
@@ -252,13 +269,31 @@ class TranslationCache:
         section_title: str = "",
         topic: Optional[str] = None,
         prompt_version: str = PROMPT_VERSION,
+        model: Optional[str] = None,
+        thinking_level: Optional[str] = None,
+        glossary: Optional[Dict[str, str]] = None,
+        context: Optional[str] = None,
+        polish: bool = False,
     ) -> str:
         """Computes deterministic SHA-256 hash of normalized source text and metadata."""
         norm_text = "\n".join(line.rstrip() for line in source_text.strip().splitlines())
         norm_title = section_title.strip().lower()
         norm_topic = (topic or "general").strip().lower()
+        norm_model = (model or "default").strip().lower()
+        norm_thinking = (thinking_level or "default").strip().lower()
+        norm_polish = "polish:1" if polish else "polish:0"
+        norm_context = (context or "").strip()
 
-        data = f"{prompt_version}:{norm_topic}:{norm_title}:{norm_text}"
+        glossary_items = []
+        if glossary:
+            for k in sorted(glossary.keys()):
+                glossary_items.append(f"{k.strip()}={glossary[k].strip()}")
+        norm_glossary = "|".join(glossary_items)
+
+        data = (
+            f"{prompt_version}:{norm_topic}:{norm_title}:{norm_model}:{norm_thinking}:"
+            f"{norm_polish}:{norm_glossary}:{norm_context}:{norm_text}"
+        )
         return hashlib.sha256(data.encode("utf-8")).hexdigest()
 
     def get(
@@ -267,9 +302,24 @@ class TranslationCache:
         section_title: str = "",
         topic: Optional[str] = None,
         prompt_version: str = PROMPT_VERSION,
+        model: Optional[str] = None,
+        thinking_level: Optional[str] = None,
+        glossary: Optional[Dict[str, str]] = None,
+        context: Optional[str] = None,
+        polish: bool = False,
     ) -> Optional[str]:
         """Returns cached translated text or None if cache miss."""
-        hash_key = self.compute_hash(source_text, section_title, topic, prompt_version)
+        hash_key = self.compute_hash(
+            source_text=source_text,
+            section_title=section_title,
+            topic=topic,
+            prompt_version=prompt_version,
+            model=model,
+            thinking_level=thinking_level,
+            glossary=glossary,
+            context=context,
+            polish=polish,
+        )
         conn = self._get_conn()
         try:
             cur = conn.cursor()
@@ -292,17 +342,32 @@ class TranslationCache:
         topic: Optional[str] = None,
         prompt_version: str = PROMPT_VERSION,
         raw_tokens: int = 0,
+        model: Optional[str] = None,
+        thinking_level: Optional[str] = None,
+        glossary: Optional[Dict[str, str]] = None,
+        context: Optional[str] = None,
+        polish: bool = False,
     ) -> None:
         """Saves a translated section into cache."""
-        hash_key = self.compute_hash(source_text, section_title, topic, prompt_version)
+        hash_key = self.compute_hash(
+            source_text=source_text,
+            section_title=section_title,
+            topic=topic,
+            prompt_version=prompt_version,
+            model=model,
+            thinking_level=thinking_level,
+            glossary=glossary,
+            context=context,
+            polish=polish,
+        )
         conn = self._get_conn()
         try:
             with conn:
                 conn.execute(
                     """
                     INSERT OR REPLACE INTO section_translations
-                    (hash_key, source_title, topic, prompt_version, source_text, translated_text, raw_tokens, created_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    (hash_key, source_title, topic, prompt_version, source_text, translated_text, raw_tokens, created_at, model, thinking_level, polish, context)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         hash_key,
@@ -313,6 +378,10 @@ class TranslationCache:
                         translated_text,
                         raw_tokens,
                         time.time(),
+                        model,
+                        thinking_level,
+                        1 if polish else 0,
+                        context,
                     ),
                 )
         finally:

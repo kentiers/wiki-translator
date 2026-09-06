@@ -141,6 +141,93 @@ class TestTranslationCache(unittest.TestCase):
         self.assertEqual(self.cache.count(), 0)
         self.assertIsNone(self.cache.get(src, title, topic))
 
+    def test_cache_key_isolation_parameters(self):
+        src = "Quantum algorithm"
+        tr_flash = "Algoritma kuantum (flash)"
+        tr_pro = "Algoritma kuantum (pro)"
+
+        # 1. Model isolation
+        self.cache.put(src, tr_flash, section_title="Intro", model="gemini-3.8-flash-low")
+        self.assertIsNone(self.cache.get(src, section_title="Intro", model="gemini-3.8-flash-high"))
+        self.assertEqual(
+            self.cache.get(src, section_title="Intro", model="gemini-3.8-flash-low"),
+            tr_flash,
+        )
+
+        # 2. Thinking level isolation
+        self.cache.put(src, tr_pro, section_title="Intro", model="gemini-3.8-flash", thinking_level="high")
+        self.assertIsNone(
+            self.cache.get(src, section_title="Intro", model="gemini-3.8-flash", thinking_level="low")
+        )
+        self.assertEqual(
+            self.cache.get(src, section_title="Intro", model="gemini-3.8-flash", thinking_level="high"),
+            tr_pro,
+        )
+
+        # 3. Polish mode isolation
+        tr_polished = "Algoritma kuantum yang telah dipoles"
+        self.cache.put(src, tr_polished, section_title="Intro", polish=True)
+        self.assertIsNone(self.cache.get(src, section_title="Intro", polish=False))
+        self.assertEqual(self.cache.get(src, section_title="Intro", polish=True), tr_polished)
+
+        # 4. Glossary isolation & deterministic order
+        glossary_a = {"qubit": "kubit", "gate": "gerbang"}
+        glossary_b = {"gate": "gerbang", "qubit": "kubit"}  # Same items, different insertion order
+        glossary_diff = {"qubit": "bit kuantum", "gate": "gerbang"}
+        tr_gloss = "Algoritma kuantum kubit gerbang"
+        self.cache.put(src, tr_gloss, section_title="Intro", glossary=glossary_a)
+        # Same glossary with different dict ordering MUST hit
+        self.assertEqual(self.cache.get(src, section_title="Intro", glossary=glossary_b), tr_gloss)
+        # Different glossary translation MUST miss
+        self.assertIsNone(self.cache.get(src, section_title="Intro", glossary=glossary_diff))
+
+        # 5. Context notes isolation
+        tr_ctx = "Algoritma kuantum konteks khusus"
+        self.cache.put(src, tr_ctx, section_title="Intro", context="Catatan istilah fisika")
+        self.assertIsNone(self.cache.get(src, section_title="Intro", context="Catatan berbeda"))
+        self.assertEqual(
+            self.cache.get(src, section_title="Intro", context="Catatan istilah fisika"),
+            tr_ctx,
+        )
+
+    def test_schema_migration_on_existing_database(self):
+        old_db = Path(self.tmp_dir.name) / "old_cache.db"
+        conn = sqlite3.connect(old_db)
+        with conn:
+            conn.execute(
+                """
+                CREATE TABLE section_translations (
+                    hash_key TEXT PRIMARY KEY,
+                    source_title TEXT,
+                    topic TEXT,
+                    prompt_version TEXT,
+                    source_text TEXT,
+                    translated_text TEXT,
+                    raw_tokens INTEGER,
+                    created_at REAL
+                )
+                """
+            )
+        conn.close()
+
+        # Initialize TranslationCache on the legacy DB schema
+        migrated_cache = TranslationCache(str(old_db))
+        migrated_cache.put(
+            "Legacy test",
+            "Uji warisan",
+            model="gemini-3.8-flash",
+            thinking_level="auto",
+            polish=True,
+            context="test migration",
+        )
+        result = migrated_cache.get(
+            "Legacy test",
+            model="gemini-3.8-flash",
+            thinking_level="auto",
+            polish=True,
+            context="test migration",
+        )
+        self.assertEqual(result, "Uji warisan")
 
 class TestSectionFilterDeltaSkip(unittest.TestCase):
     """Tests for smart delta skipping on boilerplate sections."""

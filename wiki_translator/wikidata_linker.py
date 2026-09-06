@@ -12,6 +12,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from typing import Any, Dict, Optional, Tuple
+from wiki_translator.http_client import MediaWikiApiClient
 
 logger = logging.getLogger(__name__)
 
@@ -29,51 +30,31 @@ class WikidataLinker:
         self,
         api_url: str = API_URL,
         user_agent: str = USER_AGENT,
+        http_client: Optional[MediaWikiApiClient] = None,
     ):
         self.api_url = api_url
         self.user_agent = user_agent
-        self._cookie_jar: Dict[str, str] = {}
+        self.http_client = http_client or MediaWikiApiClient(
+            api_url=self.api_url, user_agent=self.user_agent
+        )
         self._auth_failed: bool = False
         self._auth_fail_reason: Optional[str] = None
         self._auth_successful: bool = False
+
+    @property
+    def _cookie_jar(self) -> Dict[str, str]:
+        return self.http_client._cookie_jar
+
+    @_cookie_jar.setter
+    def _cookie_jar(self, value: Dict[str, str]) -> None:
+        self.http_client._cookie_jar = value
     def _make_request(
-        self, params: Dict[str, str], method: str = "GET"
+        self, params: Dict[str, Any], method: str = "GET"
     ) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
         """Executes an HTTP request to Wikidata MediaWiki API with session cookie management."""
-        params["format"] = "json"
-
-        cookie_header = "; ".join(f"{k}={v}" for k, v in self._cookie_jar.items())
-        headers = {
-            "User-Agent": self.user_agent,
-        }
-        if cookie_header:
-            headers["Cookie"] = cookie_header
-
-        data = None
-        if method == "POST":
-            headers["Content-Type"] = "application/x-www-form-urlencoded"
-            data = urllib.parse.urlencode(params).encode("utf-8")
-            url = self.api_url
-        else:
-            query_str = urllib.parse.urlencode(params)
-            url = f"{self.api_url}?{query_str}"
-
-        req = urllib.request.Request(url, data=data, headers=headers, method=method)
-
-        try:
-            with urllib.request.urlopen(req, timeout=15.0) as resp:
-                cookie_headers = resp.headers.get_all("Set-Cookie") or []
-                for c in cookie_headers:
-                    parts = c.split(";")[0].split("=", 1)
-                    if len(parts) == 2:
-                        self._cookie_jar[parts[0].strip()] = parts[1].strip()
-
-                body = resp.read().decode("utf-8")
-                payload = json.loads(body)
-                return payload, None
-        except Exception as e:
-            return None, str(e)
-
+        self.http_client.api_url = self.api_url
+        self.http_client.user_agent = self.user_agent
+        return self.http_client.request(params, method=method)
     def _resolve_credentials(
         self, username: Optional[str] = None, bot_password: Optional[str] = None
     ) -> Tuple[Optional[str], Optional[str]]:

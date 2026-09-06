@@ -268,7 +268,7 @@ class ParagraphTranslator:
                 custom_glossary=custom_glossary,
                 resolved_glossary=resolved_glossary,
             )
-            res = translator_func(prompt, None)
+            res = translator_func(prompt, SYSTEM_PROMPT_GRADE_A_PLUS_PLUS)
             if stream_callback:
                 stream_callback(res)
             return res.strip()
@@ -288,9 +288,14 @@ class ParagraphTranslator:
                 words = recent_ctx.split()
                 if len(words) > 150:
                     recent_ctx = " ".join(words[-150:])
+                source_ctx = "\n\n".join(c["content"] for c in chunks[max(0, i - 2):i])
+                source_ctx = " ".join(source_ctx.split()[-150:])
                 preceding_summary = (
-                    "Konteks terjemahan paragraf sebelumnya (untuk menjaga kesinambungan kalimat & alur):\n"
-                    f'"{recent_ctx}"'
+                    "Konteks sumber paragraf sebelumnya (acuan makna, jangan diterjemahkan ulang):\n"
+                    f"{source_ctx}\n"
+                    "Konteks terjemahan paragraf sebelumnya (draf dapat keliru; "
+                    "sumber Inggris tetap menjadi acuan):\n"
+                    f"{recent_ctx}"
                 )
 
             # Combine additional context notes with preceding context
@@ -320,7 +325,7 @@ class ParagraphTranslator:
                 resolved_glossary=resolved_glossary,
             )
 
-            translated_chunk = translator_func(prompt, None).strip()
+            translated_chunk = translator_func(prompt, SYSTEM_PROMPT_GRADE_A_PLUS_PLUS).strip()
 
             if stream_callback:
                 if i > 0:

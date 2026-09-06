@@ -384,6 +384,7 @@ class TestSSEParsingAndGeminiClient(unittest.TestCase):
             b"data: {\"candidates\": [{\"content\": {\"parts\": [{\"text\": \"```wikitext\\n== Penerapan ==\\n* Kriptografi\\n```\"}]}}]}\n",
             b"\n",
         ]
+        sse_stream.append(b"data: [DONE]\n")
         result = self.client._parse_sse_response(sse_stream)
         self.assertEqual(result, "== Penerapan ==\n* Kriptografi")
 

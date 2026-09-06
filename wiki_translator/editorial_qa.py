@@ -27,7 +27,8 @@ from .infobox_mapper import (
 from .slop_linter import AntiAISlopLinter, SlopLintResult, default_slop_linter
 from .syntax_balancer import WikitextSyntaxBalancer, default_syntax_balancer
 from .template_mapper import STRIP_METADATA_TEMPLATES
-
+from .factual_audit import FactualConsistencyResult, default_factual_auditor
+from .lexical_register import LexicalRegisterReranker, default_lexical_reranker
 
 @dataclass
 class DrafterAuditResult:
@@ -102,6 +103,7 @@ class QAAuditReport:
     critical_errors: List[str] = field(default_factory=list)
     warnings: List[str] = field(default_factory=list)
     recommendations: List[str] = field(default_factory=list)
+    factual_consistency: Optional[FactualConsistencyResult] = None
 
     def is_approved(self) -> bool:
         """Returns True if the article meets all editorial publication criteria."""
@@ -110,7 +112,10 @@ class QAAuditReport:
     def render_terminal_scorecard(self) -> str:
         """Renders a visually striking terminal scorecard for publication review."""
         title_str = self.title or "Artikel Tanpa Judul"
-        status_banner = "PASSED / APPROVED FOR PUBLICATION" if self.approved else "NEEDS REVISION / UNAPPROVED"
+        status_banner = (
+            "PASSED / APPROVED FOR PUBLICATION (AUTOMATED CHECKS)"
+            if self.approved else "NEEDS REVISION / UNAPPROVED"
+        )
         status_color_box = "[✔ PASS]" if self.approved else "[✖ REVISE]"
 
         width = 72
@@ -203,7 +208,7 @@ class QAAuditReport:
             for r in self.recommendations:
                 lines.append(f"     - {r}")
         if not self.critical_errors and not self.recommendations:
-            lines.append("   * Artikel memenuhi seluruh kriteria kualitas Grade A++. Siap dipublikasikan.")
+            lines.append("   * Pemeriksaan otomatis lulus; ketepatan makna masih memerlukan tinjauan sumber.")
 
         lines.append(sep)
         return "\n".join(lines)
@@ -219,11 +224,14 @@ class EditorialQAPipeline:
         slop_linter: Optional[AntiAISlopLinter] = None,
         syntax_balancer: Optional[WikitextSyntaxBalancer] = None,
         infobox_mapper: Optional[InfoboxMapper] = None,
+        factual_auditor=None,
+        lexical_reranker: Optional[LexicalRegisterReranker] = None,
     ):
         self.slop_linter = slop_linter or default_slop_linter
         self.syntax_balancer = syntax_balancer or default_syntax_balancer
         self.infobox_mapper = infobox_mapper or default_infobox_mapper
-
+        self.factual_auditor = factual_auditor or default_factual_auditor
+        self.lexical_reranker = lexical_reranker or default_lexical_reranker
     # -------------------------------------------------------------------------
     # Layer 1: Drafter Audit
     # -------------------------------------------------------------------------
@@ -326,13 +334,86 @@ class EditorialQAPipeline:
             eyd_deductions += 5
             eyd_warnings.append("Terdapat spasi berlebih sebelum tanda baca.")
 
+        # Mask protected zones (code, templates, refs, entities) for pure prose punctuation audit
+        masked_prose, _ = self.slop_linter._mask_protected_zones(wikitext)
+
+        # Check narrative semicolons (ignoring masked tokens)
+        untokened_for_semis = re.sub(r"SLOPMASK\d+END", "", masked_prose)
+        semis = re.findall(r"[a-zA-Z0-9\]\)]\s*;\s*[a-zA-Z\[]", untokened_for_semis)
+        if semis:
+            d = min(20, len(semis) * 5)
+            eyd_deductions += d
+            eyd_warnings.append(
+                f"Terdapat {len(semis)} tanda titik koma (;) pada kalimat naratif. Hindari titik koma; pecah menjadi dua kalimat dengan tanda titik (.) atau gunakan konjungsi alami."
+            )
+
+        # Check comma clutter (sentences with >= 4 commas)
+        prose_clean = re.sub(r"<!--[\s\S]*?-->", "", wikitext)
+        prose_clean = re.sub(r"<ref\b[^>]*>[\s\S]*?</ref>", "", prose_clean)
+        prose_clean = re.sub(r"<ref\b[^>]*/>", "", prose_clean)
+        prose_clean = re.sub(r"\{\{[^{}]*\}\}", "", prose_clean)
+        prose_clean = re.sub(r"\[\[(?:[^|\]]+\|)?([^\]]+)\]\]", r"\1", prose_clean)
+        prose_clean = re.sub(r"^={1,6}[^=]+={1,6}\s*$", "", prose_clean, flags=re.M)
+
+        cluttered_sents = []
+        for p in prose_clean.split("\n\n"):
+            p_strip = p.strip()
+            if not p_strip or p_strip.startswith(("{|", "|", "!", "*", "#")):
+                continue
+            for s in re.split(r"[.!?]\s+", p_strip):
+                s_clean = s.strip()
+                if not s_clean or s_clean.startswith(("{|", "|", "!", "*", "#")):
+                    continue
+                c_cnt = s_clean.count(",")
+                if c_cnt >= 4:
+                    cluttered_sents.append((c_cnt, s_clean[:50]))
+
+        if cluttered_sents:
+            d = min(25, len(cluttered_sents) * 5)
+            eyd_deductions += d
+            eyd_warnings.append(
+                f"Terdapat {len(cluttered_sents)} kalimat dengan kepadatan koma berlebih (>= 4 koma) yang menimbulkan efek cegukan (comma fatigue). Contoh: '{cluttered_sents[0][1]}...'."
+            )
+
+        # Check comma before coordinating conjunctions on parallel predicates
+        comma_dan = re.findall(r"\b(\w+),\s+(dan|serta)\s+(\w+)\b", masked_prose, flags=re.IGNORECASE)
+        flagged_dan = [
+            f"{w1}, {conj} {w2}"
+            for w1, conj, w2 in comma_dan
+            if re.match(r"^(?:me\w+|di\w+|ber\w+|ter\w+)", w1) and re.match(r"^(?:me\w+|di\w+|ber\w+|ter\w+)", w2)
+        ]
+        if flagged_dan:
+            d = min(15, len(flagged_dan) * 3)
+            eyd_deductions += d
+            eyd_warnings.append(
+                f"Terdapat {len(flagged_dan)} tanda koma sebelum kata sambung koordinatif predikat setara ('{flagged_dan[0]}'). Dalam EYD V koma dihindari jika subjeknya sama."
+            )
+
+        # Check appositive comma sandwiching proper nouns (e.g. "rekan aktivis mereka, [[Anna Filosofova]], segera")
+        appositive_commas = re.findall(
+            r"\b((?:[Aa]yah|[Ii]bu|[Ss]audara|[Ss]audari|[Aa]dik|[Kk]akak|[Aa]nak|[Pp]utra|[Pp]utri|[Ss]uami|[Ii]stri|[Ss]ahabat|[Tt]eman|[Rr]ekan|[Kk]olega|[Pp]enulis|[Aa]rsitek|[Rr]ektor|[Mm]enteri|[Pp]residen|[Rr]aja|[Kk]aisar)(?:\s+\w+){0,3}),\s+(?:\[\[(?:[^|\]]+\|)?([^\]]+)\]\]|([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)),\s+(\w+)\b",
+            wikitext,
+        )
+        if appositive_commas:
+            d = min(15, len(appositive_commas) * 3)
+            eyd_deductions += d
+            desc = appositive_commas[0][0]
+            name = appositive_commas[0][1] or appositive_commas[0][2]
+            nxt = appositive_commas[0][3]
+            eyd_warnings.append(
+                f"Terdapat {len(appositive_commas)} frasa aposisi koma ganda yang menjepit nama diri ('{desc}, {name}, {nxt}'). Sesuai EYD V sebutan atributif langsung tidak perlu diapit koma."
+            )
+
         eyd_compliance_score = max(0, 100 - eyd_deductions)
         warnings.extend(eyd_warnings)
 
-        # Composite naturalness calculation
-        naturalness_score = int(0.7 * slop_score + 0.3 * eyd_compliance_score)
-        layer_score = int(0.6 * slop_score + 0.4 * naturalness_score)
+        # Lexical register & diction maturity check
+        reg_score, reg_warnings = self.lexical_reranker.calculate_register_score(wikitext)
+        warnings.extend(reg_warnings)
 
+        # Composite naturalness calculation incorporating register weight
+        naturalness_score = int(0.5 * slop_score + 0.3 * eyd_compliance_score + 0.2 * reg_score)
+        layer_score = int(0.5 * slop_score + 0.5 * naturalness_score)
         return LinguisticAuditResult(
             naturalness_score=naturalness_score,
             slop_score=slop_score,
@@ -469,6 +550,8 @@ class EditorialQAPipeline:
         wikitext: str,
         talk_wikitext: Optional[str] = None,
         title: Optional[str] = None,
+        source_wikitext: Optional[str] = None,
+        topic: Optional[str] = None,
     ) -> QAAuditReport:
         """
         Runs the 4-Layer Editorial QA Audit on final wikitext and produces a comprehensive report.
@@ -480,6 +563,13 @@ class EditorialQAPipeline:
         # Critical errors: technician errors or extreme linguistic/structural failure
         critical_errors: List[str] = []
         critical_errors.extend(layer3.errors)
+        factual = (
+            self.factual_auditor.audit(source_wikitext, wikitext, topic=topic)
+            if source_wikitext is not None
+            else None
+        )
+        if factual and not factual.passed:
+            critical_errors.extend(factual.warnings)
 
         if layer1.word_count < 30:
             critical_errors.append("Panjang artikel tidak memadai untuk draf ensiklopedis (< 30 kata).")
@@ -518,13 +608,15 @@ class EditorialQAPipeline:
         if not layer1.has_lead:
             recommendations.append("Tambahkan paragraf pembuka (lead paragraph) sebelum bagian pertama.")
         if layer2.calque_count > 0:
-            recommendations.append(f"Perbaiki {layer2.calque_count} konstruksi terjemahan kaku/harfiah (calque).")
+            recommendations.append(f"Tinjau {layer2.calque_count} temuan bahasa terhadap sumber sebelum menyunting.")
         if layer3.unknown_infobox_keys:
             recommendations.append("Kembalikan parameter kotak info ke nama bahasa Inggris kanonik.")
         if layer3.syntax_balance_issues:
             recommendations.append("Perbaiki ketidakseimbangan markup kurung atau tag referensi.")
 
         all_warnings = layer1.warnings + layer2.warnings + layer3.warnings
+        if factual:
+            all_warnings.extend(factual.warnings)
 
         return QAAuditReport(
             overall_score=overall_score,
@@ -537,6 +629,7 @@ class EditorialQAPipeline:
             critical_errors=critical_errors,
             warnings=all_warnings,
             recommendations=recommendations,
+            factual_consistency=factual,
         )
 
 

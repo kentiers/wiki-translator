@@ -190,6 +190,8 @@ Atur variabel lingkungan berikut sesuai kebutuhan:
 | `GEMINI_API_KEY` | Opsional* | Kunci API Google AI Studio untuk inferensi LLM. *(Otomatis menjadi fallback jika kredensial internal Antigravity tidak tersedia).* |
 | `WIKI_USERNAME` / `MEDIAWIKI_USERNAME` | Opsional | Nama akun bot atau pengguna di `id.wikipedia.org` untuk penerbitan dan pengunggahan berkas. |
 | `WIKI_BOT_PASSWORD` / `MEDIAWIKI_BOT_PASSWORD` | Opsional | Kata sandi bot MediaWiki pengguna (*Bot Password*) untuk penerbitan ke bak pasir atau pengunggahan berkas non-bebas ke id.wikipedia.org. |
+| `WIKI_TRANSLATOR_UI` | Opsional | Mode tampilan terminal: `rich` (modern TUI berbingkai ala omp) atau `plain` (ASCII klasik). Bawaan: otomatis mendeteksi TTY. |
+| `WIKI_CACHE_DIR` | Opsional | Lokasi terpusat untuk database cache SQLite (bawaan: `.cache/`). |
 
 > **Petunjuk Hak Akses Bot Password di Wikipedia:**
 > Buka **Preferensi $\rightarrow$ Kata sandi bot** di akun `id.wikipedia.org` Anda, buat nama bot baru dengan hak akses:
@@ -200,6 +202,73 @@ Atur variabel lingkungan berikut sesuai kebutuhan:
 ---
 
 ## Cara Menjalankan
+
+### Rekonsiliasi Anggota Kategori
+
+Pratinjau artikel idwiki yang sudah memiliki sitelink resmi dari anggota kategori enwiki,
+tetapi belum berada dalam kategori target:
+
+```powershell
+uv run python main.py --reconcile-category "Films directed by Christopher Nolan" `
+  --id-category "Film yang disutradarai oleh Christopher Nolan"
+```
+
+Anggota subkategori tidak diratakan ke kategori induk karena graf kategori Wikipedia
+tidak selalu bersifat taksonomis. Opsi `--recursive-category` akan ditolak sampai setiap
+subkategori dapat dipetakan ke kategori idwiki-nya sendiri. Perintah tetap dry-run kecuali
+`--apply-category-edits` diberikan. Mode tulis memerlukan
+`WIKI_USERNAME` dan `WIKI_BOT_PASSWORD`, memeriksa ulang setiap artikel, dan menolak
+berjalan bila kategori target belum ada.
+
+Inventaris isi kategori, template, modul, dokumentasi template, dan kategori induk sebelum
+membuat kategori baru:
+
+```powershell
+uv run python main.py --plan-category-creation "Films directed by Christopher Nolan" `
+  --id-category "Film yang disutradarai oleh Christopher Nolan"
+```
+
+Perintah ini hanya menghasilkan rencana dan atribusi revisi sumber; tidak ada halaman
+yang dibuat atau disunting.
+
+Setelah rencana diperiksa, buat draft kategori lokal dan validasi menggunakan parser
+idwiki:
+
+```powershell
+uv run python main.py --materialize-category "Films directed by Christopher Nolan" `
+  --id-category "Film yang disutradarai oleh Christopher Nolan"
+```
+
+Materializer memakai Gemini 3.8 Flash hanya bila sumber memiliki baris prosa polos.
+Template, modul, parameter, dan magic word dipetakan secara deterministik. Hasil `.wikitext`
+dan laporan `.json` disimpan di `output/categories`; perintah tidak menerbitkan halaman.
+Draft juga mendapat `approval-manifest.json` (hash artefak, default belum disetujui) dan
+`transaction-journal.jsonl` untuk audit/resume.
+
+Untuk merencanakan seluruh pohon kategori tanpa meratakan subkategori:
+
+```powershell
+uv run python main.py --plan-category-tree "Films directed by Christopher Nolan" `
+  --id-category "Film yang disutradarai oleh Christopher Nolan"
+```
+
+Audit perbedaan anggota langsung (termasuk anggota ekstra yang hanya diusulkan untuk review):
+
+```powershell
+uv run python main.py --audit-category-diff "Films directed by Christopher Nolan" `
+  --id-category "Film yang disutradarai oleh Christopher Nolan"
+```
+
+Untuk membuat draft dependency template/module secara topologis tanpa publikasi:
+
+```powershell
+uv run python main.py --deploy-dependencies "Template:Cat more"
+```
+
+Hasil disimpan di `output/dependencies` dan berhenti pada dependency yang unresolved.
+Setiap run menghasilkan approval manifest yang harus direview sebelum workflow publikasi
+apa pun dapat menggunakannya.
+
 
 Anda dapat menjalankan Wiki Translator melalui *launcher script* atau langsung via CLI.
 
@@ -253,6 +322,8 @@ uv run python main.py [title] [opsi...]
 | `--upload-media` | Mengunduh berkas non-bebas dari en.wiki dan mengunggahnya langsung ke id.wikipedia.org dengan wikitext alasan fair-use. |
 | `--enrich-archives` | Memindai rujukan web dan menambahkan tautan arsip Wayback Machine (`|archive-url=...`) secara otomatis. |
 | `--no-metric-first` | Menonaktifkan penataan metrik-pertama (bawaan: aktif sesuai WP:GAYA). |
+| `--cache-status` | Menampilkan tabel status, ukuran berkas, dan lokasi direktori semua basis data cache SQLite. |
+| `--clear-cache [target]` | Membersihkan basis data cache SQLite secara aman (`all`, `translation`, `glossary`, `wayback`, `templates`, `links`). |
 ### Contoh Penggunaan Nyata
 
 1. **Menerjemahkan artikel film dengan glosarium topik dan pratinjau langsung:**
@@ -313,3 +384,16 @@ Suite pengujian unit mencakup seluruh komponen inti (atribusi, linter, infobox, 
 uv run python -m unittest discover tests
 ```
 Semua modul pengujian dirancang mandiri (*self-contained*) dan mendukung simulasi *dry-run* tanpa melakukan suntingan jaringan nyata ke Wikipedia.
+# Review snapshots
+
+Each article review automatically saves a separate run under
+`output/reviews/snapshots/<run-id>/`. Its `manifest.json` records the article
+title, timestamp, hashes, and candidate count. The run includes the original
+Indonesian text, English source, generated Indonesian polish, and
+`candidates.json`. Existing runs are preserved.
+
+These candidates describe Indonesian-to-Indonesian edits generated by AI.
+They are labeled `ai_revision`, remain pending, and are not automatically
+imported into the English-to-Indonesian glossary. Human review is not inferred
+from a filename or the existence of a published page. Older review outputs
+without a snapshot do not establish a verified revision pair.

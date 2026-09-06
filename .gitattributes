@@ -1,0 +1,30 @@
+# Auto-detect text files and normalize line endings to LF
+* text=auto
+
+# Code and text configuration files
+*.py text eol=lf
+*.md text eol=lf
+*.txt text eol=lf
+*.json text eol=lf
+*.jsonl text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.wikitext text eol=lf
+*.html text eol=lf
+*.sh text eol=lf
+
+# Windows scripts require CRLF
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# Binary databases and media
+*.db binary
+*.sqlite binary
+*.sqlite3 binary
+*.zst binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary

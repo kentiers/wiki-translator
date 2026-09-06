@@ -57,6 +57,22 @@ class SmartComplexityAnalyzer:
         "mathematics",
         "quantum",
         "philosophy",
+        "aerospace_aviation",
+        "aerospace",
+        "aviation",
+        "jet",
+        "aircraft",
+        "mechanical_engineering",
+        "engineering",
+        "mechanics",
+        "thermodynamics",
+        "mathematics_statistics",
+        "math",
+        "statistics",
+        "chemistry_materials",
+        "chemistry",
+        "materials_science",
+        "material",
     }
 
     # Medium-complexity topic identifiers
@@ -66,9 +82,26 @@ class SmartComplexityAnalyzer:
         "law",
         "legal",
         "jurisprudence",
+        "law_jurisprudence",
         "medicine",
         "biology",
         "history",
+        "earth_environment",
+        "geology",
+        "geography",
+        "climate",
+        "environment",
+        "economics_finance",
+        "economics",
+        "finance",
+        "business",
+        "military_defense",
+        "military",
+        "defense",
+        "music_arts",
+        "music",
+        "art",
+        "arts",
     }
 
     # Standard / Low-complexity topic identifiers
@@ -371,12 +404,18 @@ class GeminiTranslatorClient:
         # Try Antigravity credentials with multi-pass and backoff for transient 503 errors
         credentials = self.auth_manager.load_credentials()
         if credentials:
+            # OMP keeps a rotating pool in agent.db. Reload between passes so an
+            # external OMP refresh or quota update is visible immediately.
             for attempt in range(2):
+                if attempt:
+                    credentials = self.auth_manager.load_credentials()
                 for cred in credentials:
                     if cred.is_exhausted:
                         continue
                     if cred.is_expired():
-                        self.auth_manager.refresh_access_token(cred)
+                        if not self.auth_manager.refresh_access_token(cred):
+                            self.auth_manager.mark_unavailable(cred, 401)
+                            continue
 
                     try:
                         res = self._translate_antigravity(
@@ -390,7 +429,7 @@ class GeminiTranslatorClient:
                             return res
                     except urllib.error.HTTPError as he:
                         if he.code in (429, 403):
-                            cred.is_exhausted = True
+                            self.auth_manager.mark_unavailable(cred, he.code, he.headers.get("Retry-After") if he.headers else None)
                             continue
                         elif he.code == 401:
                             # Refresh token and retry once
@@ -405,8 +444,10 @@ class GeminiTranslatorClient:
                                         stream_callback=stream_callback,
                                     )
                                 except Exception:
-                                    cred.is_exhausted = True
+                                    self.auth_manager.mark_unavailable(cred, 401)
                                     continue
+                            else:
+                                self.auth_manager.mark_unavailable(cred, 401)
                         elif he.code in (500, 502, 503, 504):
                             time.sleep(0.5)
                             continue
@@ -427,7 +468,8 @@ class GeminiTranslatorClient:
             )
 
         raise RuntimeError(
-            "Translation failed: No active Antigravity credentials available in agent.db and GEMINI_API_KEY not configured."
+            "Translation failed: OMP credential pool has no usable account. "
+            "Refresh/login with OMP; exhausted accounts are skipped automatically."
         )
 
     def polish_section(
@@ -436,11 +478,14 @@ class GeminiTranslatorClient:
         draft_id: str,
         model: Optional[str] = None,
         stream_callback: Optional[Callable[[str], None]] = None,
+        topic: Optional[str] = None,
+        glossary: Optional[Dict[str, str]] = None,
+        context_notes: Optional[str] = None,
     ) -> str:
         """
         Performs a 2nd pass humanize/polish on the draft translation to remove AI slop.
         """
-        polish_prompt = build_polish_prompt(source_en=source_en, draft_id=draft_id)
+        polish_prompt = build_polish_prompt(source_en=source_en, draft_id=draft_id, topic=topic, glossary=glossary, context_notes=context_notes)
         return self.translate_section(
             user_prompt=polish_prompt,
             system_instruction=SYSTEM_PROMPT_HUMANIZE_POLISH,
@@ -550,20 +595,30 @@ class GeminiTranslatorClient:
         """
         full_text_chunks: List[str] = []
         current_event_data: List[str] = []
+        terminal_reason: Optional[str] = None
+        stream_done = False
+        stream_invalid = False
 
         def flush_event_data() -> None:
+            nonlocal terminal_reason, stream_done, stream_invalid
             if not current_event_data:
                 return
             combined_data = "\n".join(current_event_data).strip()
             current_event_data.clear()
-            if not combined_data or combined_data == "[DONE]":
+            if combined_data == "[DONE]":
+                stream_done = True
+                return
+            if not combined_data:
                 return
             try:
                 chunk_json = json.loads(combined_data)
                 # Support both standard Gemini schema and CloudCode envelope schema
                 response_obj = chunk_json.get("response", chunk_json)
+                if response_obj.get("error"):
+                    stream_invalid = True
                 candidates = response_obj.get("candidates", [])
                 if candidates:
+                    terminal_reason = candidates[0].get("finishReason") or terminal_reason
                     content = candidates[0].get("content", {})
                     parts = content.get("parts", [])
                     for p in parts:
@@ -576,7 +631,7 @@ class GeminiTranslatorClient:
                             if stream_callback:
                                 stream_callback(txt)
             except Exception:
-                pass
+                stream_invalid = True
 
         # Read line by line from stream
         for line_bytes in resp_stream:
@@ -605,11 +660,16 @@ class GeminiTranslatorClient:
 
         full_output = "".join(full_text_chunks).strip()
 
+        if stream_invalid or terminal_reason not in {None, "STOP"}:
+            return ""
+        if not stream_done and terminal_reason != "STOP":
+            return ""
+
         # Clean markdown fence if LLM wrapped output in ```wikitext or ```
         if full_output.startswith("```wikitext"):
             full_output = full_output[11:].strip()
         elif full_output.startswith("```"):
-            full_output = full_output[3:].strip()
+            full_output = re.sub(r"^```(?:json)?\s*", "", full_output).strip()
 
         if full_output.endswith("```"):
             full_output = full_output[:-3].strip()

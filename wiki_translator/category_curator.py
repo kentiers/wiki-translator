@@ -14,25 +14,31 @@ Features:
 
 import json
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 import urllib.error
 import urllib.parse
 import urllib.request
 
+from .film_categorizer import FilmCategoryNormalizer, default_film_categorizer
+
 
 class CategoryCurator:
-    """Smart Category Curator complying with id.wikipedia WP:PEDKAT."""
+    """Smart Category Curator complying with id.wikipedia WP:PEDKAT and WikiProject Film consensus."""
 
     def __init__(
         self,
         lang: str = "id",
         min_articles_threshold: int = 3,
+        profile: str = "legacy",
         user_agent: Optional[str] = None,
         api_url: Optional[str] = None,
+        film_categorizer: Optional[FilmCategoryNormalizer] = None,
     ):
         self.lang = lang
         self.min_articles_threshold = min_articles_threshold
+        self.profile = profile
         self.api_url = api_url or f"https://{lang}.wikipedia.org/w/api.php"
+        self.film_categorizer = film_categorizer or default_film_categorizer
         self.user_agent = (
             user_agent
             or "WikiTranslatorGradeA/1.0 (https://id.wikipedia.org; category-curator)"
@@ -50,6 +56,8 @@ class CategoryCurator:
         e.g. 'Film yang disutradarai oleh Kevin Macdonald' -> '"Kevin Macdonald"'
         """
         clean = self._clean_category_name(category_name)
+        if self.profile == "generic":
+            return ["[[Kategori:Kategori Wikipedia]]"]
 
         # Pattern: Film yang disutradarai oleh X
         m = re.search(r"disutradarai oleh\s+(.+)$", clean, flags=re.IGNORECASE)
@@ -133,11 +141,31 @@ class CategoryCurator:
                 year = m.group(1)
                 parents.append(f"[[Kategori:Karya tahun {year}]]")
 
-        # 4. Film menurut negara / Film <Negara>
-        elif re.search(r"^Film\s+(?:Amerika Serikat|Inggris|Indonesia|Jepang|Korea Selatan|Prancis|Jerman)", clean, flags=re.IGNORECASE):
+        # 4. Film <Negara> tahun <Tahun> (Level 2 consensus combination)
+        elif re.search(r"^Film\s+[A-Za-z\s\-]+?\s+tahun\s+\d{4}$", clean, flags=re.IGNORECASE):
+            m_cy = re.match(r"^Film\s+([A-Za-z\s\-]+?)\s+tahun\s+(\d{4})$", clean, flags=re.IGNORECASE)
+            if m_cy:
+                country, year = m_cy.group(1).strip(), m_cy.group(2).strip()
+                parents.append(f"[[Kategori:Film {country}]]")
+                parents.append(f"[[Kategori:Film tahun {year}]]")
+            else:
+                parents.append("[[Kategori:Film menurut tahun]]")
+
+        # 4.5 Film menurut negara / Film <Negara>
+        elif re.search(r"^Film\s+(?:Amerika Serikat|Britania Raya|Inggris|Indonesia|Jepang|Korea Selatan|Prancis|Jerman|India|Australia|Kanada)", clean, flags=re.IGNORECASE):
             parents.append("[[Kategori:Film menurut negara]]")
 
-        # 5. Album karya <Artis>
+        # 4.6 Film tentang <Topik> (Format topik consensus)
+        elif re.search(r"^Film tentang\b", clean, flags=re.IGNORECASE):
+            parents.append("[[Kategori:Film menurut topik]]")
+
+        # 4.7 Film peran hidup / animasi / teknologi
+        elif re.search(r"^Film\s+(?:peran hidup|animasi|animasi komputer|anime|3D|bisu|hitam putih)\b", clean, flags=re.IGNORECASE):
+            parents.append("[[Kategori:Film menurut teknologi]]")
+
+        # 4.8 Film genre level 1
+        elif re.search(r"^Film\s+(?:laga|cerita seru|horor|komedi|drama|fiksi ilmiah|fantasi|petualangan|kriminal|misteri|perang|musikal|olahraga|pahlawan super|dokumenter|biografi|erotis|keluarga|anak-anak|remaja)\b", clean, flags=re.IGNORECASE):
+            parents.append("[[Kategori:Film menurut genre]]")
         elif re.search(r"^Album (?:karya|oleh)\b", clean, flags=re.IGNORECASE):
             parents.append("[[Kategori:Album menurut artis]]")
             artist = re.sub(r"^Album (?:karya|oleh)\s+", "", clean, flags=re.IGNORECASE).strip()
@@ -188,13 +216,28 @@ class CategoryCurator:
         found_articles = self.search_related_articles(query)
         article_count = len(found_articles)
         is_safe = article_count >= self.min_articles_threshold
+        is_film = self.film_categorizer.is_film_category(clean_name)
+        consensus_valid = True
+        consensus_violation = None
+        suggested_categories = []
 
-        if is_safe:
+        if is_film:
+            consensus_valid, consensus_violation = self.film_categorizer.validate_film_category(clean_name)
+            if not consensus_valid:
+                is_safe = False
+                suggested_categories = self.film_categorizer.decompose_enwiki_film_category(clean_name)
+                reason = (
+                    f"Tidak aman / melanggar konsensus Wikipedia:ProyekWiki Film/Kategorisasi: "
+                    f"{consensus_violation} "
+                    f"Rekomendasi pemecahan kategori: {', '.join(suggested_categories)}."
+                )
+
+        if is_safe and consensus_valid:
             reason = (
                 f"Aman untuk dibuat (WP:PEDKAT): Ditemukan {article_count} artikel terkait "
                 f"(ambang batas minimum: {self.min_articles_threshold})."
             )
-        else:
+        elif not is_safe and consensus_valid:
             reason = (
                 f"Belum aman untuk dibuat (WP:PEDKAT / anti-kategori sebatang kara): "
                 f"Hanya ditemukan {article_count} artikel terkait "
@@ -210,6 +253,9 @@ class CategoryCurator:
             "found_articles": found_articles,
             "parent_categories": parents,
             "reason": reason,
+            "consensus_valid": consensus_valid,
+            "consensus_violation": consensus_violation,
+            "suggested_categories": suggested_categories,
         }
 
 

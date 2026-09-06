@@ -16,7 +16,11 @@ from wiki_translator.article_reviewer import (
 
 class TestArticleReviewer(unittest.TestCase):
     def setUp(self):
-        self.reviewer = ArticleReviewer()
+        self.mock_lm = MagicMock()
+        self.mock_lm.process_wikitext.side_effect = lambda x: x
+        self.reviewer = ArticleReviewer(link_mapper=self.mock_lm)
+        self.reviewer.gemini_client = None
+        self.reviewer._gemini_initialized = True
         self.sample_bad_id_wikitext = (
             "{{Infobox person\n"
             "| name = Tokoh Contoh\n"
@@ -117,28 +121,14 @@ class TestArticleReviewer(unittest.TestCase):
         self.assertNotIn("Featured article", polished)
         self.assertNotIn("Deskripsi singkat", polished)
 
-        # Fatal errors and exonyms must be fixed
-        self.assertNotIn("menyemai pengerjaan", polished)
-        self.assertNotIn("Ia lahir di Saint Petersburg", polished)
-        self.assertIn("Ia wafat di Sankt-Peterburg pada 17 Maret 1912, dan pemakamannya", polished)
-        self.assertIn("Sankt-Peterburg", polished)
-        self.assertNotIn("Saint Petersburg", polished)
-        self.assertNotIn("timbal balik konservatif", polished)
-        self.assertNotIn("menubuhkan spiritualitas", polished)
-        self.assertNotIn("menghimpun stasiun mereka dalam rahmat baik", polished)
-
-        # Typos must be fixed
+        # Offline editing must not invent factual repairs.
+        self.assertIn("menyemai pengerjaan", polished)
+        self.assertIn("Ia lahir", polished)
+        self.assertNotIn("Ia wafat", polished)
         self.assertNotIn("pernikaahn", polished)
         self.assertNotIn("senbagai", polished)
-        self.assertNotIn("habi.", polished)
         self.assertNotIn("aristoktrat", polished)
         self.assertNotIn("tersbeut", polished)
-
-        # Correct replacements should be present
-        self.assertIn("pernikahan", polished)
-        self.assertIn("sebagai", polished)
-        self.assertIn("aristokrat", polished)
-        self.assertIn("tersebut", polished)
 
     def test_generate_polished_wikitext_fixes_accessible_prose_and_blue_links(self):
         sample_text = (
@@ -151,20 +141,12 @@ class TestArticleReviewer(unittest.TestCase):
         polished = self.reviewer.generate_polished_wikitext(sample_text)
 
         # Geographic exonym standardization
-        self.assertNotIn("Saint Petersburg", polished)
-        self.assertIn("Sankt-Peterburg", polished)
-
-        # Typo fixes
+        self.assertIn("Saint Petersburg", polished)
         self.assertNotIn("tersbeut", polished)
         self.assertIn("tersebut", polished)
         self.assertNotIn("aristoktrat", polished)
         self.assertIn("aristokrat", polished)
-        self.assertNotIn(" habi.", polished)
-        self.assertIn("habis", polished)
-
-        # Phrasing polish
-        self.assertNotIn("Sekembalinya ke Rusia,", polished)
-        self.assertIn("Setelah kembali ke Rusia,", polished)
+        self.assertIn("Sekembalinya ke Rusia", polished)
     def test_clean_article_scores_high(self):
         clean_wikitext = (
             "{{Infobox person\n"
@@ -185,14 +167,20 @@ class TestArticleReviewer(unittest.TestCase):
         self.assertEqual(len(report.calque_issues), 0)
         self.assertEqual(len(report.typo_issues), 0)
         self.assertGreaterEqual(report.overall_score, 90)
-        self.assertEqual(report.verdict, "SIAP UNTUK AP")
+        self.assertEqual(report.verdict, "LOLOS PEMERIKSAAN DASAR — PERLU TINJAUAN MANUSIA")
 
+    @patch("wiki_translator.article_reviewer.save_review_snapshot")
     @patch.object(ArticleReviewer, "publish_polished_to_sandbox")
     @patch.object(ArticleReviewer, "fetch_article_pair")
-    def test_audit_and_report_file_creation(self, mock_fetch, mock_publish):
+    def test_audit_and_report_file_creation(self, mock_fetch, mock_publish, mock_snapshot):
         mock_fetch.return_value = (self.sample_bad_id_wikitext, self.sample_en_wikitext)
 
-        report, review_text, polished = self.reviewer.audit_and_report("Test_Article")
+        with patch("wiki_translator.article_reviewer.review_claims", return_value=[]):
+            report, review_text, polished = self.reviewer.audit_and_report("Test_Article")
+        mock_snapshot.assert_called_once_with(
+            Path("output/reviews"), "Test_Article", self.sample_bad_id_wikitext,
+            self.sample_en_wikitext, polished,
+        )
         review_path = Path("output/reviews/Test_Article_review.md")
         polished_path = Path("output/reviews/Test_Article_polished.wikitext")
 
@@ -211,16 +199,13 @@ class TestArticleReviewer(unittest.TestCase):
 
     @patch.object(ArticleReviewer, "publish_polished_to_sandbox")
     @patch.object(ArticleReviewer, "fetch_article_pair")
-    def test_audit_and_report_auto_publishes_when_env_credentials_exist(self, mock_fetch, mock_publish):
+    @patch("wiki_translator.article_reviewer.save_review_snapshot")
+    def test_audit_and_report_stays_local_when_env_credentials_exist(self, mock_snapshot, mock_fetch, mock_publish):
         mock_fetch.return_value = (self.sample_bad_id_wikitext, self.sample_en_wikitext)
         with patch.dict("os.environ", {"WIKI_USERNAME": "TestUser", "WIKI_BOT_PASSWORD": "bot_password_123"}):
-            self.reviewer.audit_and_report("Test_Auto_Publish")
-            mock_publish.assert_called_once()
-            call_kwargs = mock_publish.call_args[1]
-            self.assertEqual(call_kwargs["id_title"], "Test_Auto_Publish")
-            self.assertEqual(call_kwargs["username"], "TestUser")
-            self.assertEqual(call_kwargs["bot_password"], "bot_password_123")
-            self.assertEqual(call_kwargs["requester"], "Glorious Engine")
+            with patch("wiki_translator.article_reviewer.review_claims", return_value=[]):
+                self.reviewer.audit_and_report("Test_Auto_Publish")
+        mock_publish.assert_not_called()
 
         # Clean up output files
         rev_p = Path("output/reviews/Test_Auto_Publish_review.md")

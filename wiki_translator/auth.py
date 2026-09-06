@@ -10,6 +10,8 @@ import json
 import os
 from pathlib import Path
 import sqlite3
+import subprocess
+from email.utils import parsedate_to_datetime
 import time
 import urllib.error
 import urllib.parse
@@ -41,6 +43,8 @@ class AuthManager:
 
     def _find_default_db(self) -> Optional[Path]:
         """Find agent.db across possible home and appdata locations."""
+        if os.environ.get("PI_CODING_AGENT_DIR"):
+            return Path(os.environ["PI_CODING_AGENT_DIR"]) / "agent.db"
         candidates = [
             Path.home() / ".omp" / "agent" / "agent.db",
             Path.home() / ".config" / "omp" / "agent" / "agent.db",
@@ -58,6 +62,8 @@ class AuthManager:
         return candidates[0]
 
     def __init__(self, db_path: Optional[Path] = None):
+        self.use_omp_refresh = db_path is None
+        self._cooldowns: Dict[int, float] = {}
         if db_path is None:
             self.db_path = self._find_default_db() or (Path.home() / ".omp" / "agent" / "agent.db")
         else:
@@ -111,13 +117,55 @@ class AuthManager:
         except Exception:
             return []
 
+        for credential in credentials:
+            credential.is_exhausted = self._cooldowns.get(credential.id, 0) > time.time()
         return credentials
+
+    def mark_unavailable(self, credential: AntigravityCredential, status: int, retry_after: Optional[str] = None) -> None:
+        """Keep cooldowns across pool reloads; permission errors are not quota errors."""
+        delay = 60.0 if status == 429 else 300.0
+        if retry_after:
+            try:
+                delay = max(1.0, float(retry_after))
+            except ValueError:
+                try:
+                    delay = max(1.0, parsedate_to_datetime(retry_after).timestamp() - time.time())
+                except (ValueError, TypeError, OverflowError):
+                    pass
+        self._cooldowns[credential.id] = time.time() + delay
+        credential.is_exhausted = True
+
+    def _refresh_with_omp(self, credential: AntigravityCredential) -> Optional[str]:
+        """Let OMP refresh its own account. Never expose token stdout/stderr."""
+        accounts = self.load_credentials()
+        index = next((i for i, c in enumerate(accounts, 1) if c.id == credential.id), None)
+        if index is None:
+            return None
+        try:
+            result = subprocess.run(
+                ["rtk", "omp", "token", "google-antigravity", "--account", str(index), "--force-refresh"],
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=60, check=False,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            )
+            if result.returncode != 0:
+                return None
+        except (OSError, subprocess.SubprocessError):
+            return None
+        for updated in self.load_credentials():
+            if updated.id == credential.id and not updated.is_expired():
+                credential.access_token = updated.access_token
+                credential.refresh_token = updated.refresh_token
+                credential.expires_at = updated.expires_at
+                return credential.access_token
+        return None
 
     def refresh_access_token(self, credential: AntigravityCredential) -> Optional[str]:
         """
         Refresh access token using refresh_token and client ID/secret.
         Updates internal credential state and optionally writes back to SQLite if writable.
         """
+        if self.use_omp_refresh:
+            return self._refresh_with_omp(credential)
         if not credential.refresh_token:
             return None
 
@@ -173,6 +221,9 @@ class AuthManager:
             if row:
                 data = json.loads(row[0])
                 data["access"] = credential.access_token
+                data["refresh"] = credential.refresh_token
+                if "refresh_token" in data:
+                    data["refresh_token"] = credential.refresh_token
                 data["expires"] = int(credential.expires_at * 1000)
                 cursor.execute(
                     "UPDATE auth_credentials SET data = ?, updated_at = CAST(strftime('%s','now') AS INTEGER) WHERE id = ?",
@@ -206,3 +257,7 @@ class AuthManager:
             return cred
 
         return None
+
+    def get_credential_pool(self) -> List[AntigravityCredential]:
+        """Return the OMP pool in database order; callers rotate on quota errors."""
+        return [c for c in self.load_credentials() if not c.is_exhausted]

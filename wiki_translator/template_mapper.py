@@ -27,7 +27,8 @@ from pathlib import Path
 import re
 import sqlite3
 import time
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Dict, List, Optional, Set, Tuple, Union
+from .storage_manager import default_storage_manager
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -492,12 +493,16 @@ class WikiTemplateMapper:
 
     def __init__(
         self,
-        cache_db_path: str = ".cache/wiki_templates_cache.db",
+        cache_db_path: Optional[Union[str, Path]] = None,
         user_agent: Optional[str] = None,
         allow_network: bool = True,
         infobox_mapper: Optional[InfoboxMapper] = None,
     ):
-        self.cache_db_path = Path(cache_db_path)
+        self.cache_db_path = (
+            Path(cache_db_path)
+            if cache_db_path is not None
+            else default_storage_manager.wiki_templates_cache_db
+        )
         self.allow_network = allow_network
         self.user_agent = (
             user_agent

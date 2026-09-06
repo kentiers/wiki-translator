@@ -10,8 +10,8 @@ Identifies:
 4. Reference & Citation Health (missing templates, dead links, citation errors).
 5. Overall WP:KAP Score (0-100) and Verdict:
    - 'BELUM LAYAK - PERLU PERBAIKAN TOTAL' (< 70)
-   - 'LAYAK DENGAN REVISI KECIL' (70 - 89)
-   - 'SIAP UNTUK AP' (>= 90)
+   - 'PERLU REVISI DAN TINJAUAN MANUSIA' (70 - 89)
+   - 'LOLOS PEMERIKSAAN DASAR — PERLU TINJAUAN MANUSIA' (>= 90)
 """
 
 from dataclasses import dataclass, field
@@ -26,6 +26,10 @@ import urllib.request
 from .auth import AuthManager
 from .awb_genfixes import default_genfixes
 from .editorial_qa import default_qa_pipeline
+from .factual_audit import default_factual_auditor
+from .article_quality import check_saved_integrity, review_claims
+from .glossary_audit import audit_glossary_consistency
+from .review_snapshot import save_review_snapshot
 
 from .gemini import GeminiTranslatorClient
 from .prompts import (
@@ -86,13 +90,14 @@ class APReviewReport:
     title: str
     en_title: str
     overall_score: int  # 0 - 100
-    verdict: str  # "BELUM LAYAK - PERLU PERBAIKAN TOTAL" | "LAYAK DENGAN REVISI KECIL" | "SIAP UNTUK AP"
+    verdict: str  # "BELUM LAYAK - PERLU PERBAIKAN TOTAL" | "PERLU REVISI DAN TINJAUAN MANUSIA" | "LOLOS PEMERIKSAAN DASAR — PERLU TINJAUAN MANUSIA"
     fatal_errors: List[ReviewFinding] = field(default_factory=list)
     calque_issues: List[ReviewFinding] = field(default_factory=list)
     typo_issues: List[ReviewFinding] = field(default_factory=list)
     reference_issues: List[ReviewFinding] = field(default_factory=list)
     summary_notes: List[str] = field(default_factory=list)
     metrics: Dict[str, Any] = field(default_factory=dict)
+    factual_consistency: Any = None
 
 
 # Common patterns for known fatal mistranslations / context inversions
@@ -239,11 +244,13 @@ class ArticleReviewer:
         id_client: Optional[WikipediaClient] = None,
         en_client: Optional[WikipediaClient] = None,
         gemini_client: Optional[GeminiTranslatorClient] = None,
+        link_mapper: Optional[Any] = None,
     ):
         self.id_client = id_client or WikipediaClient(lang="id")
         self.en_client = en_client or WikipediaClient(lang="en")
         self.gemini_client = gemini_client
         self._gemini_initialized = gemini_client is not None
+        self.link_mapper = link_mapper or default_link_mapper
 
     def _get_gemini_client(self) -> Optional[GeminiTranslatorClient]:
         """Lazily initializes and returns GeminiTranslatorClient if Antigravity / Gemini credentials exist."""
@@ -268,152 +275,8 @@ class ArticleReviewer:
         Applies generalized, article-agnostic linguistic, typographic, and syntax cleaning
         for common machine-translation calques, grammatical inversions, typos, and metadata.
         """
-        cleaned = text
-
-        # 1. Standard exonym and geographic consistency
-        cleaned = re.sub(r"\bSaint\s+Petersburg\b", "Sankt-Peterburg", cleaned)
-        cleaned = re.sub(r"\bSt\.\s+Petersburg\b", "Sankt-Peterburg", cleaned)
-
-        # 2. General fatal factual inversion patterns (e.g. born on death date / funeral)
-        cleaned = re.sub(
-            r"\b(?:Ia\s+)?(?:lahir|dilahirkan)\b([^\n\r]*?)(?:pada\s+)?(\d{1,2}\s+[A-Za-z]+\s+\d{4})([^\n\r]*?\b(?:pemakaman|dikebumikan))",
-            r"Ia wafat\1pada \2\3",
-            cleaned,
-            flags=re.IGNORECASE,
-        )
-        cleaned = re.sub(
-            r"\b(?:Ia\s+)?(?:lahir|dilahirkan)\b([^\n\r]*?\b(?:pemakaman|dikebumikan))",
-            r"Ia wafat\1",
-            cleaned,
-            flags=re.IGNORECASE,
-        )
-        # Common false friend / calque mistranslations
-        cleaned = re.sub(
-            r"\bkontrak\s+besar\s+(?:untuk\s+)?menyemai\s+pengerjaan\b",
-            "kontrak besar pekerjaan menjahit",
-            cleaned,
-            flags=re.IGNORECASE,
-        )
-        cleaned = re.sub(
-            r"\bmenyemai\s+(?:pengerjaan|pekerjaan)\s+dari\s+militer\b",
-            "pekerjaan menjahit untuk militer",
-            cleaned,
-            flags=re.IGNORECASE,
-        )
-        cleaned = re.sub(
-            r"\bmenyemai\s+(?:pengerjaan|pekerjaan)\b",
-            "pekerjaan menjahit",
-            cleaned,
-            flags=re.IGNORECASE,
-        )
-        # 3. Article-agnostic Calques and Awkward MT Phrasing
-        calque_replacements: List[Tuple[re.Pattern, str]] = [
-            (
-                re.compile(r"\b(?:dituduh|dicurigai)\s+atas\s+dakwaan\s+simpati\s+terhadap\s+revolusioner\b", re.IGNORECASE),
-                "dituduh bersimpati kepada kaum revolusioner",
-            ),
-            (
-                re.compile(r"\batas\s+dakwaan\s+simpati\s+terhadap\s+revolusioner\b", re.IGNORECASE),
-                "karena dituduh bersimpati kepada kaum revolusioner",
-            ),
-            (
-                re.compile(r"\btimbal\s+balik\s+konservatif\b", re.IGNORECASE),
-                "reaksi keras kaum konservatif",
-            ),
-            (
-                re.compile(r"\bmenubuhkan\s+(?:nilai\s+)?(?:spiritualitas|etika|karakter)\b", re.IGNORECASE),
-                "menjelmakan nilai spiritualitas dan etika",
-            ),
-            (
-                re.compile(r"\bmenghimpun\s+stasiun\s+mereka\s+dalam\s+rahmat\s+baik\s+dari\s+kelas\s+atas\b", re.IGNORECASE),
-                "mempertahankan kedudukan mereka serta tetap disenangi oleh kalangan kelas atas",
-            ),
-            (
-                re.compile(r"\bpekerjaan(?:\s+senbagai|\s+sebagai)?\s+penekanan\s+untuk\s+kliennya\b", re.IGNORECASE),
-                "pekerjaan sebagai penjahit bagi para binaannya",
-            ),
-            (
-                re.compile(r"\bpekerjaan\s+(?:yang\s+menjadi\s+fokus\s+utama\s+bagi|bagi\s+para)\s+(?:anggotanya|penerima\s+bantuannya|binaannya|kliennya)\b", re.IGNORECASE),
-                "pekerjaan sebagai penjahit bagi para binaannya",
-            ),
-            (
-                re.compile(r"\bpekerjaan\s+senbagai\s+penekanan\b", re.IGNORECASE),
-                "pekerjaan sebagai penjahit",
-            ),
-            (
-                re.compile(r"\bpekerjaan\s+sebagai\s+penekanan\b", re.IGNORECASE),
-                "pekerjaan sebagai penjahit",
-            ),
-            (
-                re.compile(r"\bdibatasi\s+atau\s+dijungkir\s+balik\b", re.IGNORECASE),
-                "dibatasi atau dibatalkan kembali",
-            ),
-            (
-                re.compile(r"\bceramah\s+persiapan\b", re.IGNORECASE),
-                "kuliah persiapan",
-            ),
-            (
-                re.compile(r"\bmenawarkan\s+ceramah\s+persiapan\b", re.IGNORECASE),
-                "menyelenggarakan kuliah persiapan",
-            ),
-            (
-                re.compile(r"\bpembukaan\s+ulang\s+mereka\b", re.IGNORECASE),
-                "pembukaan kembali perkuliahan tersebut",
-            ),
-            (
-                re.compile(r"\bwadah\s+otonomi\s+untuk\s+pekerjaan\b", re.IGNORECASE),
-                "jalur kemandirian kerja",
-            ),
-            (
-                re.compile(r"\btak\s+pernah\s+diinkorporasikan\b", re.IGNORECASE),
-                "tidak pernah berbadan hukum resmi",
-            ),
-            (
-                re.compile(r"\bbusana\s+tak\s+dibuat\s+wanita\b", re.IGNORECASE),
-                "pakaian tidak menentukan seorang perempuan",
-            ),
-            (
-                re.compile(r"\bmenempatkanmu\s+di\s+luar\s+kekuatanku\b", re.IGNORECASE),
-                "tunduk kepadamu berada di luar kemampuanku",
-            ),
-            (
-                re.compile(r"\bSekembalinya\s+ke\s+Rusia,\s*", re.IGNORECASE),
-                "Setelah kembali ke Rusia, ",
-            ),
-        ]
-
-        for pat, repl in calque_replacements:
-            cleaned = pat.sub(repl, cleaned)
-
-        # 4. Fix Generalized Typographical and Spelling Errors
-        typo_replacements: List[Tuple[re.Pattern, str]] = [
-            (re.compile(r"\bpernikaahn\b", re.IGNORECASE), "pernikahan"),
-            (re.compile(r"\bsenbagai\b", re.IGNORECASE), "sebagai"),
-            (re.compile(r"\bbiaya\s+pendidikan\s+menjadi\s+habi\b", re.IGNORECASE), "biaya pendidikan menjadi habis"),
-            (re.compile(r"\bmenjadi\s+habi\b", re.IGNORECASE), "menjadi habis"),
-            (re.compile(r"\bhabi\b", re.IGNORECASE), "habis"),
-            (re.compile(r"\baristoktrat\b", re.IGNORECASE), "aristokrat"),
-            (re.compile(r"\btersbeut\b", re.IGNORECASE), "tersebut"),
-            (re.compile(r"\bunicersitas-universitas\b", re.IGNORECASE), "universitas-universitas"),
-            (re.compile(r"\bunicersitas\b", re.IGNORECASE), "universitas"),
-            (re.compile(r"\bberani\s+dan\s+sabat\b", re.IGNORECASE), "berani dan sabar"),
-            (re.compile(r"\bMentujukan\s+pendirian\b"), "Demi mewujudkan pendirian"),
-            (re.compile(r"\bmentujukan\b", re.IGNORECASE), "bertujuan"),
-            (re.compile(r"\bberpedapat\b", re.IGNORECASE), "berpendapat"),
-            (re.compile(r"\bdisana\b", re.IGNORECASE), "di sana"),
-            (re.compile(r"\bdimana\b", re.IGNORECASE), "di mana"),
-        ]
-
-        for pat, repl in typo_replacements:
-            cleaned = pat.sub(repl, cleaned)
-
-        # 5. Generic Category cleanup
-        cleaned = re.sub(
-            r"\[\[Kategori:Tokoh dari (?:Saint|St\.) Petersburg\]\]",
-            "[[Kategori:Tokoh dari Sankt-Peterburg]]",
-            cleaned,
-            flags=re.IGNORECASE,
-        )
+        # Source-dependent semantic repairs belong to the LLM/source audit.
+        cleaned, _ = default_slop_linter.auto_fix(text)
         # 6. Strip status/metadata templates and comments
         cleaned = re.sub(
             r"<!--\s*Templat belum tersedia di id\.wiki:\s*\{\{\s*(?:deskripsi singkat|short description)[^\}]*\}\}\s*-->\s*",
@@ -597,6 +460,28 @@ class ArticleReviewer:
                 )
 
         # 4. Reference & Citation Health
+        factual = default_factual_auditor.audit(en_wikitext, id_wikitext)
+        for warning in factual.warnings:
+            reference_issues.append(
+                ReviewFinding(
+                    category="Konsistensi Faktual",
+                    severity="HIGH",
+                    description=warning,
+                    original_text="",
+                    suggested_fix="Bandingkan kembali angka/tanggal dan jumlah referensi dengan sumber enwiki.",
+                )
+            )
+        glossary_check = audit_glossary_consistency(en_wikitext, id_wikitext)
+        for item in glossary_check.missing:
+            reference_issues.append(
+                ReviewFinding(
+                    category="Konsistensi Glosarium",
+                    severity="MEDIUM",
+                    description=f"Padanan glosarium tidak ditemukan di draft: {item}",
+                    original_text=item.split(" -> ", 1)[0],
+                    suggested_fix="Gunakan padanan glosarium yang konsisten atau tandai pengecualian konteks.",
+                )
+            )
         syntax_issues = default_syntax_balancer.check_balance(id_wikitext)
         if syntax_issues:
             for issue in syntax_issues:
@@ -667,9 +552,9 @@ class ArticleReviewer:
         if score < 70 or len(fatal_errors) > 0:
             verdict = "BELUM LAYAK - PERLU PERBAIKAN TOTAL"
         elif score < 90:
-            verdict = "LAYAK DENGAN REVISI KECIL"
+            verdict = "PERLU REVISI DAN TINJAUAN MANUSIA"
         else:
-            verdict = "SIAP UNTUK AP"
+            verdict = "LOLOS PEMERIKSAAN DASAR — PERLU TINJAUAN MANUSIA"
 
         word_count = len(re.findall(r"\b\w+\b", id_wikitext))
         metrics = {
@@ -710,6 +595,7 @@ class ArticleReviewer:
             reference_issues=reference_issues,
             summary_notes=summary_notes,
             metrics=metrics,
+            factual_consistency=factual,
         )
 
     def generate_community_review_text(
@@ -723,7 +609,7 @@ class ArticleReviewer:
         ready to be posted on Wikipedia talk pages (Warung Kopi / Pembicaraan Pengguna / Evaluasi AP).
         """
         score_emoji = "🔴" if report.overall_score < 70 else ("🟡" if report.overall_score < 90 else "🟢")
-        verdict_badge = f"**{score_emoji} {report.verdict} (Skor WP:KAP: {report.overall_score}/100)**"
+        verdict_badge = f"**{score_emoji} {report.verdict} (Skor heuristik: {report.overall_score}/100)**"
 
         lines: List[str] = [
             f"Halo Bung @{requester_name},",
@@ -790,9 +676,9 @@ class ArticleReviewer:
         # Next Steps & Closing
         lines.extend([
             "== Solusi & Langkah Selanjutnya ==",
-            f"Untuk membantu mempercepat proses pencalonan, saya telah menyusun naskah pemolesan lengkap (''polished wikitext'') yang memperbaiki seluruh kekeliruan fatal di atas, menyelaraskan tata kalimat menjadi bahasa Indonesia ragam ensiklopedis yang alami, serta melengkapi kategorisasi tokoh.",
+            "Temuan ini berasal dari pemeriksaan otomatis. Cocokkan draf dengan sumber, terutama pelaku tindakan, negasi, angka, dan batas klaim.",
             "",
-            f"Berkas hasil perbaikan telah disimpan dan siap ditinjau/ditimpa ke artikel utama. Setelah perbaikan ini diterapkan, artikel akan sepenuhnya memenuhi standar WP:KAP dan layak dinominasikan.",
+            "Skor ini bukan penetapan kelayakan Artikel Pilihan atau persetujuan penerbitan. Draf tetap memerlukan peninjauan manusia.",
             "",
             f"Semoga catatan evaluasi ini bermanfaat dan salam hangat untuk kontribusi luar biasa Anda di Wikipedia bahasa Indonesia! ~~~~",
             "",
@@ -854,7 +740,10 @@ class ArticleReviewer:
         - Prepends clean notice box.
         """
         # Strip any existing notice box first to avoid duplicate nesting
-        working_id = re.sub(r"^\s*\{\|[\s\S]*?\n\|\}\s*", "", id_wikitext)
+        working_id = re.sub(
+            r"^\s*\{\|[^\n]*\n\|[^\n]*'''Draf perbaikan'''[^\n]*\n\|\}\s*",
+            "", id_wikitext,
+        )
         working_id = re.sub(r"\{\{Kotak pemberitahuan[\s\S]*?\}\}\s*", "", working_id, flags=re.IGNORECASE).strip()
 
         gemini = self._get_gemini_client()
@@ -885,16 +774,23 @@ class ArticleReviewer:
                         continue
 
                     # Find matching English section
-                    matching_en = None
-                    for e in sec_en_list:
-                        if e.level == sec_id.level and (
-                            e.title.lower() in title_lower or title_lower in e.title.lower()
-                        ):
-                            matching_en = e
-                            break
-                    if not matching_en and i < len(sec_en_list):
+                    heading_pairs = {
+                        "sejarah": "history", "kehidupan awal": "early life",
+                        "karier": "career", "alur cerita": "plot", "sinopsis": "plot",
+                        "pemeran": "cast", "produksi": "production", "perilisan": "release",
+                        "penerimaan": "reception", "warisan": "legacy",
+                        "penghargaan": "awards", "kematian": "death",
+                        "kehidupan selanjutnya": "later life", "kehidupan pribadi": "personal life",
+                        "pendidikan": "education", "latar belakang": "background",
+                    }
+                    source_title = heading_pairs.get(title_lower.strip(), title_lower.strip())
+                    candidates = [
+                        e for e in sec_en_list
+                        if e.level == sec_id.level and e.title.strip().lower() == source_title
+                    ]
+                    matching_en = candidates[0] if len(candidates) == 1 else None
+                    if not matching_en and i < len(sec_en_list) and sec_en_list[i].level == sec_id.level:
                         matching_en = sec_en_list[i]
-
                     en_source = matching_en.content if matching_en else ""
                     id_draft = sec_id.content
 
@@ -957,7 +853,7 @@ class ArticleReviewer:
             polished_body = self.reconcile_missing_wikilinks(en_wikitext, polished_body)
 
         # Map and validate wikilinks (ensuring [[Perhambaan tani di Rusia|hamba tani]] etc. are resolved)
-        polished_body = default_link_mapper.process_wikitext(polished_body)
+        polished_body = self.link_mapper.process_wikitext(polished_body)
 
         # Sanitize typography (standard quotation marks, non-breaking spaces, heading casing)
         polished_body = default_typography_sanitizer.sanitize_wikitext(polished_body)
@@ -985,7 +881,7 @@ class ArticleReviewer:
         polished_wikitext: str,
         username: str,
         bot_password: str,
-        requester: str = "Glorious Engine",
+        requester: Optional[str] = None,
         slug: Optional[str] = None,
         project_slug: Optional[str] = "Draf",
         sandbox_publisher: Optional[SandboxPublisher] = None,
@@ -1005,8 +901,7 @@ class ArticleReviewer:
         base_user = username.strip().split("@")[0].strip()
         clean_user = base_user.replace(" ", "_")
         clean_title = id_title.strip().replace(" ", "_")
-        clean_requester = requester.strip().replace("Pengguna:", "")
-
+        clean_requester = requester.strip().replace("Pengguna:", "") if requester else None
         # 1. Clean and strip forbidden draft templates / metadata
         cleaned_polished = re.sub(
             r"<!--\s*Templat belum tersedia di id\.wiki:\s*\{\{\s*(?:deskripsi singkat|short description)[^\}]*\}\}\s*-->\s*",
@@ -1028,16 +923,24 @@ class ArticleReviewer:
         ).strip()
 
         # Native zero-dependency clean wikitable box
-        notice_box = (
-            '{| class="wikitable" style="width:100%; background:#f8f9fa;"\n'
-            f"| ℹ️ '''Draf perbaikan''' untuk artikel [[:{id_title}]] atas permintaan [[Pengguna:{clean_requester}|{clean_requester}]].\n"
-            "|}\n\n"
-        )
+        if clean_requester:
+            notice_box = (
+                '{| class="wikitable" style="width:100%; background:#f8f9fa;"\n'
+                f"| ℹ️ '''Draf perbaikan''' untuk artikel [[:{id_title}]] atas permintaan [[Pengguna:{clean_requester}|{clean_requester}]].\n"
+                "|}\n\n"
+            )
+            summary_text = review_summary or f"Hasil evaluasi mutu dan draf pemolesan untuk [[:{id_title}]] atas permohonan Bung [[Pengguna:{clean_requester}|{clean_requester}]]."
+        else:
+            notice_box = (
+                '{| class="wikitable" style="width:100%; background:#f8f9fa;"\n'
+                f"| ℹ️ '''Draf perbaikan''' untuk artikel [[:{id_title}]].\n"
+                "|}\n\n"
+            )
+            summary_text = review_summary or f"Hasil evaluasi mutu dan draf pemolesan untuk [[:{id_title}]]."
 
         final_sandbox_wikitext = notice_box + cleaned_polished
 
         # 2. Talk page content
-        summary_text = review_summary or f"Hasil evaluasi mutu dan draf pemolesan untuk [[:{id_title}]] atas permohonan Bung [[Pengguna:{clean_requester}|{clean_requester}]]."
         talk_wikitext = (
             "== Hasil Evaluasi Mutu & Draf Pemolesan ==\n\n"
             f"{summary_text}\n\n"
@@ -1099,17 +1002,26 @@ class ArticleReviewer:
         3. Generates community review text.
         4. Generates polished wikitext.
         5. Saves review to output/reviews/<title>_review.md and polished wikitext to output/reviews/<title>_polished.wikitext.
-        6. If bot credentials exist in environment, automatically publishes polished draft to sandbox.
+        6. Keeps all results local; publishing is a separate explicit action.
         Returns (report, review_text, polished_wikitext).
         """
         id_wikitext, en_wikitext = self.fetch_article_pair(id_title, en_title)
         report = self.audit_translation_quality(id_wikitext, en_wikitext, id_title)
         review_text = self.generate_community_review_text(report)
-        polished_wikitext = self.generate_polished_wikitext(id_wikitext, en_wikitext)
+        polished_wikitext = self.generate_polished_wikitext(id_wikitext, en_wikitext, id_title=id_title)
+
+        check_saved_integrity(id_wikitext, polished_wikitext, preserve_prose=False)
+        findings = review_claims(en_wikitext, polished_wikitext, self._get_gemini_client())
+        if findings:
+            raise ValueError("Quality gate klaim: " + "; ".join(findings))
 
         # Save to output/reviews/
         reviews_dir = Path("output/reviews")
         reviews_dir.mkdir(parents=True, exist_ok=True)
+        snapshot = save_review_snapshot(
+            reviews_dir, id_title, id_wikitext, en_wikitext, polished_wikitext
+        )
+        print(f"[*] Review snapshot: {snapshot}")
 
         clean_filename = re.sub(r'[\\/*?:"<>| ]', "_", id_title)
         review_file = reviews_dir / f"{clean_filename}_review.md"
@@ -1121,21 +1033,7 @@ class ArticleReviewer:
         with open(polished_file, "w", encoding="utf-8") as f:
             f.write(polished_wikitext)
 
-        _load_env_file()
-        wiki_user = os.environ.get("WIKI_USERNAME") or os.environ.get("MEDIAWIKI_USERNAME")
-        bot_password = os.environ.get("WIKI_BOT_PASSWORD") or os.environ.get("MEDIAWIKI_BOT_PASSWORD")
-        if wiki_user and bot_password:
-            try:
-                self.publish_polished_to_sandbox(
-                    id_title=id_title,
-                    polished_wikitext=polished_wikitext,
-                    username=wiki_user,
-                    bot_password=bot_password,
-                    requester="Glorious Engine",
-                    summary="rapikan draf",
-                )
-            except Exception as e:
-                print(f"[!] Warning: Failed auto-publishing polished draft to sandbox: {e}")
+        # Review is local-only. Publishing requires an explicit CLI action.
 
         return report, review_text, polished_wikitext
 

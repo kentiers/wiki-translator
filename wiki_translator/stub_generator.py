@@ -1385,11 +1385,14 @@ class StubGenerator:
 
         # Connect with Editorial QA Pipeline regulation
         qa_report: Optional[QAAuditReport] = None
+        qa_error: Optional[str] = None
         if self.qa_pipeline:
             try:
                 qa_report = self.qa_pipeline.audit(full_wikitext, title=target_id_title)
-            except Exception:
-                pass
+            except Exception as exc:
+                qa_error = str(exc)
+        else:
+            qa_error = "Editorial QA pipeline is unavailable"
 
         return {
             "id_title": target_id_title,
@@ -1402,7 +1405,8 @@ class StubGenerator:
             "works_sections": works_sections,
             "has_infobox": bool(infobox),
             "qa_report": qa_report,
-            "is_qa_approved": qa_report.is_approved() if qa_report else True,
+            "qa_error": qa_error,
+            "is_qa_approved": bool(qa_report and qa_report.is_approved()),
         }
     def save_stub(self, stub_info: Dict[str, Any], output_dir: Path) -> Path:
         """Saves generated stub to output/stubs/<SafeTitle>.wikitext."""

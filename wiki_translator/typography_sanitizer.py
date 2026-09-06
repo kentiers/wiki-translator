@@ -17,6 +17,7 @@ Implements the 3 Pillars of Wikipedia ID Typography & Reference Date Standardiza
 import re
 from typing import Dict, List, Optional, Tuple, Set
 from .awb_genfixes import default_genfixes
+from .slop_linter import default_slop_linter
 
 
 ENGLISH_TO_INDONESIAN_MONTHS: Dict[str, str] = {
@@ -105,92 +106,23 @@ class TypographySanitizer:
         pass
 
     def sanitize_wikitext(self, text: str) -> str:
-        """Applies all 3 pillars of sanitization to wikitext."""
-        if not text:
-            return ""
-
-        # Step 1: Protect sensitive blocks (nowiki, math, code, pre, syntaxhighlight, raw html tags)
-        protected_blocks: List[str] = []
-
-        def block_replacer(match: re.Match) -> str:
-            protected_blocks.append(match.group(0))
-            return f"__PROTECTED_BLOCK_{len(protected_blocks) - 1}__"
-
-        protect_patterns = [
-            r"<nowiki>[\s\S]*?</nowiki>",
-            r"<math[\s\S]*?</math>",
-            r"<syntaxhighlight[\s\S]*?</syntaxhighlight>",
-            r"<source[\s\S]*?</source>",
-            r"<pre[\s\S]*?</pre>",
-            r"<code>[\s\S]*?</code>",
-            r"<!--[\s\S]*?-->",
-            r"<ref\b[^>]*>[\s\S]*?</ref>",
-            r"<ref\b[^>]*/>",
-        ]
-        sanitized = text
-        for pat in protect_patterns:
-            sanitized = re.sub(pat, block_replacer, sanitized, flags=re.IGNORECASE)
-
-        # Step 2: Pillar 2 - Citation Date Localizer
-        sanitized = self.localize_citation_dates(sanitized)
-
-        # Step 3: Pillar 3 - Heading Sentence-Case Normalizer
-        sanitized = self.normalize_headings(sanitized)
-
-        # Step 4: Pillar 1 - Typography & Orthography Linter
-        sanitized = self.normalize_quotations(sanitized)
-        sanitized = self.fix_quotation_punctuation_order(sanitized)
-        sanitized = self.normalize_en_dashes(sanitized)
-        sanitized = self.normalize_em_dashes(sanitized)
-        sanitized = self.normalize_semicolons(sanitized)
-        sanitized = self.normalize_compound_hyphens(sanitized)
-        sanitized = self.normalize_number_separators(sanitized)
-        # Step 5: Restore protected blocks
-        for idx, block in enumerate(protected_blocks):
-            sanitized = sanitized.replace(f"__PROTECTED_BLOCK_{idx}__", block)
-
-        # Step 6: Pillar 4 - AWB General Fixes & RegEx Typo Fix (RETF) Engine
-        sanitized = default_genfixes.apply_all_fixes(sanitized)
-
-        return sanitized
+        """Normalize explicit formatting while protecting markup and quotations."""
+        normalized = self._sanitize_prose(text)
+        return default_genfixes.apply_all_fixes(normalized)
 
     def sanitize_markdown(self, text: str) -> str:
-        """Applies sanitization to markdown format."""
+        return self._sanitize_prose(text)
+
+    def _sanitize_prose(self, text: str) -> str:
         if not text:
             return ""
-
-        protected_blocks: List[str] = []
-
-        def block_replacer(match: re.Match) -> str:
-            protected_blocks.append(match.group(0))
-            return f"__PROTECTED_BLOCK_{len(protected_blocks) - 1}__"
-
-        protect_patterns = [
-            r"```[\s\S]*?```",
-            r"`[^`\n]+`",
-            r"<nowiki>[\s\S]*?</nowiki>",
-            r"<math[\s\S]*?</math>",
-            r"<!--[\s\S]*?-->",
-            r"<ref\b[^>]*>[\s\S]*?</ref>",
-            r"<ref\b[^>]*/>",
-        ]
-        sanitized = text
-        for pat in protect_patterns:
-            sanitized = re.sub(pat, block_replacer, sanitized, flags=re.IGNORECASE)
-
-        sanitized = self.localize_citation_dates(sanitized)
-        sanitized = self.normalize_headings(sanitized)
-        sanitized = self.normalize_quotations(sanitized)
-        sanitized = self.fix_quotation_punctuation_order(sanitized)
-        sanitized = self.normalize_en_dashes(sanitized)
-        sanitized = self.normalize_em_dashes(sanitized)
-        sanitized = self.normalize_semicolons(sanitized)
-        sanitized = self.normalize_compound_hyphens(sanitized)
-        sanitized = self.normalize_number_separators(sanitized)
-        for idx, block in enumerate(protected_blocks):
-            sanitized = sanitized.replace(f"__PROTECTED_BLOCK_{idx}__", block)
-
-        return sanitized
+        text = self.localize_citation_dates(text)
+        text = self.normalize_headings(text)
+        masked, protected = default_slop_linter._mask_protected_zones(text)
+        masked = self.normalize_en_dashes(masked)
+        masked = self.normalize_number_separators(masked)
+        masked = self.normalize_semicolons(masked)
+        return default_slop_linter._unmask_protected_zones(masked, protected)
 
     # ==========================================
     # Pillar 1: Typography & Orthography Linter

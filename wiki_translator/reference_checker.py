@@ -13,7 +13,8 @@ import urllib.parse
 import urllib.request
 import urllib.error
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Union
+from .storage_manager import default_storage_manager
 
 
 class ReferenceChecker:
@@ -51,11 +52,15 @@ class ReferenceChecker:
 
     def __init__(
         self,
-        cache_db_path: str = ".cache/wayback_cache.db",
+        cache_db_path: Optional[Union[str, Path]] = None,
         user_agent: Optional[str] = None,
         timeout: float = 5.0,
     ) -> None:
-        self.cache_db_path = Path(cache_db_path)
+        self.cache_db_path = (
+            Path(cache_db_path)
+            if cache_db_path is not None
+            else default_storage_manager.wayback_cache_db
+        )
         self.user_agent = (
             user_agent
             or "WikiTranslatorReferenceChecker/1.0 (https://id.wikipedia.org; translator-tool)"
