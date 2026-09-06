@@ -179,6 +179,61 @@ class LexicalRegisterReranker:
             "spelling_elevation",
             "Gunakan bentuk baku 'meminimalkan' alih-alih bentuk tidak baku 'meminimalisir'.",
         ),
+        # 9. Systematic Collocation Elevation (Property, Legislative, Administrative, Diplomatic, Speeches)
+        (
+            re.compile(r"\bmemprivatisasi\s+(apartemen\s+mereka|apartemen|rumah\s+dinas|rumah|hunian|tempat\s+tinggal)\b", re.IGNORECASE),
+            r"mengalihkan kepemilikan \1 menjadi hak milik pribadi",
+            "property_elevation",
+            "Gunakan 'mengalihkan kepemilikan apartemen/rumah menjadi hak milik pribadi' alih-alih 'memprivatisasi apartemen/rumah'.",
+        ),
+        (
+            re.compile(r"\b((?:kongres|parlemen|majelis|dpr))\s+meloloskan\s+(reformasi|undang-undang|ruu|amendemen|resolusi)\b", re.IGNORECASE),
+            r"\1 mengesahkan \2",
+            "legislative_elevation",
+            "Gunakan 'mengesahkan' alih-alih 'meloloskan' untuk lembaga legislatif.",
+        ),
+        (
+            re.compile(r"\bmeloloskan\s+(undang-undang|ruu|amendemen|resolusi|kebijakan)\b", re.IGNORECASE),
+            r"mengesahkan \1",
+            "legislative_elevation",
+            "Gunakan 'mengesahkan' alih-alih 'meloloskan' untuk undang-undang atau resolusi.",
+        ),
+        (
+            re.compile(r"\bditugaskan\s+ke\s+kantor\b", re.IGNORECASE),
+            "ditempatkan di kantor",
+            "administrative_elevation",
+            "Gunakan 'ditempatkan di kantor' alih-alih 'ditugaskan ke kantor' untuk penempatan dinas.",
+        ),
+        (
+            re.compile(r"\bmembuat\s+pernyataan\s+bahwa\b", re.IGNORECASE),
+            "menyatakan bahwa",
+            "directness_elevation",
+            "Gunakan verba langsung 'menyatakan bahwa' alih-alih 'membuat pernyataan bahwa'.",
+        ),
+        (
+            re.compile(r"\bmembuat\s+kesepakatan\b", re.IGNORECASE),
+            "mencapai kesepakatan",
+            "diplomatic_elevation",
+            "Gunakan 'mencapai kesepakatan' alih-alih 'membuat kesepakatan'.",
+        ),
+        (
+            re.compile(r"\bmembayar\s+kunjungan\s+(?:ke|kepada)\b", re.IGNORECASE),
+            "melawat ke",
+            "diplomatic_elevation",
+            "Gunakan 'melawat ke' atau 'berkunjung ke' alih-alih terjemahan harfiah 'membayar kunjungan ke'.",
+        ),
+        (
+            re.compile(r"\b(?:membuat|memberikan)\s+pidato\b", re.IGNORECASE),
+            "menyampaikan pidato",
+            "speech_elevation",
+            "Gunakan 'menyampaikan pidato' atau 'berpidato' alih-alih 'membuat/memberikan pidato'.",
+        ),
+        (
+            re.compile(r"\bmembuat\s+kemajuan\b", re.IGNORECASE),
+            "mencapai kemajuan",
+            "directness_elevation",
+            "Gunakan 'mencapai kemajuan' alih-alih kalkir 'membuat kemajuan'.",
+        ),
     ]
 
     def elevate_text(self, text: str) -> Tuple[str, int, List[str]]:
