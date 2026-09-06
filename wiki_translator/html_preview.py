@@ -517,15 +517,19 @@ class HTMLPreviewGenerator:
             start_pos = m.start()
             depth = 0
             end_pos = -1
-            for p_idx in range(start_pos, len(text) - 1):
+            p_idx = start_pos
+            while p_idx < len(text):
                 if text[p_idx : p_idx + 2] == "{{":
                     depth += 1
+                    p_idx += 2
                 elif text[p_idx : p_idx + 2] == "}}":
                     depth -= 1
                     if depth == 0:
                         end_pos = p_idx + 2
                         break
-
+                    p_idx += 2
+                else:
+                    p_idx += 1
             if end_pos == -1:
                 reconstructed_text.append(m.group(0))
                 pos = m.end()
@@ -713,6 +717,7 @@ class HTMLPreviewGenerator:
                 clean_note = re.sub(r"\[\[([^|\]]+)(?:\|([^\]]+))?\]\]", note_link, clean_note)
                 clean_note = re.sub(r"'''(.*?)'''", r"<strong>\1</strong>", clean_note)
                 clean_note = re.sub(r"''(.*?)''", r"<em>\1</em>", clean_note)
+                clean_note = self._format_templates(clean_note)
                 notes_items.append(
                     f'<li id="cite_note-efn-{letter}">'
                     f'<span class="mw-cite-backlink"><a href="#cite_ref-efn-{letter}">^</a></span> {clean_note}'
@@ -1458,10 +1463,22 @@ class HTMLPreviewGenerator:
         )
 
         LANG_NAMES = {
-            "ru": "Rusia", "en": "Inggris", "fr": "Prancis", "de": "Jerman",
-            "nl": "Belanda", "es": "Spanyol", "it": "Italia", "ja": "Jepang",
-            "zh": "Tionghoa", "ar": "Arab", "la": "Latin", "el": "Yunani",
-            "ko": "Korea", "pt": "Portugis", "pl": "Polandia", "uk": "Ukraina",
+            "ru": "Rusia", "rus": "Rusia",
+            "en": "Inggris", "eng": "Inggris",
+            "fr": "Prancis", "fra": "Prancis",
+            "de": "Jerman", "deu": "Jerman",
+            "nl": "Belanda", "nld": "Belanda",
+            "es": "Spanyol", "spa": "Spanyol",
+            "it": "Italia", "ita": "Italia",
+            "ja": "Jepang", "jpn": "Jepang",
+            "zh": "Tionghoa", "zho": "Tionghoa",
+            "ar": "Arab", "ara": "Arab",
+            "la": "Latin", "lat": "Latin",
+            "el": "Yunani", "ell": "Yunani",
+            "ko": "Korea", "kor": "Korea",
+            "pt": "Portugis", "por": "Portugis",
+            "pl": "Polandia", "pol": "Polandia",
+            "uk": "Ukraina", "ukr": "Ukraina",
         }
 
         # Format {{langx|lang|Text}} -> bahasa X: Text
@@ -1491,13 +1508,13 @@ class HTMLPreviewGenerator:
         def lang_xx_sub(m: re.Match) -> str:
             code = m.group(1).lower()
             parts = [p.strip() for p in m.group(2).split("|")]
-            val = parts[0] if parts else ""
+            val_parts = [p for p in parts if not "=" in p]
+            val = val_parts[0] if val_parts else (parts[0] if parts else "")
             lang_name = LANG_NAMES.get(code, code.upper())
             return (
                 f'<a href="https://id.wikipedia.org/wiki/Bahasa_{lang_name}" title="Bahasa {lang_name}">bahasa {lang_name}</a>: '
                 f'<span lang="{code}">{val}</span>'
             )
-
         text = re.sub(r"\{\{\s*lang-([a-z]{2,3})\s*\|([^}]+)\}\}", lang_xx_sub, text, flags=re.IGNORECASE)
         # Format {{lang|id|...}} -> ...
         text = re.sub(r"\{\{lang(?:-[a-z]+)?\|[^|]+\|([^}]+)\}\}", r"\1", text, flags=re.IGNORECASE)
