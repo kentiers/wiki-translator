@@ -262,7 +262,12 @@ class TestTypographySanitizerPillars(unittest.TestCase):
         # Proper noun inside wikilink
         text3 = "Yeltsin, yang saat itu menjabat sebagai Presiden [[RSFSR]], masuk ke dalam gedung."
         res3 = self.sanitizer.normalize_relative_clause_commas(text3)
-        self.assertIn("Yeltsin yang saat itu menjabat sebagai Presiden [[RSFSR]] masuk", res3)
+
+        # Parenthetical aside before 'yang'
+        text4 = "pemimpin Soviet ketiga dari delapan pemimpin, setelah Georgy Malenkov dan Khrushchev, yang tidak meninggal saat menjabat."
+        res4 = self.sanitizer.normalize_relative_clause_commas(text4)
+        self.assertIn("(setelah Georgy Malenkov dan Khrushchev) yang tidak", res4)
+        self.assertNotIn("Khrushchev, yang", res4)
 
     def test_sentence_case_after_periods(self):
         # Sentence capitalization across citation templates

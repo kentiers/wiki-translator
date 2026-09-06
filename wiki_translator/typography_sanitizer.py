@@ -570,8 +570,10 @@ class TypographySanitizer:
         pattern = re.compile(
             rf"(\b\w+|\]\]|\'\'),\s+yang\s+((?:[^\n,.\"]|(?<=\d)\.(?=\d))+),\s+({PREDICATES}\b)"
         )
-        return pattern.sub(r"\1 yang \2 \3", text)
-
+        text = pattern.sub(r"\1 yang \2 \3", text)
+        paren_aside_pat = re.compile(r",\s+(setelah\s+(?:\[\[[^\]]+\]\]|[^,.\n]+)),\s+yang\b", re.IGNORECASE)
+        text = paren_aside_pat.sub(r" (\1) yang", text)
+        return text
     def normalize_comma_clutter(self, text: str) -> str:
         """
         Cleans comma clutter and sentence-level comma fatigue:
