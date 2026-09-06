@@ -137,6 +137,7 @@ class TypographySanitizer:
         masked = self.normalize_appositive_commas(masked)
         masked = self.normalize_coordinating_conjunction_commas(masked)
         masked = self.normalize_introductory_adverbial_commas(masked)
+        masked = self.normalize_relative_clause_commas(masked)
         masked = self.normalize_comma_clutter(masked)
         masked = self.normalize_number_separators(masked)
         masked = self.normalize_semicolons(masked)
@@ -534,6 +535,23 @@ class TypographySanitizer:
             return f"{connector}, {adverb} {nxt}"
 
         return pattern.sub(replacer, text)
+
+    def normalize_relative_clause_commas(self, text: str) -> str:
+        """
+        Removes English-calqued comma sandwiches around 'yang' relative clauses:
+        e.g. 'Gorbachev, yang kala itu berusia 53 tahun, masih terlalu muda'
+             -> 'Gorbachev yang kala itu berusia 53 tahun masih terlalu muda'
+        e.g. 'staf Komite Pusat, yang saat itu mencapai sekitar 3.000 orang, dipangkas'
+             -> 'staf Komite Pusat yang saat itu mencapai sekitar 3.000 orang dipangkas'
+        e.g. 'Yeltsin, yang saat itu menjabat sebagai Presiden, masuk ke dalam'
+             -> 'Yeltsin yang saat itu menjabat sebagai Presiden masuk ke dalam'
+        """
+        ROOT_VERBS = r"(?:masuk|keluar|naik|turun|pergi|pulang|kembali|tiba|datang|lulus|wafat|tewas|gugur|tampil|ikut|turut|lahir|hidup)"
+        PREDICATES = rf"(?:masih|dipangkas|justru|dengan|mengumumkan|kemudian|telah|akan|dapat|bisa|sempat|pernah|resmi|menjadi|berada|tercatat|menolak|mengakui|menyatakan|menilai|berpendapat|menuduh|terpaksa|{ROOT_VERBS}|\bme[a-z]+|\bdi[a-z]+|\bber[a-z]+|\bter[a-z]+)"
+        pattern = re.compile(
+            rf"(\b\w+|\]\]|\'\'),\s+yang\s+((?:[^\n,.\"]|(?<=\d)\.(?=\d))+),\s+({PREDICATES}\b)"
+        )
+        return pattern.sub(r"\1 yang \2 \3", text)
 
     def normalize_comma_clutter(self, text: str) -> str:
         """

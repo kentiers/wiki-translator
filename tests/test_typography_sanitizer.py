@@ -238,6 +238,26 @@ class TestTypographySanitizerPillars(unittest.TestCase):
         res4 = self.sanitizer.normalize_introductory_adverbial_commas(text4)
         self.assertIn("Namun, Kamerad, janganlah", res4)
 
+    def test_relative_clause_comma_normalization(self):
+        # Relative clause 'yang' comma sandwich
+        text1 = "Kendati demikian, banyak anggota Komite Pusat menganggap Gorbachev, yang kala itu berusia 53 tahun, masih terlalu muda dan minim pengalaman."
+        res1 = self.sanitizer.normalize_relative_clause_commas(text1)
+        self.assertIn("Gorbachev yang kala itu berusia 53 tahun masih terlalu muda", res1)
+        self.assertNotIn("Gorbachev, yang", res1)
+        self.assertNotIn("tahun, masih", res1)
+
+        # Staff count with thousand separator
+        text2 = "Jumlah staf Komite Pusat, yang saat itu mencapai sekitar 3.000 orang, dipangkas hingga separuhnya."
+        res2 = self.sanitizer.normalize_relative_clause_commas(text2)
+        self.assertIn("Pusat yang saat itu mencapai sekitar 3.000 orang dipangkas", res2)
+        self.assertNotIn("Pusat, yang", res2)
+        self.assertNotIn("orang, dipangkas", res2)
+
+        # Proper noun inside wikilink
+        text3 = "Yeltsin, yang saat itu menjabat sebagai Presiden [[RSFSR]], masuk ke dalam gedung."
+        res3 = self.sanitizer.normalize_relative_clause_commas(text3)
+        self.assertIn("Yeltsin yang saat itu menjabat sebagai Presiden [[RSFSR]] masuk", res3)
+
     def test_sentence_case_after_periods(self):
         # Sentence capitalization across citation templates
         text1 = "Gorbachev lulus dengan predikat memuaskan. {{sfnm|1a1=Medvedev|1y=1986|1p=42|2a1=McCauley|2y=1998|2p=20}} tugas akhirnya mengkaji keunggulan."
