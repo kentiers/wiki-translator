@@ -424,6 +424,7 @@ class TypographySanitizer:
         text = re.sub(r"\bbanyak\s+para\b", "para", text, flags=re.IGNORECASE)
         MONTHS = r"(?:Januari|Februari|Maret|April|Mei|Juni|Juli|Agustus|September|Oktober|November|Desember)"
         text = re.sub(rf"\b(pada|sejak|hingga|sampai|menjelang|selama)\s+bulan\s+({MONTHS})\b", r"\1 \2", text, flags=re.IGNORECASE)
+        text = re.sub(r"\b(ke|di|pada)\s+sebuah\s+(pusat kanker|rumah sakit|klinik|puskesmas|sekolah|universitas|akademi|fakultas|lembaga|yayasan|instansi|kedutaan)\b", r"\1 \2", text, flags=re.IGNORECASE)
         text = re.sub(r"\bPada\s+([^,\n]{3,35}),\s+misalnya,\s+([a-z0-9A-Z\[])", r"Sebagai contoh, pada \1 \2", text)
         return text
     def restructure_double_temporal_markers(self, text: str) -> str:
@@ -542,21 +543,37 @@ class TypographySanitizer:
         Removes commas before coordinating conjunctions ('dan', 'serta') when connecting
         two parallel verbal predicates sharing the same subject without a serial list (EYD V).
         e.g. 'belajar giat, dan lulus' -> 'belajar giat dan lulus'
+        e.g. 'di Münster, Jerman, dan menjalani' -> 'di Münster, Jerman dan menjalani'
         Does NOT remove serial/Oxford commas in 3+ item lists: 'London, Paris, dan Berlin'.
         """
-        verbs = r"(?:me\w+|di\w+|ber\w+|ter\w+|lulus|gugur|wafat|tewas|lahir|hidup|masuk|keluar|naik|turun|pergi|pulang|kembali|ikut|turut)"
+        verbs = r"(?:me[a-z]+|di[a-z]+|ber[a-z]+|ter[a-z]+|lulus|gugur|wafat|tewas|lahir|hidup|masuk|keluar|naik|turun|pergi|pulang|kembali|ikut|turut)"
+        pattern = re.compile(rf"\b(\w+),\s+(dan|serta)\s+([a-z]\w*)\b")
+
         def clean_conj(m: re.Match) -> str:
-            full_start = m.start()
-            pre = text[max(0, full_start - 35) : full_start]
-            if "," in pre:
-                return m.group(0)
             w1 = m.group(1)
             conj = m.group(2)
             w2 = m.group(3)
+            # If w2 is not a lowercase verb, do not touch (e.g. proper nouns like 'Berlin')
+            if not re.match(rf"^{verbs}$", w2):
+                return m.group(0)
+
+            full_start = m.start()
+            pre = text[max(0, full_start - 35) : full_start]
+            is_w1_verb = bool(re.match(rf"^{verbs}$", w1, re.IGNORECASE))
+
+            if "," in pre:
+                # If w1 is not a verb (e.g. 'Münster, Jerman, dan menjalani'), it cannot be a list of verbs
+                if not is_w1_verb:
+                    return f"{w1} {conj} {w2}"
+                # If w1 IS a verb, check if pre has another verb before the comma (true serial list of verbs)
+                pre_verbs = re.findall(rf"\b{verbs}\b", pre, re.IGNORECASE)
+                if pre_verbs:
+                    return m.group(0)
+                return f"{w1} {conj} {w2}"
+
             return f"{w1} {conj} {w2}"
 
-        return re.sub(rf"\b(\w+),\s+(dan|serta)\s+({verbs})\b", clean_conj, text, flags=re.IGNORECASE)
-
+        return pattern.sub(clean_conj, text)
     def normalize_introductory_adverbial_commas(self, text: str) -> str:
         """
         Removes the redundant second comma in introductory conjunction + short adverbial sandwich:

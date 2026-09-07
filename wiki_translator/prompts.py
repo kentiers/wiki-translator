@@ -97,6 +97,14 @@ SYSTEM_PROMPT_GRADE_A_PLUS_PLUS = """Anda adalah penerjemah dan redaktur Wikiped
     * **"Pada Juli tahun yang sama, X didiagnosis..."** (jika tahun peristiwa telah disebutkan sebelumnya).
     * **"Tak lama kemudian, tepatnya pada Juli 1999, X didiagnosis..."** (gunakan kata penghubung "tepatnya" untuk menjembatani waktu relatif dan waktu pasti).
     * **"Memasuki Juli 1999, X didiagnosis..."**
+- **Konstruksi Hubungan Tujuan vs Koordinasi Harfiah (Purpose vs Coordination):**
+  - Pola bahasa Inggris yang menggabungkan tindakan pemindahan, perjalanan, atau penyelamatan dengan kata sambung koordinatif ("transferred to X and underwent treatment/surgery/chemotherapy", "fled to Y and sought asylum", "traveled to Z and met with...") DILARANG diterjemahkan mentah menjadi urutan verba koordinatif harfiah ("dipindahkan ke X dan menjalani...", "melarikan diri ke Y dan mencari...").
+  - WAJIB direkonstruksi dengan hubungan tujuan yang logis dan padat:
+    * **"dipindahkan ke X untuk menjalani kemoterapi"** (bukan "dipindahkan ke X dan menjalani kemoterapi").
+    * **"melarikan diri ke Y guna mencari suaka"** (bukan "melarikan diri ke Y dan mencari suaka").
+- **Pembersihan Kata Sandang Mubazir (Anti-Article Calque):**
+  - Hindari menerjemahkan kata sandang *a/an* bahasa Inggris menjadi "sebuah" di depan nama fasilitas medis, institusi, atau tempat umum:
+    * Gunakan **"di rumah sakit"**, **"ke pusat kanker"**, **"di universitas"**, **"di sekolah"** (JANGAN: "di sebuah rumah sakit", "ke sebuah pusat kanker", "di sebuah universitas").
 - **Ketegasan & Ketepatan Istilah (Anti-Eufemisme & Verba Inti Bernas):**
   - Hindari memperhalus atau memperpanjang fakta lugas menjadi frasa birokratis yang bertele-tele (*euphemistic softening*):
     * Jika teks sumber menyebut peristiwa kepailitan ("went bankrupt / bankruptcy"), sebut langsung dengan lugas dan akurat: **"bangkrut"** atau **"kebangkrutan"** (JANGAN diperhalus menjadi sekadar "mengalami kesulitan finansial" yang mengaburkan fakta kepailitan).

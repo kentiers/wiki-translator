@@ -178,6 +178,13 @@ class TestTypographySanitizerPillars(unittest.TestCase):
         self.assertIn("Sebagai contoh, pada Oktober 1980 ia mendukung", res4)
         self.assertNotIn("Pada bulan Oktober", res4)
         self.assertNotIn("1980, misalnya,", res4)
+        # Article calques before facilities and institutions
+        text5 = "Ia dipindahkan ke sebuah pusat kanker dan dirawat di sebuah rumah sakit."
+        res5 = self.sanitizer.normalize_stylistic_collocations(text5)
+        self.assertIn("ke pusat kanker", res5)
+        self.assertIn("di rumah sakit", res5)
+        self.assertNotIn("sebuah pusat kanker", res5)
+        self.assertNotIn("sebuah rumah sakit", res5)
 
     def test_appositive_comma_normalization(self):
         # Appositive comma sandwich around names should be unsandwiched
@@ -208,6 +215,11 @@ class TestTypographySanitizerPillars(unittest.TestCase):
         text2 = "Ia mengunjungi London, Paris, dan Berlin."
         res2 = self.sanitizer.normalize_coordinating_conjunction_commas(text2)
         self.assertIn("London, Paris, dan Berlin", res2)
+        # Geographic appositive followed by compound predicate: removes comma before dan
+        text3 = "ia dipindahkan ke pusat kanker di Münster, Jerman, dan menjalani kemoterapi."
+        res3 = self.sanitizer.normalize_coordinating_conjunction_commas(text3)
+        self.assertIn("Jerman dan menjalani kemoterapi", res3)
+        self.assertNotIn("Jerman,", res3)
 
     def test_comma_clutter_normalization(self):
         # Double 'dan' in same sentence
