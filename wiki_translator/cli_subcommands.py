@@ -404,7 +404,7 @@ def handle_ecosystem_and_category_commands(
         clean_filename = re.sub(r'[\\/*?:"<>| ]', "_", args.review_article)
         review_path = Path("output/reviews") / f"{clean_filename}_review.md"
         polished_path = Path("output/reviews") / f"{clean_filename}_polished.wikitext"
-        print("\n" + "=" * 60)
+        preview_path = Path("output/reviews") / f"{clean_filename}.preview.html"
         print(f" WP:KAP AUDIT SCORECARD: {report.title}")
         print("=" * 60)
         print(f" Skor Keseluruhan   : {report.overall_score}/100")
@@ -416,7 +416,7 @@ def handle_ecosystem_and_category_commands(
         print("=" * 60)
         print(f"[+] Laporan ulasan komunitas disimpan ke: {review_path}")
         print(f"[+] Teks wikitext terpoles disimpan ke   : {polished_path}")
-        print("=" * 60 + "\n")
+        print(f"[+] Pratinjau visual HTML disimpan ke    : {preview_path}")
         return True
 
     if args.sync_template:

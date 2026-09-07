@@ -1044,8 +1044,18 @@ class ArticleReviewer:
         with open(polished_file, "w", encoding="utf-8") as f:
             f.write(polished_wikitext)
 
-        # Review is local-only. Publishing requires an explicit CLI action.
+        # Generate standalone Vector 2022 HTML preview
+        preview_file = reviews_dir / f"{clean_filename}.preview.html"
+        try:
+            from .html_preview import default_preview_generator
+            preview_html = default_preview_generator.render_html(id_title, polished_wikitext)
+            with open(preview_file, "w", encoding="utf-8") as f:
+                f.write(preview_html)
+            print(f"[+] Pratinjau visual HTML Vector 2022 disimpan ke: {preview_file}")
+        except Exception as pe:
+            print(f"[!] Warning: Gagal membuat pratinjau HTML: {pe}")
 
+        # Review is local-only. Publishing requires an explicit CLI action.
         return report, review_text, polished_wikitext
 
 
