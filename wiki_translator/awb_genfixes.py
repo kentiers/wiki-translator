@@ -14,6 +14,7 @@ Provides deterministic, safe, automated corrections:
 import re
 import mwparserfromhell
 from .slop_linter import default_slop_linter
+from .gramatika_engine import default_gramatika_engine
 from typing import Dict, List, Optional, Set, Tuple
 
 
@@ -1036,6 +1037,7 @@ class AWBGenFixes:
         Order of operations:
         1. General Fixes (reorder appendices, deduplicate refs, fix punctuation, clean empty params)
         2. RegEx Typo Fixes (spelling corrections safely avoiding URLs, tags, templates)
+        3. Gramatika Engine (TBBBI / Kateglo: sentence opener conjunctions, negation agreement, adversarial commas)
         """
         if not wikitext:
             return ""
@@ -1045,6 +1047,9 @@ class AWBGenFixes:
 
         # Step 2: RETF
         fixed = self.retf.fix_typos(fixed)
+
+        # Step 3: Gramatika Engine (TBBBI rules)
+        fixed, _, _ = default_gramatika_engine.apply_all_gramatika_fixes(fixed)
 
         return fixed
 

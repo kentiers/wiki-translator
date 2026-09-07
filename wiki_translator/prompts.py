@@ -124,6 +124,21 @@ SYSTEM_PROMPT_GRADE_A_PLUS_PLUS = """Anda adalah penerjemah dan redaktur Wikiped
   - WAJIB dihilangkan komanya agar subjek dan predikat menyatu padu:
     * **"banyak pihak terutama di negara-negara Barat memandangnya..."** (tanpa koma).
     * Atau gunakan inversi alami: **"terutama di negara-negara Barat, banyak pihak memandangnya..."**.
+- **Kaidah Sintaksis Tata Bahasa Baku (TBBBI / Kateglo Gramatika):**
+  - **Larangan Konjungsi Intrakalimat di Awal Kalimat (Bab VIII & X):**
+    DILARANG mengawali kalimat mandiri dengan konjungsi intrakalimat (kalkir bahasa Inggris seperti "While...", "Because...", "So...", "And..."):
+    * "Sehingga, [Klausa]..." WAJIB diubah menjadi **"Akibatnya, [Klausa]..."**.
+    * "Sedangkan, [Klausa]..." WAJIB diubah menjadi **"Sementara itu, [Klausa]..."**.
+    * "Dan, [Klausa]..." WAJIB diubah menjadi **"Selain itu, [Klausa]..."**.
+    * "Atau, [Klausa]..." WAJIB diubah menjadi **"Di sisi lain, [Klausa]..."**.
+  - **Ketepatan Kata Ingkar (TBBBI Bab IX / Tabel 9.5 Kata Ingkar):**
+    * Gunakan **"bukan"** untuk meniadakan Nomina / Frasa Penggolong Nomina dan Frasa Preposisi (misal: *"bukan sebuah negara"*, *"bukan dari Moskow"*, *"bukan presiden"*). DILARANG menggunakan *"tidak sebuah..."* atau *"tidak merupakan..."*.
+    * Gunakan **"tidak"** untuk meniadakan Verba dan Adjektiva (misal: *"tidak setuju"*, *"tidak bersalah"*, *"tidak berhasil"*).
+  - **Kaidah Koma Konjungsi Pertentangan Koordinatif (TBBBI Bab VIII):**
+    * Konjungsi koordinatif pertentangan (*tetapi*, *sedangkan*, *melainkan*) WAJIB didahului tanda koma: *"X menyetujui, tetapi Y menolak"*, *"A hadir, sedangkan B berhalangan"*.
+  - **Pembedaan Aposisi Pewatas vs Aposisi Longgar (TBBBI Bab IX / Bagan 9.2):**
+    * Aposisi Pewatas (restriktif yang menentukan identitas subjek) **TIDAK DIAPIT KOMA**: *"tokoh wanita Maria Trubnikova"*, *"presiden Ronald Reagan"*.
+    * Aposisi Longgar / Eksplikatif (keterangan tambahan non-esensial) **DIAPIT KOMA**: *"Gorbachev, presiden terakhir Uni Soviet, akhirnya mengundurkan diri..."*.
 - **Penerjemahan Pranala Merah Institusi & Penghargaan Asing:**
   - DILARANG membiarkan judul tampilan pranala merah bertema penghargaan, tanda kehormatan, museum, atau dewan kota tetap berbahasa Inggris mentah (`[[Order of Liberty]]`, `[[National Civil Rights Museum]]`, `[[Dublin City Council]]`).
   - WAJIB diterjemahkan ke dalam bahasa Indonesia sebagai label tampilan:

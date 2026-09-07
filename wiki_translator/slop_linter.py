@@ -109,6 +109,16 @@ class AntiAISlopLinter:
                  ["periksa subjek: jika merujuk pada artefak/benda/prasasti (bukan manusia), gunakan 'diboyong ke' atau 'dipindahkan ke' (tinjauan WP:AP)"]),
                 ("calque_di_tangan_kirinya", r"\bdi\s+tangan\s+(?:kiri|kanan)nya\s+ia\s+memegang\b",
                  ["susunan terbalik kalkir bahasa Inggris; gunakan urutan alami 'ia memegang ... di tangan kiri/kanan' (tinjauan WP:AP)"]),
+                ("tbbbi_sehingga_opener", r"(?:^|[.!?]\s+)Sehingga,\s+",
+                 ["'Sehingga' adalah konjungsi intrakalimat subordinatif (TBBBI Bab X); gunakan konjungsi antarkalimat seperti 'Akibatnya,'"]),
+                ("tbbbi_sedangkan_opener", r"(?:^|[.!?]\s+)Sedangkan,\s+",
+                 ["'Sedangkan' adalah konjungsi intrakalimat koordinatif (TBBBI Bab VIII); gunakan 'Sementara itu,' di awal kalimat"]),
+                ("tbbbi_dan_opener", r"(?:^|[.!?]\s+)Dan,\s+",
+                 ["'Dan' adalah konjungsi intrakalimat (TBBBI Bab VIII); gunakan 'Selain itu,' di awal kalimat"]),
+                ("tbbbi_negation_calque", r"\btidak\s+(?:sebuah|suatu|seorang|seekor)\b",
+                 ["Gunakan 'bukan' alih-alih 'tidak' di depan kata penggolong nomina (TBBBI Bab IX Tabel 9.5 Kata Ingkar)"]),
+                ("tbbbi_negation_copula", r"\btidak\s+merupakan\b",
+                 ["Gunakan 'bukan merupakan' alih-alih 'tidak merupakan' (TBBBI Tabel 9.5 Kata Ingkar)"]),
             ]
         ]
         for typo, spelling in {
