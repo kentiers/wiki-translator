@@ -610,6 +610,22 @@ class GlossaryResolver:
             if re.search(pattern, wikitext_clean_lower, flags=re.IGNORECASE):
                 resolved.setdefault(idiom_key, idiom_val)
 
+        # Inject matching historical ethnonyms dynamically from data/historical_ethnonyms.json
+        try:
+            from .historical_ethnonyms import default_ethnonyms_manager
+            matches = default_ethnonyms_manager.scan_text(wikitext)
+            for m in matches:
+                if m.macro_category:
+                    resolved.setdefault(m.name.lower(), m.macro_category.split(" / ")[0])
+                for sub in m.subgroups:
+                    clean_sub_name = sub.replace("suku ", "").replace("kabilah ", "").replace("klan ", "").replace("bangsa ", "")
+                    # Strip any parenthetical suffix like (Tangut)
+                    clean_key = clean_sub_name.split(" (")[0].strip().lower()
+                    if clean_key:
+                        resolved.setdefault(clean_key, sub)
+        except Exception:
+            pass
+
         # 2. Candidate terms resolution
         candidates = extract_candidate_terms(wikitext, max_terms=max_candidates)
         to_fetch_network: List[str] = []

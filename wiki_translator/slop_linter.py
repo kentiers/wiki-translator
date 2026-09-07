@@ -137,8 +137,24 @@ class AntiAISlopLinter:
                 suggestions=[spelling],
                 auto_replace=spelling,
             ))
-        return rules
 
+        # Dynamically add macro-micro tribal contradiction rules from data/historical_ethnonyms.json
+        try:
+            from .historical_ethnonyms import default_ethnonyms_manager
+            macro_names = default_ethnonyms_manager.get_entity_names()
+            if macro_names:
+                macro_group = "|".join(re.escape(n) for n in macro_names)
+                rules.append(SlopRule(
+                    rule_id="ethnonym_macro_micro_contradiction",
+                    pattern=re.compile(rf"\bsuku\s+({macro_group})\s+(?:relatif\s+\w+\s+|\w+\s+)?terpecah\s+(?:menjadi|ke\s+dalam)\s+banyak\s+suku\b", re.IGNORECASE),
+                    severity="high",
+                    explanation="Kontradiksi taksonomi etnis: entitas makro adalah 'bangsa' yang terpecah menjadi banyak 'suku' (bukan satu suku terpecah menjadi banyak suku).",
+                    suggestions=["Gunakan 'Bangsa' untuk entitas makro"],
+                ))
+        except Exception:
+            pass
+
+        return rules
     def _mask_protected_zones(self, text: str) -> Tuple[str, List[Tuple[str, str]]]:
         """Protect markup and quotations, retaining newlines for lint locations."""
         placeholders: List[Tuple[str, str]] = []

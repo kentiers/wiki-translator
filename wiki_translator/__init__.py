@@ -254,3 +254,7 @@ from .eyd_engine import (
     EYDEngine,
     default_eyd_engine,
 )
+from .historical_ethnonyms import (
+    HistoricalEthnonymsManager,
+    default_ethnonyms_manager,
+)

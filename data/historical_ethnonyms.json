@@ -1,0 +1,118 @@
+{
+  "deskripsi": "Basis Data Taksonomi Antropologi Sejarah Dunia (Hierarki Makro Rumpun Bangsa vs Mikro Suku/Klan)",
+  "panduan_umum": "Bahasa Inggris sering menggunakan kata 'tribe' atau 'people' secara tidak konsisten. Gunakan 'bangsa [Nama]' atau 'orang-orang [Nama]' untuk entitas kolektif/etnis makro, dan gunakan 'suku [Nama]' atau 'kabilah/klan [Nama]' untuk kelompok bagian bawahannya.",
+  "wilayah": {
+    "tiongkok_asia_tengah_timur": {
+      "qiang": {
+        "nama_entitas": "Qiang",
+        "en_triggers": ["qiang", "western qiang", "qiang people", "qiang tribes", "xianlian", "miandang"],
+        "kategori_makro": "bangsa Qiang / orang-orang Qiang",
+        "cabang_geografis": "bangsa Qiang Barat",
+        "suku_bagian": ["suku Xianlian", "suku Kai", "suku Qiang Han", "suku Miandang", "suku Ruoqiang", "suku Dangxiang (Tangut)"],
+        "catatan_redaksi": "Suku Han (罕) adalah subsuku bangsa Qiang kuno, BUKAN etnis Tionghoa Han (漢) atau Dinasti Han."
+      },
+      "xiongnu": {
+        "nama_entitas": "Xiongnu",
+        "en_triggers": ["xiongnu", "hsiung-nu", "chanyu", "shanyu", "luandi", "huyan"],
+        "kategori_makro": "bangsa Xiongnu / konfederasi Xiongnu",
+        "suku_bagian": ["kabilah Luandi", "kabilah Huyan", "kabilah Xubu", "kabilah Qiulin", "kabilah Lan"],
+        "catatan_redaksi": "Xiongnu adalah konfederasi bangsa nomaden padang rumput, dipimpin oleh seorang Chanyu."
+      },
+      "mongol": {
+        "nama_entitas": "Mongol",
+        "en_triggers": ["mongol", "mongols", "borjigin", "naiman", "kereit", "merkit", "tatar", "oirat"],
+        "kategori_makro": "bangsa Mongol / konfederasi Mongol",
+        "suku_bagian": ["suku Borjigin", "suku Naiman", "suku Kereit", "suku Merkit", "suku Tatar", "suku Oirat"],
+        "catatan_redaksi": "Bangsa Mongol kuno terdiri atas federasi suku-suku stepa sebelum disatukan oleh Jenghis Khan dari suku Borjigin."
+      },
+      "xianbei": {
+        "nama_entitas": "Xianbei",
+        "en_triggers": ["xianbei", "hsien-pei", "tuoba", "murong", "yuwen"],
+        "kategori_makro": "bangsa Xianbei",
+        "suku_bagian": ["klan Tuoba", "klan Murong", "klan Yuwen", "klan Duan"],
+        "catatan_redaksi": "Bangsa Xianbei mendirikan Dinasti Wei Utara melalui klan Tuoba."
+      },
+      "jurchen_manchu": {
+        "nama_entitas": "Jurchen / Manchu",
+        "en_triggers": ["jurchen", "jurchens", "manchu", "manchus", "jianzhou", "haixi"],
+        "kategori_makro": "bangsa Jurchen / bangsa Manchu",
+        "suku_bagian": ["suku Jianzhou Jurchen", "suku Haixi Jurchen", "suku Yeren Jurchen"],
+        "catatan_redaksi": "Bangsa Jurchen berganti nama menjadi bangsa Manchu di bawah Nurhaci dan Hong Taiji, mendirikan Dinasti Qing."
+      },
+      "wusun": {
+        "nama_entitas": "Wusun",
+        "en_triggers": ["wusun", "wu-sun"],
+        "kategori_makro": "bangsa Wusun / orang-orang Wusun",
+        "catatan_redaksi": "Bangsa Wusun adalah sekutu nomaden barat laut Dinasti Han melawan Xiongnu."
+      },
+      "yuezhi": {
+        "nama_entitas": "Yuezhi",
+        "en_triggers": ["yuezhi", "yüeh-chih", "kushan", "da yuezhi"],
+        "kategori_makro": "bangsa Yuezhi",
+        "suku_bagian": ["Kekaisaran Kushan (salah satu cabang Yuezhi)"],
+        "catatan_redaksi": "Bangsa Yuezhi bermigrasi ke Asia Tengah dan Bactria, mendirikan Kekaisaran Kushan."
+      }
+    },
+    "eropa_klasik_abad_pertengahan": {
+      "germanik": {
+        "nama_entitas": "Germanik",
+        "en_triggers": ["germanic", "germanic tribes", "germanic peoples", "goths", "visigoths", "ostrogoths", "vandals", "franks", "saxons", "anglo-saxons", "lombards", "alemanni"],
+        "kategori_makro": "bangsa Germanik / rumpun suku Germanik",
+        "suku_bagian": ["suku Franka", "suku Saxon", "suku Goth (Visigoth & Ostrogoth)", "suku Vandal", "suku Lombard", "suku Alemanni", "suku Burgundia"],
+        "catatan_redaksi": "Gunakan 'bangsa Germanik' untuk rumpun besar, dan 'suku Franka / suku Saxon / suku Goth' untuk kelompok bagiannya."
+      },
+      "keltik": {
+        "nama_entitas": "Keltik",
+        "en_triggers": ["celtic", "celts", "gauls", "britons", "pictish", "picts", "scots", "scoti"],
+        "kategori_makro": "bangsa Keltik / orang-orang Kelt",
+        "suku_bagian": ["suku Galia", "suku Briton", "suku Pict", "suku Skoti"],
+        "catatan_redaksi": "Bangsa Keltik mendiami Eropa Barat kuno sebelum penaklukan Romawi dan invasi Anglo-Saxon."
+      },
+      "slavia": {
+        "nama_entitas": "Slavia",
+        "en_triggers": ["slavic", "slavs", "east slavs", "west slavs", "south slavs", "polans", "drevlians"],
+        "kategori_makro": "bangsa Slavia",
+        "suku_bagian": ["suku Polane", "suku Drevlian", "suku Krivich", "suku Vyatich", "suku Severian"],
+        "catatan_redaksi": "Gunakan 'bangsa Slavia' untuk etnisitas makro, dan 'suku Polane / suku Drevlian' untuk kabilah Slavia Timur kuno."
+      },
+      "skithia": {
+        "nama_entitas": "Skithia & Sarmatia",
+        "en_triggers": ["scythian", "scythians", "saka", "sarmatians", "alans"],
+        "kategori_makro": "bangsa Skithia (Saka) & bangsa Sarmatia",
+        "catatan_redaksi": "Bangsa penunggang kuda nomaden Iranik kuno di stepa Pontus-Kaspia."
+      }
+    },
+    "timur_tengah_dan_kaukasus": {
+      "arab_pra_modern": {
+        "nama_entitas": "Arab",
+        "en_triggers": ["arab tribes", "bedouin tribes", "quraysh", "banu hashim", "banu umayya", "ansar", "aws", "khazraj"],
+        "kategori_makro": "bangsa Arab / orang-orang Arab",
+        "suku_bagian": ["kabilah Quraisy (klan Banu Hasyim, klan Banu Umayyah)", "suku Aus", "suku Khazraj", "kabilah Ghassanid", "kabilah Lakhmid"],
+        "catatan_redaksi": "Gunakan 'kabilah' atau 'suku' untuk kelompok Quraisy, Aus, Khazraj, dan 'klan' untuk cabang keluarga seperti Banu Hasyim."
+      },
+      "turkik": {
+        "nama_entitas": "Turkik",
+        "en_triggers": ["turkic", "göktürks", "gokturks", "oghuz", "seljuks", "kipchaks", "cuman", "khazars"],
+        "kategori_makro": "bangsa Turk / rumpun Turkik",
+        "suku_bagian": ["suku Oghuz", "suku Kipchak (Cuman)", "suku Karluk", "suku Khazar"],
+        "catatan_redaksi": "Gunakan 'bangsa Turk' untuk konfederasi kekhanan, dan 'suku Oghuz / suku Kipchak' untuk sukunya."
+      }
+    },
+    "amerika_pribumi": {
+      "iroquois": {
+        "nama_entitas": "Iroquois (Haudenosaunee)",
+        "en_triggers": ["iroquois", "haudenosaunee", "five nations", "six nations", "mohawk", "seneca", "oneida", "onondaga", "cayuga", "tuscarora"],
+        "kategori_makro": "Konfederasi Iroquois (Haudenosaunee)",
+        "bangsa_bagian": ["bangsa Mohawk", "bangsa Oneida", "bangsa Onondaga", "bangsa Cayuga", "bangsa Seneca", "bangsa Tuscarora"],
+        "catatan_redaksi": "Tradisi politik pribumi Amerika menyebut enam kelompok Haudenosaunee sebagai 'Enam Bangsa' (Six Nations)."
+      },
+      "sioux": {
+        "nama_entitas": "Sioux",
+        "en_triggers": ["sioux", "lakota", "dakota", "nakota", "oglala"],
+        "kategori_makro": "bangsa Sioux",
+        "suku_bagian": ["suku Lakota (Oglala, Hunkpapa)", "suku Dakota", "suku Nakota"],
+        "catatan_redaksi": "Bangsa Sioux terbagi menjadi tiga dialek/kelompok utama: Lakota, Dakota, dan Nakota."
+      }
+    }
+  }
+}
