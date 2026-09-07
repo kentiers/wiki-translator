@@ -241,3 +241,8 @@ from .lexical_register import (
     LexicalRegisterReranker,
     default_lexical_reranker,
 )
+from .kateglo_client import (
+    KategloClient,
+    default_kateglo_client,
+    KategloEntry,
+)

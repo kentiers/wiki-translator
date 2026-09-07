@@ -72,6 +72,12 @@ KNOWN_DATABASES: Dict[str, CacheDatabaseInfo] = {
         description="Offline pre-computed wiki link database in data/ directory",
         is_data_dir=True,
     ),
+    "kateglo_cache": CacheDatabaseInfo(
+        key="kateglo_cache",
+        filename="kateglo_cache.sqlite",
+        description="Offline cache for Kateglo dictionary, thesaurus, and glossary API",
+        is_data_dir=True,
+    ),
 }
 
 
@@ -148,6 +154,9 @@ class StorageManager:
     def glossary_memory_db(self) -> Path:
         return self.get_db_path("glossary_memory")
 
+    @property
+    def kateglo_cache_db(self) -> Path:
+        return self.get_db_path("kateglo_cache")
     @property
     def glossary_cache_db(self) -> Path:
         return self.get_db_path("glossary_cache")
