@@ -688,12 +688,16 @@ class TypographySanitizer:
         if not text:
             return ""
 
-        verbs = r"(?:me[a-z]+|di[a-z]+|ber[a-z]+|ter[a-z]+|menjadi|merupakan|tampak|terlihat|dianggap|dipandang|dinilai)"
+        ROOT_VERBS = r"(?:tahu|yakin|percaya|ingin|mau|paham|kenal|sadar|luput|gagal|berhasil)"
+        AFFIX_VERBS = r"(?:me[a-z]+|di[a-z]+|ber[a-z]+|ter[a-z]+|menjadi|merupakan|tampak|terlihat|dianggap|dipandang|dinilai)"
+        AUXILIARIES = r"(?:telah|akan|sedang|pernah|sempat|masih|mulai|terus|turut|ikut|bisa|dapat|kerap|sering|justru|kembali)"
+        PREDICATES = rf"(?:(?:{AUXILIARIES}\s+)?(?:{AFFIX_VERBS}|{ROOT_VERBS}))"
         MODIFIERS = r"(?:terutama|khususnya|terlebih|bahkan)"
+        SUBJECT = r"(\b\w+|\]\]|\'\')"
 
         # Matches: [Noun/Subject], (terutama|khususnya) [Modifier phrase], [Verb predicate]
         pattern = re.compile(
-            rf"\b(\w+),\s+({MODIFIERS})\s+([^,\n]{{3,45}}),\s+({verbs})\b",
+            rf"{SUBJECT},\s+({MODIFIERS})\s+([^,\n]{{2,50}}),\s+({PREDICATES}\b)",
             re.IGNORECASE,
         )
 

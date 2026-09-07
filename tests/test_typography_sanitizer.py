@@ -349,6 +349,15 @@ class TestTypographySanitizerPillars(unittest.TestCase):
         text2 = "Para pengamat, khususnya di Eropa, menilai bahwa kebijakan tersebut berhasil."
         res2 = self.sanitizer.normalize_parenthetical_modifier_commas(text2)
         self.assertEqual("Para pengamat khususnya di Eropa menilai bahwa kebijakan tersebut berhasil.", res2)
+        # Subject ending with wikilink and predicate with auxiliary verb
+        text3 = "Banyak [[pengamat politik]], terutama di Eropa, telah menilai bahwa kebijakan ini berhasil."
+        res3 = self.sanitizer.normalize_parenthetical_modifier_commas(text3)
+        self.assertEqual("Banyak [[pengamat politik]] terutama di Eropa telah menilai bahwa kebijakan ini berhasil.", res3)
+
+        # Root verb without affix
+        text4 = "Para delegasi, terlebih dari negara berkembang, yakin bahwa resolusi ini adil."
+        res4 = self.sanitizer.normalize_parenthetical_modifier_commas(text4)
+        self.assertEqual("Para delegasi terlebih dari negara berkembang yakin bahwa resolusi ini adil.", res4)
 
     def test_sentence_case_after_periods(self):
         # Sentence capitalization across citation templates
