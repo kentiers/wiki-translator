@@ -429,6 +429,26 @@ class TestTypographySanitizerPillars(unittest.TestCase):
         self.assertIn("pascasarjana", res2)
         self.assertIn("nonblok", res2)
         self.assertIn("multinasional", res2)
+    def test_normalize_image_thumbnail_syntax(self):
+        # MediaWiki image thumbnail options: jempol, jmpl, mini, jempolan -> thumb
+        text1 = "[[Berkas:Photo1.jpg|jempol|kiri|upright=0.7|Gorbachev dengan [[Raisa Gorbacheva]].]]"
+        res1 = self.sanitizer.normalize_image_thumbnail_syntax(text1)
+        self.assertIn("|thumb|kiri|", res1)
+        self.assertNotIn("|jempol|", res1)
+
+        text2 = "[[File:Photo2.png|jmpl|right|Deskripsi gambar.]]"
+        res2 = self.sanitizer.normalize_image_thumbnail_syntax(text2)
+        self.assertIn("|thumb|right|", res2)
+        self.assertNotIn("|jmpl|", res2)
+
+        text3 = "[[File:Photo3.jpg|mini|tegak|Patung lilin.]]"
+        res3 = self.sanitizer.normalize_image_thumbnail_syntax(text3)
+        self.assertIn("|thumb|tegak|", res3)
+        self.assertNotIn("|mini|", res3)
+
+        text4 = "[[File:AlreadyThumb.jpg|thumb|right|Foto]]"
+        res4 = self.sanitizer.normalize_image_thumbnail_syntax(text4)
+        self.assertEqual(res4, text4)
     # Pillar 2: Citation Date Localizer Tests
     # ----------------------------------------------------
     def test_citation_date_localization_english_months(self):

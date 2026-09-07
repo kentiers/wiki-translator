@@ -117,6 +117,7 @@ class TypographySanitizer:
         normalized = self.clean_parenthetical_quotes(normalized)
         normalized = self.normalize_wikilink_italics(normalized)
         normalized = self.normalize_sentence_case_after_periods(normalized)
+        normalized = self.normalize_image_thumbnail_syntax(normalized)
         return default_genfixes.apply_all_fixes(normalized)
 
     def sanitize_markdown(self, text: str) -> str:
@@ -529,6 +530,52 @@ class TypographySanitizer:
             return f"{prev_word}.{cites_and_spaces}{first_char.upper()}{rest}"
 
         return pattern.sub(replacer, text)
+    def normalize_image_thumbnail_syntax(self, text: str) -> str:
+        """
+        Dynamically normalizes MediaWiki image thumbnail options to canonical 'thumb',
+        matching English Wikipedia standard across all articles (eliminating 'jempol', 'jmpl', 'jempolan', 'mini'):
+        - [[File:...|jempol|...]] -> [[File:...|thumb|...]]
+        - [[Berkas:...|jmpl|...]] -> [[Berkas:...|thumb|...]]
+        Handles balanced brackets for captions with nested wikilinks.
+        """
+        if not text:
+            return ""
+
+        file_prefix_re = re.compile(r"\[\[\s*(?:File|Berkas|Image)\s*:", re.IGNORECASE)
+        pos = 0
+        out = []
+
+        while pos < len(text):
+            m = file_prefix_re.search(text, pos)
+            if not m:
+                out.append(text[pos:])
+                break
+            start = m.start()
+            out.append(text[pos:start])
+
+            d = 0
+            i = start
+            end = len(text)
+            while i < len(text):
+                if text[i : i + 2] == "[[":
+                    d += 1
+                    i += 2
+                elif text[i : i + 2] == "]]":
+                    d -= 1
+                    if d == 0:
+                        end = i + 2
+                        break
+                    i += 2
+                else:
+                    i += 1
+
+            raw_file = text[start:end]
+            norm_file = re.sub(r"\|\s*(?:jempolan|jempol|jmpl|mini)\s*(\||\]\])", r"|thumb\1", raw_file, flags=re.IGNORECASE)
+            norm_file = re.sub(r"\|\s*thumb\s*\|\s*thumb\b", "|thumb", norm_file, flags=re.IGNORECASE)
+            out.append(norm_file)
+            pos = end
+
+        return "".join(out)
     def clean_indirect_speech_fragmented_quotes(self, text: str) -> str:
         """
         Cleans fragmented scare quotes in indirect speech clauses ('bahwa ...'):

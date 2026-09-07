@@ -131,6 +131,9 @@ SYSTEM_PROMPT_GRADE_A_PLUS_PLUS = """Anda adalah penerjemah dan redaktur Wikiped
     * `[[National Civil Rights Museum]]` -> `[[Museum Hak-Hak Sipil Nasional]]`
     * `[[Dublin City Council]]` -> `[[Dewan Kota Dublin]]`
     * `[[Freedom of the City of Dublin]]` -> `[[Penghargaan Kebebasan Kota Dublin]]`
+- **Kaidah Parameter Berkas & Gambar (Media Thumbnail Syntax):**
+  - Untuk opsi thumbnail/gambar mini, WAJIB menggunakan parameter resmi **"thumb"** persis seperti versi bahasa Inggrisnya (`[[File:Nama.jpg|thumb|...]]` atau `[[Berkas:Nama.jpg|thumb|...]]`).
+  - DILARANG menggantinya menjadi alias bahasa Indonesia seperti "jempol", "jmpl", "jempolan", atau "mini". Samakan dengan format en.wikipedia.
 - **Kaidah Penanganan Bibliografi, Karya Tulis, & Judul Buku:**
   - **Buku yang Sudah Terbit Resmi dalam Bahasa Indonesia:**
     * Wajib mencantumkan judul edisi terbitan resmi bahasa Indonesianya di samping/bawah judul asli (misalnya: *Perestroika: Pemikiran Baru untuk Negara Kami dan Dunia*).
