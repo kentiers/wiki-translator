@@ -80,21 +80,41 @@ class TestStubGenerator(unittest.TestCase):
         self.assertEqual(paras[4], "Paragraf 5.")
 
     def test_determine_stub_template(self):
-        t1 = self.generator.determine_stub_template("Kevin Macdonald", "sutradara film terkenal")
-        self.assertEqual(t1, "{{sutradara-stub}}")
+        # Film & entertainment
+        self.assertEqual(self.generator.determine_stub_template("Kevin Macdonald", "sutradara film terkenal"), "{{sutradara-stub}}")
+        self.assertEqual(self.generator.determine_stub_template("The Mauritanian", "film drama hukum tahun 2021"), "{{film-stub}}")
+        self.assertEqual(self.generator.determine_stub_template("John Doe", "pemeran dalam berbagai serial televisi"), "{{pemeran-stub}}")
+        self.assertEqual(self.generator.determine_stub_template("Sample Book", "novel fiksi ilmiah karya..."), "{{buku-stub}}")
 
-        t2 = self.generator.determine_stub_template("The Mauritanian", "film drama hukum tahun 2021")
-        self.assertEqual(t2, "{{film-stub}}")
+        # Science & Computing
+        self.assertEqual(self.generator.determine_stub_template("Teorema Fermat", "adalah sebuah teorema matematika tentang bilangan"), "{{matematika-stub}}")
+        self.assertEqual(self.generator.determine_stub_template("Mekanika kuantum", "adalah cabang fisika teoretis fundamental"), "{{fisika-stub}}")
+        self.assertEqual(self.generator.determine_stub_template("Metana", "adalah senyawa kimia hidrokarbon"), "{{kimia-stub}}")
+        self.assertEqual(self.generator.determine_stub_template("Andromeda", "adalah galaksi spiral dalam bidang astronomi"), "{{astronomi-stub}}")
+        self.assertEqual(self.generator.determine_stub_template("Linux", "adalah sistem operasi dan perangkat lunak komputer"), "{{perangkat-lunak-stub}}")
 
-        t3 = self.generator.determine_stub_template("John Doe", "pemeran dalam berbagai serial televisi")
-        self.assertEqual(t3, "{{pemeran-stub}}")
+        # Medicine & Biology
+        self.assertEqual(self.generator.determine_stub_template("Diabetes", "adalah penyakit gangguan metabolik medis"), "{{kedokteran-stub}}")
+        self.assertEqual(self.generator.determine_stub_template("Parasetamol", "adalah obat farmakologi untuk demam"), "{{farmasi-stub}}")
+        self.assertEqual(self.generator.determine_stub_template("Parus major", "adalah spesies burung dalam famili Paridae"), "{{burung-stub}}")
+        self.assertEqual(self.generator.determine_stub_template("Rafflesia arnoldii", "adalah spesies tumbuhan parasit langka"), "{{tumbuhan-stub}}")
 
-        t4 = self.generator.determine_stub_template("Sample Book", "novel fiksi ilmiah karya...")
-        self.assertEqual(t4, "{{buku-stub}}")
+        # Geography & Earth
+        self.assertEqual(self.generator.determine_stub_template("Gunung Semeru", "adalah gunung berapi tertinggi di Jawa"), "{{gunung-stub}}")
+        self.assertEqual(self.generator.determine_stub_template("Danau Toba", "adalah danau vulkanik besar"), "{{danau-stub}}")
+        self.assertEqual(self.generator.determine_stub_template("Sungai Musi", "adalah sungai terpanjang di Sumatera"), "{{sungai-stub}}")
 
-        t5 = self.generator.determine_stub_template("Random Topic", "artikel ringkas lainnya")
-        self.assertEqual(t5, "{{stub}}")
+        # History, Warfare, & Politics
+        self.assertEqual(self.generator.determine_stub_template("Pertempuran Kursk", "adalah pertempuran militer dalam Perang Dunia II"), "{{perang-stub}}")
+        self.assertEqual(self.generator.determine_stub_template("Barack Obama", "adalah seorang politikus dan presiden"), "{{politikus-stub}}")
+        self.assertEqual(self.generator.determine_stub_template("Lionel Messi", "adalah pesepak bola profesional"), "{{pemain-sb-stub}}")
 
+        # Organizations
+        self.assertEqual(self.generator.determine_stub_template("Universitas Indonesia", "adalah perguruan tinggi riset"), "{{universitas-stub}}")
+        self.assertEqual(self.generator.determine_stub_template("Boeing", "adalah perusahaan kedirgantaraan"), "{{perusahaan-stub}}")
+
+        # Generic fallback
+        self.assertEqual(self.generator.determine_stub_template("Random Topic", "artikel ringkas lainnya"), "{{stub}}")
     def test_determine_target_title_bare_priority(self):
         with patch.object(self.generator, "determine_target_title", wraps=self.generator.determine_target_title) as mock_m:
             with patch("urllib.request.urlopen") as mock_urlopen:

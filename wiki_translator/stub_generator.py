@@ -844,31 +844,116 @@ class StubGenerator:
         return lead_paras
 
     def determine_stub_template(self, title: str, text: str, topic: Optional[str] = None) -> str:
-        """Determines the most specific appropriate stub template on id.wikipedia."""
+        """
+        Determines the most specific appropriate stub template on id.wikipedia across all domains:
+        - Science & Technology (Mathematics, Physics, Chemistry, Astronomy, Computing, Software)
+        - Biology & Earth Sciences (Animals, Birds, Fish, Plants, Geology)
+        - Medicine & Healthcare (Diseases, Pharmacology, Anatomy)
+        - Geography & Places (Mountains, Rivers, Lakes, Islands, Cities, Stations, Airports)
+        - History, Warfare & Politics (Battles, Treaties, Military Officers, Politicians)
+        - People & Professions (Athletes, Scientists, Writers, Musicians, Directors, Actors)
+        - Institutions & Organizations (Companies, Universities, Organizations)
+        """
         combined = f"{title} {text}".lower()
         topic_str = (topic or "").lower()
 
-        if (
-            "aktor" in combined
-            or "aktris" in combined
-            or "actor" in combined
-            or "actress" in combined
-            or "pemeran" in combined
-            or topic_str in ("actor", "actress", "pemeran", "aktor")
-        ):
-            return "{{pemeran-stub}}"
-        if "sutradara" in combined or "director" in combined or "filmmaker" in combined:
-            return "{{sutradara-stub}}"
-        if "film" in combined or "movie" in combined or "cinema" in combined or topic_str == "film":
-            return "{{film-stub}}"
-        if "musik" in combined or "penyanyi" in combined or "album" in combined or "musician" in combined or "singer" in combined:
-            return "{{musik-stub}}"
-        if "novel" in combined or "buku" in combined or "book" in combined or "writer" in combined or "penulis" in combined:
-            return "{{buku-stub}}"
-        if "desa" in combined or "kelurahan" in combined or "kecamatan" in combined or "kabupaten" in combined or "kota" in combined or "city" in combined:
+        # 1. Animals & Plants (Biology)
+        if any(k in combined for k in ("spesies burung", "bird", "burung", "aves")):
+            return "{{burung-stub}}"
+        if any(k in combined for k in ("spesies ikan", "fish", "ikan", "pisces")):
+            return "{{ikan-stub}}"
+        if any(k in combined for k in ("spesies hewan", "spesies mamalia", "animal", "hewan", "binatang", "fauna", "serangga", "insect", "reptil", "amfibi")):
+            return "{{hewan-stub}}"
+        if any(k in combined for k in ("spesies tumbuhan", "plant", "tumbuhan", "tanaman", "flora", "pohon", "bunga", "famili tumbuhan")):
+            return "{{tumbuhan-stub}}"
+        if topic_str in ("medical_biology", "biology") or any(k in combined for k in ("biologi", "genetika", "taksonomi", "genus", "spesies")):
+            return "{{biologi-stub}}"
+
+        # 2. Medicine & Health
+        if any(k in combined for k in ("obat", "farmakologi", "drug", "medication", "kapsul", "tablet")):
+            return "{{farmasi-stub}}"
+        if any(k in combined for k in ("penyakit", "sindrom", "gejala", "medis", "kedokteran", "virus", "bakteri", "disease", "syndrome", "disorder", "kanker", "infeksi")):
+            return "{{kedokteran-stub}}"
+        if any(k in combined for k in ("anatomi", "organ tubuh", "tulang", "otot", "saraf", "anatomy")):
+            return "{{anatomi-stub}}"
+
+        # 3. Science & Computing
+        if any(k in combined for k in ("matematika", "teorema", "aljabar", "kalkulus", "geometri", "mathematics", "theorem", "persamaan")):
+            return "{{matematika-stub}}"
+        if any(k in combined for k in ("fisika", "partikel", "mekanika kuantum", "termodinamika", "physics", "relativitas")):
+            return "{{fisika-stub}}"
+        if any(k in combined for k in ("kimia", "senyawa", "molekul", "unsur kimia", "chemistry", "reaksi kimia")):
+            return "{{kimia-stub}}"
+        if any(k in combined for k in ("astronomi", "planet", "bintang", "galaksi", "asteroid", "astronomy", "komet")):
+            return "{{astronomi-stub}}"
+        if any(k in combined for k in ("perangkat lunak", "software", "aplikasi", "sistem operasi", "open source")):
+            return "{{perangkat-lunak-stub}}"
+        if topic_str in ("computing_science", "computing") or any(k in combined for k in ("komputer", "algoritma", "bahasa pemrograman", "pemrograman", "hardware", "prosesor")):
+            return "{{komputer-stub}}"
+
+        # 4. Geography & Earth
+        if any(k in combined for k in ("gunung berapi", "gunung", "pegunungan", "puncak", "volcano", "mountain", "mount")):
+            return "{{gunung-stub}}"
+        if any(k in combined for k in ("sungai", "river", "anak sungai", "air terjun", "waterfall")):
+            return "{{sungai-stub}}"
+        if any(k in combined for k in ("danau", "lake", "teluk", "selat", "bay", "strait")):
+            return "{{danau-stub}}"
+        if any(k in combined for k in ("pulau", "kepulauan", "island", "archipelago", "atol")):
+            return "{{pulau-stub}}"
+        if any(k in combined for k in ("stasiun kereta", "stasiun api", "railway station", "station")):
+            return "{{stasiun-stub}}"
+        if any(k in combined for k in ("bandar udara", "bandara", "airport", "aerodrome")):
+            return "{{bandara-stub}}"
+        if any(k in combined for k in ("desa", "kelurahan", "kecamatan", "kabupaten", "distrik")):
             return "{{kelurahan-stub}}" if "kelurahan" in combined else "{{desa-stub}}"
-        if "tokoh" in combined or "born" in combined or "lahir" in combined or "biography" in combined:
+        if any(k in combined for k in ("kota", "city", "ibukota", "ibu kota", "munisipalitas", "provinsi", "negara", "geografi", "geography")):
+            return "{{geografi-stub}}"
+
+        # 5. History, War & Military
+        if any(k in combined for k in ("pertempuran", "perang", "invasi", "operasi militer", "battle", "war", "siege")):
+            return "{{perang-stub}}"
+        if any(k in combined for k in ("sejarah", "dinasti", "kekaisaran", "kerajaan", "perjanjian", "history", "treaty")):
+            return "{{sejarah-stub}}"
+
+        # 6. People & Occupations
+        if any(k in combined for k in ("pesepak bola", "pemain sepak bola", "footballer", "soccer player")):
+            return "{{pemain-sb-stub}}"
+        if any(k in combined for k in ("atlet", "olahragawan", "pebulu tangkis", "pembalap", "petinju", "atletik", "athlete")):
+            return "{{atlet-stub}}"
+        if any(k in combined for k in ("politikus", "presiden", "perdana menteri", "menteri", "anggota parlemen", "senator", "politician")):
+            return "{{politikus-stub}}"
+        if any(k in combined for k in ("ilmuwan", "fisikawan", "matematikawan", "astronom", "biolog", "ahli kimia", "scientist")):
+            return "{{ilmuwan-stub}}"
+        if any(k in combined for k in ("jenderal", "laksamana", "marsekal", "komandan militer", "perwira militer", "prajurit")):
+            return "{{militer-stub}}"
+        if any(k in combined for k in ("sutradara", "director", "filmmaker")):
+            return "{{sutradara-stub}}"
+        if any(k in combined for k in ("aktor", "aktris", "actor", "actress", "pemeran")):
+            return "{{pemeran-stub}}"
+        if any(k in combined for k in ("penyanyi", "singer", "vokalis")):
+            return "{{penyanyi-stub}}"
+        if any(k in combined for k in ("musisi", "gitaris", "komposer", "pianis", "musician", "band", "grup musik")):
+            return "{{musik-stub}}"
+        if any(k in combined for k in ("penulis", "sastrawan", "novelis", "penyair", "writer", "novelist", "poet")):
+            return "{{penulis-stub}}"
+        if any(k in combined for k in ("film", "movie", "cinema")) or topic_str == "film":
+            return "{{film-stub}}"
+        if any(k in combined for k in ("album", "lagu", "singel", "song")):
+            return "{{musik-stub}}"
+        if any(k in combined for k in ("novel", "buku", "book")):
+            return "{{buku-stub}}"
+
+        # 7. Organizations & Institutions
+        if any(k in combined for k in ("universitas", "institut", "perguruan tinggi", "university", "college")):
+            return "{{universitas-stub}}"
+        if any(k in combined for k in ("perusahaan", "maskapai", "korporasi", "company", "corporation", "enterprise")):
+            return "{{perusahaan-stub}}"
+        if any(k in combined for k in ("organisasi", "yayasan", "lembaga", "partai politik", "organization", "foundation")):
+            return "{{organisasi-stub}}"
+
+        if any(k in combined for k in ("tokoh", "born", "lahir", "biography")):
             return "{{tokoh-stub}}"
+
         return "{{stub}}"
 
     def determine_categories(
