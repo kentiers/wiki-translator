@@ -254,6 +254,24 @@ class TestTypographySanitizerPillars(unittest.TestCase):
         text6 = "Tak lama berselang, pada Juli, Raisa didiagnosis mengidap leukemia."
         res6 = self.sanitizer.normalize_introductory_adverbial_commas(text6)
         self.assertIn("pada Juli, Raisa", res6)
+    def test_restructure_double_temporal_markers(self):
+        # Relative opener + month -> Pada [Month] tahun yang sama
+        text1 = "Tak lama berselang, pada Juli, Raisa didiagnosis mengidap leukemia."
+        res1 = self.sanitizer.restructure_double_temporal_markers(text1)
+        self.assertEqual("Pada Juli tahun yang sama, Raisa didiagnosis mengidap leukemia.", res1)
+
+        text2 = "Tak lama kemudian, pada November, pemerintah membuka perbatasan."
+        res2 = self.sanitizer.restructure_double_temporal_markers(text2)
+        self.assertEqual("Pada November tahun yang sama, pemerintah membuka perbatasan.", res2)
+
+        # Redundant consecutive temporal phrases
+        text3 = "Lalu kemudian mereka menyepakati pembentukan komite."
+        res3 = self.sanitizer.restructure_double_temporal_markers(text3)
+        self.assertEqual("kemudian mereka menyepakati pembentukan komite.", res3)
+
+        text4 = "Pada awalnya mulanya rencana tersebut ditolak mentah-mentah."
+        res4 = self.sanitizer.restructure_double_temporal_markers(text4)
+        self.assertEqual("pada awalnya rencana tersebut ditolak mentah-mentah.", res4)
 
     def test_relative_clause_comma_normalization(self):
         # Relative clause 'yang' comma sandwich

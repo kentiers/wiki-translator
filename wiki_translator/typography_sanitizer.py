@@ -137,6 +137,7 @@ class TypographySanitizer:
         masked = self.normalize_bound_morphemes(masked)
         masked = self.normalize_common_spelling_mistakes(masked)
         masked = self.normalize_stylistic_collocations(masked)
+        masked = self.restructure_double_temporal_markers(masked)
         masked = self.normalize_appositive_commas(masked)
         masked = self.normalize_coordinating_conjunction_commas(masked)
         masked = self.normalize_introductory_adverbial_commas(masked)
@@ -424,6 +425,31 @@ class TypographySanitizer:
         MONTHS = r"(?:Januari|Februari|Maret|April|Mei|Juni|Juli|Agustus|September|Oktober|November|Desember)"
         text = re.sub(rf"\b(pada|sejak|hingga|sampai|menjelang|selama)\s+bulan\s+({MONTHS})\b", r"\1 \2", text, flags=re.IGNORECASE)
         text = re.sub(r"\bPada\s+([^,\n]{3,35}),\s+misalnya,\s+([a-z0-9A-Z\[])", r"Sebagai contoh, pada \1 \2", text)
+        return text
+    def restructure_double_temporal_markers(self, text: str) -> str:
+        """
+        Restructures double/pleonastic temporal stacking commonly calqued from English:
+        e.g. 'Tak lama berselang, pada Juli, Raisa didiagnosis' -> 'Pada Juli tahun yang sama, Raisa didiagnosis'
+        e.g. 'Tak lama kemudian, pada November, pemerintah' -> 'Pada November tahun yang sama, pemerintah'
+        e.g. 'Beberapa bulan kemudian, pada Agustus, ia' -> 'Pada Agustus tahun yang sama, ia'
+        """
+        if not text:
+            return ""
+        MONTHS = r"(?:Januari|Februari|Maret|April|Mei|Juni|Juli|Agustus|September|Oktober|November|Desember)"
+        TEMPORAL_OPENERS = r"(?:Tak lama berselang|Tidak lama kemudian|Tak lama kemudian|Beberapa bulan kemudian|Beberapa waktu kemudian)"
+
+        pat1 = re.compile(
+            rf"\b{TEMPORAL_OPENERS},\s+pada\s+({MONTHS}),?\s+([A-Z][a-z]+|[a-z]+)\b"
+        )
+        def repl1(m: re.Match) -> str:
+            month = m.group(1)
+            subject = m.group(2)
+            return f"Pada {month} tahun yang sama, {subject}"
+
+        text = pat1.sub(repl1, text)
+        text = re.sub(r"\bpada\s+awalnya\s+mulanya\b", "pada awalnya", text, flags=re.IGNORECASE)
+        text = re.sub(r"\bkemudian\s+setelah\s+itu\b", "setelah itu", text, flags=re.IGNORECASE)
+        text = re.sub(r"\blalu\s+kemudian\b", "kemudian", text, flags=re.IGNORECASE)
         return text
     def normalize_sentence_case_after_periods(self, text: str) -> str:
         """

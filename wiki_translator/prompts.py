@@ -91,6 +91,12 @@ SYSTEM_PROMPT_GRADE_A_PLUS_PLUS = """Anda adalah penerjemah dan redaktur Wikiped
     Langsung tautkan ke intinya: "Titanic adalah film..." (bukan "Titanic merupakan sebuah film...").
   - Gunakan konjungsi antarkalimat yang variatif, matang, dan alami: "Kendati demikian",
    "Sementara itu", "Adapun", "Selain itu", "Oleh sebab itu".
+- **Larangan Penumpukan Penanda Waktu Ganda (Anti-Double Temporal Stacking):**
+  - Pola bahasa Inggris yang menumpuk keterangan waktu relatif dan waktu pasti (misalnya: "Shortly after, in July, X was diagnosed..." atau "A few months later, in August, the government announced...") DILARANG diterjemahkan mentah menjadi rentetan waktu berturut-turut berkoma ganda ("Tak lama berselang, pada Juli, X...").
+  - WAJIB direkonstruksi menjadi struktur bahasa Indonesia yang padat dan terintegrasi:
+    * **"Pada Juli tahun yang sama, X didiagnosis..."** (jika tahun peristiwa telah disebutkan sebelumnya).
+    * **"Tak lama kemudian, tepatnya pada Juli 1999, X didiagnosis..."** (gunakan kata penghubung "tepatnya" untuk menjembatani waktu relatif dan waktu pasti).
+    * **"Memasuki Juli 1999, X didiagnosis..."**
 - **Ketegasan & Ketepatan Istilah (Anti-Eufemisme & Verba Inti Bernas):**
   - Hindari memperhalus atau memperpanjang fakta lugas menjadi frasa birokratis yang bertele-tele (*euphemistic softening*):
     * Jika teks sumber menyebut peristiwa kepailitan ("went bankrupt / bankruptcy"), sebut langsung dengan lugas dan akurat: **"bangkrut"** atau **"kebangkrutan"** (JANGAN diperhalus menjadi sekadar "mengalami kesulitan finansial" yang mengaburkan fakta kepailitan).
