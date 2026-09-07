@@ -99,6 +99,13 @@ class TestHTMLPreviewGenerator(unittest.TestCase):
         wikitext_ru = "Tokoh {{ill|Leonid Yefremov|ru|Ефремов, Леонид Николаевич}} hadir dalam rapat."
         html_ru = self.generator.render_html("Uji Fallback ill", wikitext_ru, try_api_parse=False)
         self.assertIn('(ru)</a>', html_ru)
+    def test_offline_render_lit_template(self):
+        # MediaWiki {{lit|...}} renders standard literal translation badge
+        wikitext = "''Memoirs'' {{lit|Memoar}}"
+        html = self.generator.render_html("Uji Lit", wikitext, try_api_parse=False)
+
+        self.assertIn('<abbr style="font-size:85%" title="terjemahan harfiah">terj. har.</abbr>', html)
+        self.assertIn("'Memoar'", html)
     def test_offline_render_hatnote_redlinks(self):
         # Hatnotes linking to uncreated articles must receive class="new"
         wikitext = "{{Utama|Masa jabatan Mikhail Gorbachev sebagai Sekretaris Jenderal}}"

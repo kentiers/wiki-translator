@@ -1906,6 +1906,15 @@ class HTMLPreviewGenerator:
 
         text = re.sub(r"\{\{\s*OldStyleDate\s*\|([^}]+)\}\}", old_style_date_sub, text, flags=re.IGNORECASE)
 
+        # Format {{lit|...}} or {{literal translation|...}}
+        def lit_sub(m: re.Match) -> str:
+            inner = m.group(1).strip()
+            parts = [p.strip() for p in inner.split("|") if p.strip() and "=" not in p]
+            if parts:
+                trans = parts[0]
+                return f'<abbr style="font-size:85%" title="terjemahan harfiah">terj. har.</abbr> \'{html.escape(trans)}\''
+            return ""
+        text = re.sub(r"\{\{\s*(?:lit|literal translation|terj\. har\.)\s*\|([^}]+)\}\}", lit_sub, text, flags=re.IGNORECASE)
 
         # General templates: only recognized inline text formatting templates output their text content
         TEXT_FORMAT_TEMPLATES = {
