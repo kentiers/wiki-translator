@@ -67,6 +67,17 @@ class TestStubGenerator(unittest.TestCase):
         self.assertEqual(len(paras), 2)
         self.assertIn("Kevin Macdonald", paras[0])
         self.assertIn("Academy Award", paras[1])
+    def test_extract_lead_paragraphs_preserves_all_without_truncation(self):
+        """Ensures all lead paragraphs (even 4 or 5) are extracted without truncation."""
+        wikitext = (
+            "{{Infobox person|name=Test}}\n\n"
+            "Paragraf 1.\n\nParagraf 2.\n\nParagraf 3.\n\nParagraf 4.\n\nParagraf 5.\n\n"
+            "== Section One ==\nBody content."
+        )
+        paras = self.generator.extract_lead_paragraphs(wikitext)
+        self.assertEqual(len(paras), 5)
+        self.assertEqual(paras[0], "Paragraf 1.")
+        self.assertEqual(paras[4], "Paragraf 5.")
 
     def test_determine_stub_template(self):
         t1 = self.generator.determine_stub_template("Kevin Macdonald", "sutradara film terkenal")

@@ -819,11 +819,15 @@ class StubGenerator:
         """
         cleaned = wikitext
 
+        # Stop at the first section heading if full wikitext was passed
+        first_heading = re.search(r"^={2,6}[^=]+={2,6}\s*$", cleaned, flags=re.MULTILINE)
+        if first_heading:
+            cleaned = cleaned[:first_heading.start()]
+
         # Strip infobox
         infobox = self.extract_infobox(cleaned)
         if infobox:
             cleaned = cleaned.replace(infobox, "")
-
         # Strip top banners {{...}}
         cleaned = re.sub(r"^\{\{[^}]+\}\}\s*", "", cleaned, flags=re.MULTILINE)
         cleaned = re.sub(r"<!--.*?-->", "", cleaned, flags=re.DOTALL)
@@ -1310,9 +1314,10 @@ class StubGenerator:
                 pass
 
         paragraphs = self.extract_lead_paragraphs(raw_en_wikitext)
-        lead_prose = "\n\n".join(paragraphs[:3]) if paragraphs else ""
+        # Translate the ENTIRE lead section without arbitrary paragraph truncation,
+        # ensuring the stub fully captures the complete executive summary.
+        lead_prose = "\n\n".join(paragraphs) if paragraphs else ""
         translated_body = self.translate_lead_prose(lead_prose, target_id_title)
-
         # Check for works / catalog sections (Filmography, Bibliography, Discography, Publications, Works, Books)
         works_sections = []
         if raw_full_wikitext:
