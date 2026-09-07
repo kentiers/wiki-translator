@@ -121,6 +121,8 @@ class AntiAISlopLinter:
                  ["Gunakan 'bukan merupakan' alih-alih 'tidak merupakan' (TBBBI Tabel 9.5 Kata Ingkar)"]),
                 ("calque_pensiun_ke", r"\b(?:pensiun|mengundurkan\s+diri)\s+ke\s+(?:rumah|kediaman|kampung|desa|daerah|negeri|tanah|wilayah)(?:nya)?\b",
                  ["Kata 'pensiun' bukan verba pergerakan (kalkir dari 'retired to'); gunakan 'pensiun dan kembali ke...', 'pensiun lalu menetap di...', atau 'menghabiskan masa pensiun di...'"]),
+                ("arkaisme_bertarikh", r"\bbertarikh\s+(\d+[\s\w]*)\b",
+                 ["Kata 'bertarikh' adalah bentuk arkais; gunakan 'berangka tahun ...' (khusus prasasti/koin), 'berasal dari tahun ...', atau 'bertanggal ...'"]),
             ]
         ]
         for typo, spelling in {
