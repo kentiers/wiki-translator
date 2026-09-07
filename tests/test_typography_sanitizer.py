@@ -284,6 +284,10 @@ class TestTypographySanitizerPillars(unittest.TestCase):
         text4 = "Pada awalnya mulanya rencana tersebut ditolak mentah-mentah."
         res4 = self.sanitizer.restructure_double_temporal_markers(text4)
         self.assertEqual("pada awalnya rencana tersebut ditolak mentah-mentah.", res4)
+        # Interval + month + year -> Pada [Month] [Year]
+        text5 = "Dua tahun berselang, pada Juni 2002, ia menghadiri pertemuan dengan Putin."
+        res5 = self.sanitizer.restructure_double_temporal_markers(text5)
+        self.assertEqual("Pada Juni 2002, ia menghadiri pertemuan dengan Putin.", res5)
     def test_normalize_temporal_year_classifiers(self):
         # Standalone years with prepositions get 'tahun'
         text1 = "Pada 2000, Gorbachev turut membentuk partai."

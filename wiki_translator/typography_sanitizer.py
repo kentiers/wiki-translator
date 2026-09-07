@@ -432,20 +432,31 @@ class TypographySanitizer:
         """
         Restructures double/pleonastic temporal stacking commonly calqued from English:
         e.g. 'Tak lama berselang, pada Juli, Raisa didiagnosis' -> 'Pada Juli tahun yang sama, Raisa didiagnosis'
+        e.g. 'Dua tahun berselang, pada Juni 2002, ia' -> 'Pada Juni 2002, ia'
         e.g. 'Tak lama kemudian, pada November, pemerintah' -> 'Pada November tahun yang sama, pemerintah'
         e.g. 'Beberapa bulan kemudian, pada Agustus, ia' -> 'Pada Agustus tahun yang sama, ia'
         """
         if not text:
             return ""
         MONTHS = r"(?:Januari|Februari|Maret|April|Mei|Juni|Juli|Agustus|September|Oktober|November|Desember)"
-        TEMPORAL_OPENERS = r"(?:Tak lama berselang|Tidak lama kemudian|Tak lama kemudian|Beberapa bulan kemudian|Beberapa waktu kemudian)"
+        TEMPORAL_INTERVALS = (
+            r"(?:(?:Tak|Tidak)\s+lama|"
+            r"Setahun|Sebulan|"
+            r"Beberapa\s+(?:bulan|tahun|waktu)|"
+            r"(?:Satu|Dua|Tiga|Empat|Lima|Enam|Tujuh|Delapan|Sembilan|Sepuluh|\d+)\s+(?:bulan|tahun))"
+            r"\s+(?:berselang|kemudian)"
+        )
 
         pat1 = re.compile(
-            rf"\b{TEMPORAL_OPENERS},\s+pada\s+({MONTHS}),?\s+([A-Z][a-z]+|[a-z]+)\b"
+            rf"\b({TEMPORAL_INTERVALS}),\s+pada\s+({MONTHS})(?:\s+(\d{{4}}))?,?\s+([A-Za-z\[])"
         )
         def repl1(m: re.Match) -> str:
-            month = m.group(1)
-            subject = m.group(2)
+            month = m.group(2)
+            year = m.group(3)
+            subject = m.group(4)
+            if year:
+                # If year is explicitly given (e.g. 'Juni 2002'), relative interval is redundant!
+                return f"Pada {month} {year}, {subject}"
             return f"Pada {month} tahun yang sama, {subject}"
 
         text = pat1.sub(repl1, text)
@@ -617,7 +628,8 @@ class TypographySanitizer:
             r"Kendati demikian|Oleh sebab itu|Tak lama berselang|Tidak lama kemudian|"
             r"Tak lama kemudian|Beberapa bulan kemudian|Beberapa tahun kemudian|"
             r"Sesaat kemudian|Setelah itu|Sebelum itu|Menjelang akhir|Sejak saat itu|"
-            r"Pada awalnya|Mulanya)"
+            r"Pada awalnya|Mulanya|"
+            r"(?:Setahun|Sebulan|Beberapa\s+(?:bulan|tahun)|[A-Z][a-z]+\s+(?:bulan|tahun))\s+(?:berselang|kemudian))"
         )
         ADVERB_STARTERS = (
             r"(?:pada|di|dalam|sewaktu|saat|ketika|sesampainya|setibanya|menjelang|"
