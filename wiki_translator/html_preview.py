@@ -2019,11 +2019,23 @@ class HTMLPreviewGenerator:
         escaped_title = html.escape(title)
         mode_badge = "Online MediaWiki Parse" if is_api_parsed else "Offline Fallback Renderer"
 
+        # 1. Convert relative Wikipedia paths to absolute id.wikipedia.org URLs
+        body_content = re.sub(r'href=(["\'])/wiki/', r'href=\1https://id.wikipedia.org/wiki/', body_content)
+        body_content = re.sub(r'href=(["\'])/w/', r'href=\1https://id.wikipedia.org/w/', body_content)
+
+        # 2. Convert protocol-relative image and asset URLs (//thumb.wikimedia.org -> https://thumb.wikimedia.org)
+        body_content = re.sub(r'(src|href|srcset)=(["\'])//', r'\1=\2https://', body_content)
+        body_content = re.sub(r',\s*//', ', https://', body_content)
+
+        # 3. For local file previews, convert lazy loading to eager so off-screen images load immediately
+        body_content = re.sub(r'\s+loading=(["\'])lazy\1', ' loading="eager"', body_content)
+
         return f"""<!DOCTYPE html>
 <html lang="id" dir="ltr">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="referrer" content="no-referrer">
     <title>{escaped_title} - Wikipedia Bahasa Indonesia</title>
     <style>
 {VECTOR_2022_CSS}
