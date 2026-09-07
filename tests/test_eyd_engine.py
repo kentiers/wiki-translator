@@ -64,6 +64,21 @@ class TestEYDEngine(unittest.TestCase):
         fixed, count, details = self.engine.normalize_bound_morphemes(text)
         self.assertEqual(count, 0)
         self.assertEqual(fixed, text)
+    def test_contextual_bound_morphemes_guardrails(self):
+        """Validates all contextual homonyms and EYD V official exceptions."""
+        cases = [
+            ("Sistem tata kelola pemerintahan dan tata ruang daerah.", "Sistem tata kelola pemerintahan dan tata ruang daerah."),
+            ("Pengakuan secara de facto dan de jure telah diberikan.", "Pengakuan secara de facto dan de jure telah diberikan."),
+            ("Percaya kepada Tuhan Yang Maha Esa.", "Percaya kepada Tuhan Yang Maha Esa."),
+            ("Perdebatan antara kubu pro dan kubu kontra berlangsung sengit.", "Perdebatan antara kubu pro dan kubu kontra berlangsung sengit."),
+            ("Tersedia jasa antar barang dan kurir antar surat kilat.", "Tersedia jasa antar barang dan kurir antar surat kilat."),
+            ("Analisis pada tingkat makro dan tingkat mikro.", "Analisis pada tingkat makro dan tingkat mikro."),
+            ("Lolos ke babak semi final dan membangun pos semi permanen.", "Lolos ke babak semifinal dan membangun pos semipermanen."),
+            ("Kerja sama antar negara di kawasan Asia.", "Kerja sama antarnegara di kawasan Asia."),
+        ]
+        for src, expected in cases:
+            fixed, _, _ = self.engine.normalize_bound_morphemes(src)
+            self.assertEqual(fixed, expected, f"Failed on input: {src}")
 
 
 if __name__ == "__main__":

@@ -330,6 +330,14 @@ Berikutnya dijelaskan pada pp. 20-25.<ref name="sumber1">Konten sumber satu</ref
         pranala_pos = fixed.find("== Pranala luar ==")
         self.assertLess(catatan_pos, referensi_pos)
         self.assertLess(referensi_pos, pranala_pos)
+    def test_separate_fused_words_and_number_boundaries(self):
+        """Tests generalized word boundary separation and legitimate word protection."""
+        text = "Pada tahun1945 di kota medan, pasukan meraih peringkat ke10 setelah berjuang selama musim semidan musim panas."
+        fixed = default_genfixes.apply_all_fixes(text)
+        self.assertIn("tahun 1945", fixed)
+        self.assertIn("kota medan", fixed)
+        self.assertIn("ke-10", fixed)
+        self.assertIn("musim semi dan musim panas", fixed)
 
 
 if __name__ == "__main__":

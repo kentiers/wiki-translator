@@ -82,33 +82,85 @@ class EYDEngine:
     def _compile_dynamic_rules(self) -> None:
         """Compiles regex engines dynamically from data schemas."""
         # 1. Compile Bound Morpheme Rules from bentuk_terikat.json
-        bound_prefixes = self._bentuk_terikat.get("daftar_bentuk_terikat", [])
-        if bound_prefixes:
-            # Sort prefixes by length descending so longer prefixes match first
-            prefixes_sorted = sorted(bound_prefixes, key=len, reverse=True)
-            prefix_group = "|".join(re.escape(p) for p in prefixes_sorted)
+        pure_prefixes = self._bentuk_terikat.get("daftar_bentuk_terikat_murni", [])
+        contextual_prefixes = self._bentuk_terikat.get("daftar_bentuk_terikat_kontekstual", {})
+        forbidden_classes = self._bentuk_terikat.get("kelas_kata_dilarang_melekat", {})
+
+        forbidden_words = set()
+        for cat, words in forbidden_classes.items():
+            if isinstance(words, list):
+                forbidden_words.update(words)
+        forbidden_group = "|".join(sorted(re.escape(w) for w in forbidden_words))
+
+        # Mandatory separated phrases (e.g. 'tata kelola', 'Maha Esa', 'de facto')
+        self._mandatory_separated_phrases = []
+        for pfx, info in contextual_prefixes.items():
+            self._mandatory_separated_phrases.extend(info.get("frasa_wajib_terpisah", []))
+
+        # All prefixes combined
+        all_prefixes = sorted(set(pure_prefixes) | set(contextual_prefixes.keys()), key=len, reverse=True)
+        if all_prefixes:
+            all_pfx_group = "|".join(re.escape(p) for p in all_prefixes)
 
             # Rule A: Followed by Capital letter (must have hyphen: "non-Indonesia", "anti-PKI", "pro-Palestina")
-            # Matches: "non Indonesia", "anti PKI", "pro Palestina"
-            pat_capital = re.compile(rf"\b({prefix_group})\s+([A-Z][A-Za-z0-9]*)")
+            pat_capital = re.compile(rf"\b({all_pfx_group})\s+([A-Z][A-Za-z0-9]*)")
             self._bound_morpheme_patterns.append((
                 pat_capital,
                 r"\1-\2",
                 "Gunakan tanda hubung (-) setelah bentuk terikat sebelum huruf kapital (EYD V Bab II Huruf B)."
             ))
 
-            # Exclude function words that must never be merged with a prefix (dan, atau, yang, di, ke, dll.)
-            function_words = "dan|atau|yang|di|ke|dari|pada|untuk|dengan|ini|itu|juga|pun|ada|bisa|dapat"
-            # Rule B: Followed by Lowercase content word (min 3 chars). Negative lookbehind prevents 'musim semi' collision.
-            pat_lower = re.compile(
-                rf"(?<!\bmusim\s)\b({prefix_group})\s+(?!(?:{function_words})\b)([a-z]{{3,}})\b",
-                re.IGNORECASE,
-            )
-            self._bound_morpheme_patterns.append((
-                pat_lower,
-                r"\1\2",
-                "Bentuk terikat ditulis serangkai dengan kata yang mengikutinya (EYD V Bab II Huruf B)."
-            ))
+            # Rule B1: Pure prefixes followed by lowercase content word (min 3 chars, not in forbidden classes)
+            if pure_prefixes:
+                pure_sorted = sorted(pure_prefixes, key=len, reverse=True)
+                pure_pfx_group = "|".join(re.escape(p) for p in pure_sorted)
+                pat_pure = re.compile(
+                    rf"\b({pure_pfx_group})\s+(?!(?:{forbidden_group})\b)([a-z]{{3,}})\b",
+                    re.IGNORECASE,
+                )
+                self._bound_morpheme_patterns.append((
+                    pat_pure,
+                    r"\1\2",
+                    "Bentuk terikat ditulis serangkai dengan kata yang mengikutinya (EYD V Bab II Huruf B)."
+                ))
+
+            # Rule B2: Contextual prefixes with semantic boundary guardrails
+            for pfx, info in contextual_prefixes.items():
+                avoid_before = info.get("hindari_penggabungan_setelah", [])
+                avoid_after = info.get("hindari_penggabungan_jika_diikuti", [])
+
+                extra_forbidden = set(forbidden_words)
+                if avoid_after:
+                    extra_forbidden.update(avoid_after)
+                la_group = "|".join(sorted(re.escape(w) for w in extra_forbidden))
+
+                if avoid_before:
+                    lb_group = "|".join(sorted(re.escape(w) for w in avoid_before))
+                    pat_ctx = re.compile(
+                        rf"(\b(?:{lb_group})\s+)?\b({re.escape(pfx)})\s+(?!(?:{la_group})\b)([a-z]{{3,}})\b",
+                        re.IGNORECASE,
+                    )
+                    def _make_ctx_repl(prefix_name: str):
+                        def repl_ctx(m: re.Match) -> str:
+                            if m.group(1):  # Preceded by avoid_before word, leave intact!
+                                return m.group(0)
+                            return f"{m.group(2)}{m.group(3)}"
+                        return repl_ctx
+                    self._bound_morpheme_patterns.append((
+                        pat_ctx,
+                        _make_ctx_repl(pfx),
+                        f"Bentuk terikat '{pfx}' ditulis serangkai (EYD V Bab II Huruf B)."
+                    ))
+                else:
+                    pat_ctx = re.compile(
+                        rf"\b({re.escape(pfx)})\s+(?!(?:{la_group})\b)([a-z]{{3,}})\b",
+                        re.IGNORECASE,
+                    )
+                    self._bound_morpheme_patterns.append((
+                        pat_ctx,
+                        r"\1\2",
+                        f"Bentuk terikat '{pfx}' ditulis serangkai (EYD V Bab II Huruf B)."
+                    ))
 
         # 2. Compile Particle Pun Rules from partikel_pun.json
         pun_words_merged = set(self._partikel_pun.get("dua_belas_kata_hubung_serangkai", []))
@@ -176,20 +228,44 @@ class EYDEngine:
     # =========================================================================
 
     def normalize_bound_morphemes(self, text: str) -> Tuple[str, int, List[str]]:
-        """Normalizes bound morphemes (pasca-, antar-, non-, anti-, sub-, multi-)."""
+        """Normalizes bound morphemes according to official EYD V with zero-collision guardrails."""
         if not text:
             return "", 0, []
 
         fixes = 0
         details = []
         result = text
+        protected = {}
 
+        # Step 0: Mask mandatory separated phrases (e.g. 'tata kelola', 'Maha Esa', 'de facto')
+        for i, phrase in enumerate(getattr(self, "_mandatory_separated_phrases", [])):
+            pat = re.compile(rf"\b{re.escape(phrase)}\b", re.IGNORECASE)
+            for m in list(pat.finditer(result)):
+                ph = f"__EYD_MANDATORY_SEP_{i}_{len(protected)}__"
+                protected[ph] = m.group(0)
+                result = result[:m.start()] + ph + result[m.end():]
+
+        # Step 1: Apply dynamic patterns
         for pat, repl, explanation in self._bound_morpheme_patterns:
-            new_text, n = pat.subn(repl, result)
+            if callable(repl):
+                sub_count = [0]
+                def counting_repl(m: re.Match, orig_repl=repl) -> str:
+                    res = orig_repl(m)
+                    if res != m.group(0):
+                        sub_count[0] += 1
+                    return res
+                new_text = pat.sub(counting_repl, result)
+                n = sub_count[0]
+            else:
+                new_text, n = pat.subn(repl, result)
+
             if n > 0:
                 fixes += n
                 details.append(f"[bentuk_terikat] {explanation} ({n}x)")
                 result = new_text
+        # Step 2: Restore protected phrases
+        for ph, orig in protected.items():
+            result = result.replace(ph, orig)
 
         return result, fixes, details
 

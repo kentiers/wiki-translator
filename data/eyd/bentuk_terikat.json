@@ -1,40 +1,203 @@
 {
   "deskripsi": "Kaidah Penulisan Bentuk Terikat (EYD V Bab II Huruf B Nomor 2)",
-  "kaidah_umum": "Bentuk terikat ditulis serangkai dengan kata yang mengikutinya. Jika diikuti kata yang berhuruf awal kapital atau singkatan kapital, disisipkan tanda hubung (-).",
-  "daftar_bentuk_terikat": [
+  "kaidah_umum": "Bentuk terikat ditulis serangkai dengan kata yang mengikutinya. Jika diikuti kata yang berhuruf awal kapital atau singkatan kapital, disisipkan tanda hubung (-). Bentuk terikat tidak pernah digabungkan dengan kata tugas (konjungsi, preposisi, pronomina) atau homonim kata mandiri.",
+  "daftar_bentuk_terikat_murni": [
     "pasca",
-    "antar",
     "sub",
     "multi",
     "pra",
     "non",
     "anti",
-    "de",
-    "re",
-    "maha",
     "tuna",
     "swa",
-    "tata",
-    "eko",
     "intra",
     "ekstra",
-    "semi",
-    "tri",
-    "dwi",
-    "catur",
-    "panca",
-    "sapta",
-    "dasawarsa",
-    "pro",
-    "kontra",
-    "trans",
     "ultra",
     "infra",
-    "peri",
+    "pan",
+    "tri",
+    "dwi",
+    "sapta",
+    "dasawarsa",
+    "trans",
     "poli",
+    "eko",
+    "ko"
+  ],
+  "daftar_bentuk_terikat_kontekstual": {
+    "semi": {
+      "deskripsi": "Sebagai bentuk terikat berarti 'setengah' (semifinal, semipermanen). Sebagai kata mandiri berarti tunas / musim (musim semi, bersemi).",
+      "homonim_mandiri": ["musim", "tunas", "bersemi"],
+      "hindari_penggabungan_setelah": ["musim", "awal", "akhir", "puncak"]
+    },
+    "antar": {
+      "deskripsi": "Sebagai bentuk terikat berarti 'inter-' (antarkota, antarnegara). Sebagai verba mandiri berarti mengirim/membawa.",
+      "homonim_mandiri": ["jasa", "surat", "biaya", "ongkos", "layanan", "tugas", "jemput"],
+      "hindari_penggabungan_setelah": ["jasa", "biaya", "ongkos", "layanan", "tugas", "sopir", "kurir"]
+    },
+    "pro": {
+      "deskripsi": "Sebagai bentuk terikat (pro-kemerdekaan). Sebagai kata mandiri menyatakan setuju (kubu pro dan kontra).",
+      "homonim_mandiri": ["dan", "atau", "serta", "kontra"],
+      "hindari_penggabungan_setelah": ["kubu", "pihak", "sikap", "suara", "kelompok", "yang", "dan", "atau"],
+      "hindari_penggabungan_jika_diikuti": ["dan", "atau", "serta", "kontra", "ber[a-z]+", "me[a-z]+", "di[a-z]+", "ter[a-z]+"]
+    },
+    "kontra": {
+      "deskripsi": "Sebagai bentuk terikat (kontrarevolusi). Sebagai kata mandiri menyatakan menentang (pro dan kontra).",
+      "homonim_mandiri": ["dan", "atau", "serta", "pro"],
+      "hindari_penggabungan_setelah": ["kubu", "pihak", "sikap", "suara", "kelompok", "yang", "dan", "atau"],
+      "hindari_penggabungan_jika_diikuti": ["dan", "atau", "serta", "pro", "terhadap", "dengan", "ber[a-z]+", "me[a-z]+", "di[a-z]+", "ter[a-z]+"]
+    },
+    "tata": {
+      "deskripsi": "Bentuk terikat seperti tatabahasa, tatatertib. Pengecualian baku EYD/KBBI terpisah: tata kelola, tata ruang, tata surya, tata letak, tata rias, tata boga, tata cara.",
+      "frasa_wajib_terpisah": [
+        "tata kelola",
+        "tata ruang",
+        "tata surya",
+        "tata letak",
+        "tata rias",
+        "tata boga",
+        "tata cara",
+        "tata krama",
+        "tata bahasa"
+      ]
+    },
+    "maha": {
+      "deskripsi": "EYD V Bab II Huruf B: Ditulis serangkai untuk kata dasar tunggal (mahakuasa, mahatahu). Ditulis terpisah untuk kata berimbuhan (Maha Pengasih, Maha Penyayang) dan pengecualian khusus 'Maha Esa'.",
+      "frasa_wajib_terpisah": ["Maha Esa", "maha esa"]
+    },
+    "de": {
+      "deskripsi": "Sebagai bentuk terikat (dehidrasi, deideologisasi). Sebagai partikel nama asing atau istilah hukum Latin wajib terpisah (de facto, de jure, de Gaulle, de Graaf).",
+      "frasa_wajib_terpisah": [
+        "de facto",
+        "de jure",
+        "de novo",
+        "de gaulle",
+        "de graaf",
+        "de niro"
+      ]
+    },
+    "peri": {
+      "deskripsi": "Sebagai bentuk terikat (perikemanusiaan, perikehidupan). Sebagai nomina mandiri berarti makhluk gaib / bidadari.",
+      "homonim_mandiri": ["hutan", "gigi", "laut", "danau", "cantik", "putri"]
+    },
+    "catur": {
+      "deskripsi": "Sebagai bentuk terikat berarti 'empat' (caturwulan, caturdarma). Sebagai nomina mandiri berarti permainan catur.",
+      "homonim_mandiri": ["papan", "permainan", "pemain", "olahraga", "pertandingan", "kejuaraan"]
+    },
+    "makro": {
+      "deskripsi": "Sebagai bentuk terikat (makromolekul). Sebagai adjektiva mandiri berarti skala besar (tingkat makro, ekonomi makro).",
+      "hindari_penggabungan_jika_diikuti": ["dan", "atau", "serta", "mikro"]
+    },
+    "mikro": {
+      "deskripsi": "Sebagai bentuk terikat (mikroskopis, mikrokosmos). Sebagai adjektiva mandiri berarti skala kecil (tingkat mikro, ekonomi mikro).",
+      "hindari_penggabungan_jika_diikuti": ["dan", "atau", "serta", "makro"]
+    }
+  },
+  "kelas_kata_dilarang_melekat": {
+    "konjungsi": [
+      "dan",
+      "atau",
+      "serta",
+      "tetapi",
+      "melainkan",
+      "sedangkan",
+      "karena",
+      "sehingga",
+      "jika",
+      "kalau",
+      "agar",
+      "supaya",
+      "bahwa",
+      "lalu",
+      "kemudian",
+      "bahkan",
+      "namun",
+      "meskipun",
+      "walaupun"
+    ],
+    "preposisi": [
+      "di",
+      "ke",
+      "dari",
+      "pada",
+      "untuk",
+      "bagi",
+      "tentang",
+      "terhadap",
+      "dengan",
+      "tanpa",
+      "atas",
+      "dalam",
+      "antara",
+      "hingga",
+      "sampai",
+      "oleh",
+      "seperti",
+      "bagaikan",
+      "demi"
+    ],
+    "pronomina": [
+      "ini",
+      "itu",
+      "dia",
+      "ia",
+      "mereka",
+      "kami",
+      "kita",
+      "saya",
+      "kamu",
+      "beliau",
+      "anda"
+    ],
+    "modalitas": [
+      "akan",
+      "telah",
+      "sudah",
+      "belum",
+      "sedang",
+      "masih",
+      "pasti",
+      "bisa",
+      "dapat",
+      "boleh",
+      "mungkin",
+      "harus",
+      "wajib"
+    ],
+    "adverbia_negasi": ["tidak", "bukan", "tak", "tiada"],
+    "partikel": ["pun", "kah", "lah", "tah"]
+  },
+  "daftar_bentuk_terikat": [
+    "pasca",
+    "sub",
+    "multi",
+    "pra",
+    "non",
+    "anti",
+    "tuna",
+    "swa",
+    "intra",
+    "ekstra",
+    "ultra",
+    "infra",
+    "pan",
+    "tri",
+    "dwi",
+    "sapta",
+    "dasawarsa",
+    "trans",
+    "poli",
+    "eko",
+    "ko",
+    "semi",
+    "antar",
+    "pro",
+    "kontra",
+    "peri",
+    "catur",
     "makro",
     "mikro",
-    "ko"
+    "maha"
   ],
   "contoh_baku_serangkai": [
     "pascapanen",
@@ -61,8 +224,7 @@
     "antikekerasan",
     "infrastruktur",
     "transnasional",
-    "swasembada",
-    "tatakelola"
+    "swasembada"
   ],
   "contoh_baku_tanda_hubung_kapital": [
     "non-Indonesia",

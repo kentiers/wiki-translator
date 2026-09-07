@@ -709,28 +709,13 @@ class GeneralFixesEngine:
     def normalize_bound_morphemes(self, text: str) -> str:
         """
         Normalizes separated bound morphemes according to EYD V.
-        Bound prefixes (pasca-, antar-, non-, sub-, pra-, tuna-, multi-)
-        must be written attached without space when followed by lowercase words:
-        - pasca perang -> pascaperang
-        - pasca pembunuhan -> pascapembunuhan
-        - antar menteri -> antarmenteri
-        - non bebas -> nonbebas
-        - sub bagian -> subbagian
-        Preserves hyphens before capitals or numbers (pasca-1945, non-Rusia).
+        Delegated directly to EYDEngine for single source of truth.
         """
         if not text:
             return ""
-        bound_re = re.compile(r"\b(pasca|antar|non|sub|pra|tuna|multi)\s+([a-z]{3,})\b", re.IGNORECASE)
-        def repl(m: re.Match) -> str:
-            prefix = m.group(1)
-            word = m.group(2)
-            if prefix.isupper():
-                return f"{prefix}{word.upper()}"
-            elif prefix[0].isupper():
-                return f"{prefix.capitalize()}{word.lower()}"
-            return f"{prefix.lower()}{word.lower()}"
-        return bound_re.sub(repl, text)
-
+        from .eyd_engine import default_eyd_engine
+        fixed, _, _ = default_eyd_engine.normalize_bound_morphemes(text)
+        return fixed
     def apply_general_fixes(self, text: str) -> str:
         """Applies all standard AWB general fixes."""
         if not text:
@@ -778,16 +763,62 @@ class GeneralFixesEngine:
 
     def separate_fused_words(self, text: str) -> str:
         """
-        Separates common fused words where a space was accidentally dropped before conjunctions/prepositions.
+        Separates common fused words where spaces were accidentally dropped before/after
+        conjunctions, prepositions, or numbers, while strictly protecting legitimate KBBI words.
         e.g. 'musim semidan musim panas' -> 'musim semi dan musim panas'
+        e.g. 'tahun1945' -> 'tahun 1945'
+        e.g. 'ke10' -> 'ke-10'
         """
         if not text:
             return ""
-        # 1. Seasons + dan (musim semidan -> musim semi dan)
-        text = re.sub(r"\b(musim\s+(?:semi|panas|gugur|dingin|hujan|kemarau))dan\b", r"\1 dan", text, flags=re.IGNORECASE)
-        # 2. Pronouns + dan (inidan -> ini dan)
-        text = re.sub(r"\b(ini|itu|saya|mereka|beliau)dan\b", r"\1 dan", text, flags=re.IGNORECASE)
-        return text
+
+        # 1. Number fusions with time/quantity marker words:
+        text = re.sub(
+            r"\b(tahun|bulan|tanggal|sebanyak|sebesar|mencapai|sejumlah|sekitar|kurang\s+lebih|selama|hingga|sampai|sejak|pada)(\d+)\b",
+            r"\1 \2",
+            text,
+            flags=re.IGNORECASE,
+        )
+
+        # 2. Ordinal number normalization: ke10 / ke 10 -> ke-10 (EYD V Bab II Huruf E)
+        text = re.sub(r"\bke\s*[-–]?\s*(\d+)\b", r"ke-\1", text, flags=re.IGNORECASE)
+
+        # 3. Lexicon-protected word-level fused conjunctions and prepositions:
+        safe_legitimate_words = {
+            "teladan", "ramadan", "medan", "badan", "padan", "dandan", "kandang", "gudang",
+            "pedang", "sandang", "pandang", "lindang", "pindang", "rendang", "kadang",
+            "terkadang", "bergadang", "begadang", "sedang", "undang", "hadang", "adang",
+            "padang", "ladang", "bidang", "sidang", "tindang", "pindan", "gendang",
+            "kendang", "sendang", "sindang", "redan", "kedan", "sedan", "indan", "ardan",
+            "tandang", "tandan", "pandan", "adan", "edan", "mardan", "dendan"
+        }
+        common_fused_conjunctions = ["dan", "atau", "serta", "namun", "tetapi", "karena", "sehingga", "bahwa"]
+        common_fused_prepositions = ["dari", "pada", "untuk", "dengan", "tanpa", "dalam", "antara"]
+
+        def repl_token(m: re.Match) -> str:
+            word = m.group(0)
+            w_lower = word.lower()
+            if w_lower in safe_legitimate_words:
+                return word
+
+            # Trailing conjunction / preposition (min stem 3 + min conj 3):
+            for conj in sorted(common_fused_conjunctions + common_fused_prepositions, key=len, reverse=True):
+                if w_lower.endswith(conj) and len(w_lower) >= len(conj) + 3:
+                    stem = word[:-len(conj)]
+                    if stem.isalpha() and stem.lower() not in ("ter", "ber", "ke", "se", "di"):
+                        return f"{stem} {conj}"
+
+            # Leading conjunction:
+            for conj in sorted(common_fused_conjunctions, key=len, reverse=True):
+                if w_lower.startswith(conj) and len(w_lower) >= len(conj) + 3:
+                    rem = word[len(conj):]
+                    if rem.isalpha():
+                        return f"{conj} {rem}"
+
+            return word
+
+        word_pat = re.compile(r"\b[A-Za-z]{6,}\b")
+        return word_pat.sub(repl_token, text)
     def clean_narrative_colons(self, text: str) -> str:
         """
         Splits narrative sentences where colons inappropriately continue subordinate clauses.
