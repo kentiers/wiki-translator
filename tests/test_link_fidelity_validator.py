@@ -104,6 +104,24 @@ class TestLinkFidelityValidator(unittest.TestCase):
         self.assertIn("[[istilah lokal]]", updated)
         self.assertNotIn("{{ill|istilah lokal", updated)
 
+    def test_prune_ill_to_single_language(self):
+        """Ensures multi-language {{ill}} templates prioritize 'en' and strictly prune to 1 language."""
+        text1 = "{{ill|Partai Sosial Demokrat Rusia|en|Social Democratic Party of Russia (2001)|ru|Социал-демократическая партия России (2001)}}"
+        pruned1, count1 = self.validator.prune_ill_to_single_language(text1)
+        self.assertEqual(count1, 1)
+        self.assertEqual(pruned1, "{{ill|Partai Sosial Demokrat Rusia|en|Social Democratic Party of Russia (2001)}}")
+
+        # When 'en' is not present, falls back to the first available language
+        text2 = "{{ill|Topik Lokal|ru|Местная тема|de|Lokales Thema}}"
+        pruned2, count2 = self.validator.prune_ill_to_single_language(text2)
+        self.assertEqual(count2, 1)
+        self.assertEqual(pruned2, "{{ill|Topik Lokal|ru|Местная тема}}")
+
+        # Single language is untouched
+        text3 = "{{ill|Simple|en|Simple}}"
+        pruned3, count3 = self.validator.prune_ill_to_single_language(text3)
+        self.assertEqual(count3, 0)
+        self.assertEqual(pruned3, text3)
 
 if __name__ == "__main__":
     unittest.main()

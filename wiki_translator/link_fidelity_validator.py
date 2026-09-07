@@ -526,43 +526,69 @@ class LinkFidelityValidator:
 
         updated = self.ILL_PATTERN.sub(repl, wikitext)
         return updated, converted_count
-    def enrich_ill_with_native_lang(
-        self, wikitext: str, native_lang: Optional[str] = None
-    ) -> Tuple[str, int]:
+    def prune_ill_to_single_language(self, wikitext: str) -> Tuple[str, int]:
         """
-        Enriches single-language {{ill|...|en|...}} templates with their secondary native language
-        sitelink from Wikidata (e.g. adding |ru|... for Russian topics or |ja|... for Japanese topics).
+        Prunes multi-language {{ill|...}} templates to strictly ONE foreign language:
+        - Prioritizes 'en' if present.
+        - If 'en' is not present, falls back to the first available foreign language.
+        - Preserves '|lt=...' parameter if present.
+        Ensures that wikilinks render with only a single language badge (e.g. '(en)' or '(ru)', never '(en) (ru)').
         """
         if not wikitext:
             return wikitext, 0
 
-        lang = native_lang or self.infer_context_language(wikitext)
-        if not lang:
-            return wikitext, 0
+        ill_re = re.compile(
+            r"\{\{\s*(?:ill|interlanguage link|interlanguage link multi)\s*\|([^\}]+)\}\}",
+            re.IGNORECASE,
+        )
 
-        ill_matches = list(self.ILL_PATTERN.finditer(wikitext))
-        if not ill_matches:
-            return wikitext, 0
+        pruned_count = 0
 
-        enriched_count = 0
-        updated = wikitext
-        for m in ill_matches:
-            raw = m.group(0)
-            parsed = self.parse_ill(raw)
-            if not parsed:
-                continue
-            id_title, code, foreign_target, label = parsed
-            if code == "en" and f"|{lang}|" not in raw:
-                sitelinks = self.resolve_cross_wiki_sitelinks(foreign_target, native_lang=lang)
-                native_target = sitelinks.get(lang)
-                if native_target and native_target != foreign_target:
-                    lt_part = f"|lt={label}" if label and label != id_title else ""
-                    new_ill = f"{{{{ill|{id_title}|en|{foreign_target}|{lang}|{native_target}{lt_part}}}}}"
-                    updated = updated.replace(raw, new_ill)
-                    enriched_count += 1
+        def repl(m: re.Match) -> str:
+            nonlocal pruned_count
+            inner = m.group(1).strip()
+            parts = [p.strip() for p in inner.split("|")]
+            if not parts:
+                return m.group(0)
 
-        return updated, enriched_count
+            title = parts[0]
+            named_params = []
+            lang_pairs = []
 
+            idx = 1
+            while idx < len(parts):
+                p = parts[idx]
+                if "=" in p:
+                    named_params.append(p)
+                    idx += 1
+                elif len(p) <= 3 and idx + 1 < len(parts) and "=" not in parts[idx + 1]:
+                    lang_code = p.lower()
+                    target = parts[idx + 1]
+                    lang_pairs.append((lang_code, target))
+                    idx += 2
+                else:
+                    named_params.append(p)
+                    idx += 1
+
+            if len(lang_pairs) <= 1:
+                return m.group(0)
+
+            # Prioritize 'en'; fallback to first available foreign language
+            selected_pair = next((pair for pair in lang_pairs if pair[0] == "en"), lang_pairs[0])
+            pruned_count += 1
+            named_part = ("|" + "|".join(named_params)) if named_params else ""
+            return f"{{{{ill|{title}|{selected_pair[0]}|{selected_pair[1]}{named_part}}}}}"
+
+        updated = ill_re.sub(repl, wikitext)
+        return updated, pruned_count
+
+    def enrich_ill_with_native_lang(
+        self, wikitext: str, native_lang: Optional[str] = None
+    ) -> Tuple[str, int]:
+        """
+        Enforces strict single foreign language prioritizing 'en' (never double badges).
+        """
+        return self.prune_ill_to_single_language(wikitext)
     def safeguard_redlinks_with_ill(
         self, draft_wikitext: str, source_wikitext: Optional[str] = None
     ) -> Tuple[str, int, List[str]]:

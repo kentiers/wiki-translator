@@ -1794,7 +1794,7 @@ class HTMLPreviewGenerator:
             parts = [p.strip() for p in inner.split("|")]
             if parts:
                 title = parts[0]
-                badges = []
+                lang_candidates = []
                 idx = 1
                 while idx < len(parts):
                     p = parts[idx]
@@ -1805,15 +1805,21 @@ class HTMLPreviewGenerator:
                     if len(p) <= 3 and "=" not in p and idx + 1 < len(parts) and "=" not in parts[idx + 1]:
                         lang = p.lower()
                         foreign_target = parts[idx + 1]
-                        safe_foreign = urllib.parse.quote(foreign_target.replace(" ", "_"))
-                        foreign_url = f"https://{lang}.wikipedia.org/wiki/{safe_foreign}"
-                        badges.append(
-                            f' <a href="{foreign_url}" class="interlanguage-link-badge ext-iw" target="_blank" rel="noopener" title="Lihat artikel \'{html.escape(foreign_target)}\' di Wikipedia bahasa {lang}">({lang})</a>'
-                        )
+                        lang_candidates.append((lang, foreign_target))
                         idx += 2
                     else:
                         idx += 1
 
+                # Prioritize 'en'; if 'en' not present, fallback to first foreign language (strictly single badge)
+                badges = []
+                if lang_candidates:
+                    chosen = next((c for c in lang_candidates if c[0] == "en"), lang_candidates[0])
+                    lang, foreign_target = chosen
+                    safe_foreign = urllib.parse.quote(foreign_target.replace(" ", "_"))
+                    foreign_url = f"https://{lang}.wikipedia.org/wiki/{safe_foreign}"
+                    badges.append(
+                        f' <a href="{foreign_url}" class="interlanguage-link-badge ext-iw" target="_blank" rel="noopener" title="Lihat artikel \'{html.escape(foreign_target)}\' di Wikipedia bahasa {lang}">({lang})</a>'
+                    )
                 slug = re.sub(r"[^\w\s-]", "", title).strip().replace(" ", "_")
                 badges_str = "".join(badges)
                 return f'<a href="https://id.wikipedia.org/wiki/{slug}" class="new" title="{html.escape(title)} (halaman belum dibuat)">{html.escape(title)}</a>{badges_str}'

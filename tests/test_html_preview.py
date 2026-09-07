@@ -80,14 +80,17 @@ class TestHTMLPreviewGenerator(unittest.TestCase):
         self.assertNotIn("]\n<p>Teks", html)
 
     def test_offline_render_multi_language_ill_badges(self):
-        # Template with both English and Russian targets
+        # Template with both English and Russian targets prioritizes 'en' and renders strictly single badge
         wikitext = "Tokoh {{ill|Leonid Yefremov|en|Leonid Yefremov|ru|Ефремов, Леонид Николаевич}} hadir dalam rapat."
         html = self.generator.render_html("Uji Multi-ill", wikitext, try_api_parse=False)
 
         self.assertIn('<a href="https://en.wikipedia.org/wiki/Leonid_Yefremov" class="interlanguage-link-badge ext-iw" target="_blank" rel="noopener" title="Lihat artikel \'Leonid Yefremov\' di Wikipedia bahasa en">(en)</a>', html)
-        self.assertIn('(ru)</a>', html)
-        self.assertIn('https://ru.wikipedia.org/wiki/', html)
+        self.assertNotIn('(ru)</a>', html)
 
+        # Fallback to foreign language only when 'en' is absent
+        wikitext_ru = "Tokoh {{ill|Leonid Yefremov|ru|Ефремов, Леонид Николаевич}} hadir dalam rapat."
+        html_ru = self.generator.render_html("Uji Fallback ill", wikitext_ru, try_api_parse=False)
+        self.assertIn('(ru)</a>', html_ru)
     def test_offline_render_hatnote_redlinks(self):
         # Hatnotes linking to uncreated articles must receive class="new"
         wikitext = "{{Utama|Masa jabatan Mikhail Gorbachev sebagai Sekretaris Jenderal}}"
