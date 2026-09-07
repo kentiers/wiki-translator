@@ -340,6 +340,15 @@ class TestTypographySanitizerPillars(unittest.TestCase):
         res4 = self.sanitizer.normalize_relative_clause_commas(text4)
         self.assertIn("(setelah Georgy Malenkov dan Khrushchev) yang tidak", res4)
         self.assertNotIn("Khrushchev, yang", res4)
+    def test_normalize_parenthetical_modifier_commas(self):
+        # Cleans comma sandwich around 'terutama' / 'khususnya' between Subject and Verb
+        text1 = "Sebaliknya, banyak pihak, terutama di negara-negara Barat, memandangnya sebagai negarawan terhebat."
+        res1 = self.sanitizer.normalize_parenthetical_modifier_commas(text1)
+        self.assertEqual("Sebaliknya, banyak pihak terutama di negara-negara Barat memandangnya sebagai negarawan terhebat.", res1)
+
+        text2 = "Para pengamat, khususnya di Eropa, menilai bahwa kebijakan tersebut berhasil."
+        res2 = self.sanitizer.normalize_parenthetical_modifier_commas(text2)
+        self.assertEqual("Para pengamat khususnya di Eropa menilai bahwa kebijakan tersebut berhasil.", res2)
 
     def test_sentence_case_after_periods(self):
         # Sentence capitalization across citation templates

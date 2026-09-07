@@ -143,6 +143,7 @@ class TypographySanitizer:
         masked = self.normalize_coordinating_conjunction_commas(masked)
         masked = self.normalize_introductory_adverbial_commas(masked)
         masked = self.normalize_relative_clause_commas(masked)
+        masked = self.normalize_parenthetical_modifier_commas(masked)
         masked = self.normalize_comma_clutter(masked)
         masked = self.normalize_number_separators(masked)
         masked = self.normalize_semicolons(masked)
@@ -672,6 +673,31 @@ class TypographySanitizer:
         paren_aside_pat = re.compile(r",\s+(setelah\s+(?:\[\[[^\]]+\]\]|[^,.\n]+)),\s+yang\b", re.IGNORECASE)
         text = paren_aside_pat.sub(r" (\1) yang", text)
         return text
+
+    def normalize_parenthetical_modifier_commas(self, text: str) -> str:
+        """
+        Cleans unnatural comma sandwiches around restrictive parenthetical modifiers
+        (e.g. 'terutama', 'khususnya', 'terlebih') inserted between a Subject noun and its Predicate:
+- 'banyak pihak, terutama di negara-negara Barat, memandangnya'
+             -> 'banyak pihak terutama di negara-negara Barat memandangnya'
+- 'para pengamat, khususnya di Eropa, menilai bahwa'
+             -> 'para pengamat khususnya di Eropa menilai bahwa'
+        In standard Indonesian (EYD V), restrictive modifiers specifying the subject
+        do not take commas that sever the subject from its predicate verb.
+        """
+        if not text:
+            return ""
+
+        verbs = r"(?:me[a-z]+|di[a-z]+|ber[a-z]+|ter[a-z]+|menjadi|merupakan|tampak|terlihat|dianggap|dipandang|dinilai)"
+        MODIFIERS = r"(?:terutama|khususnya|terlebih|bahkan)"
+
+        # Matches: [Noun/Subject], (terutama|khususnya) [Modifier phrase], [Verb predicate]
+        pattern = re.compile(
+            rf"\b(\w+),\s+({MODIFIERS})\s+([^,\n]{{3,45}}),\s+({verbs})\b",
+            re.IGNORECASE,
+        )
+
+        return pattern.sub(r"\1 \2 \3 \4", text)
     def normalize_comma_clutter(self, text: str) -> str:
         """
         Cleans comma clutter and sentence-level comma fatigue:
