@@ -129,5 +129,46 @@ class HistoricalEthnonymsManager:
 
         return "\n".join(lines)
 
+    def audit_and_fix_homonym_blunders(self, text: str) -> Tuple[str, int, List[str]]:
+        """
+        Dynamically audits and auto-corrects dangerous historical homonym and conflation blunders
+        driven by 'aturan_disambiguasi_homonim' in data/historical_ethnonyms.json.
+        e.g. bare 'suku Han' -> 'suku Qiang Han' in Qiang context; 'Kekaisaran Romawi' -> 'Kekaisaran Romawi Suci' in HRE context.
+        """
+        if not text:
+            return "", 0, []
+
+        rules = self._raw_data.get("aturan_disambiguasi_homonim", [])
+        if not rules:
+            return text, 0, []
+
+        result = text
+        total_fixes = 0
+        all_details = []
+
+        text_lower = text.lower()
+        for r in rules:
+            ctx = r.get("konteks_wajib", [])
+            # If context is required, ensure at least one keyword is present in text
+            if ctx and not any(k.lower() in text_lower for k in ctx):
+                continue
+
+            pola = r.get("pola_salah", "")
+            repl = r.get("pengganti_baku", "")
+            if not pola or not repl:
+                continue
+
+            try:
+                pat = re.compile(pola, re.IGNORECASE)
+                new_text, n = pat.subn(repl, result)
+                if n > 0:
+                    total_fixes += n
+                    all_details.append(f"[{r.get('id_aturan', 'disambig')}] {r.get('alasan', '')} ({n}x)")
+                    result = new_text
+            except Exception:
+                pass
+
+        return result, total_fixes, all_details
+
 
 default_ethnonyms_manager = HistoricalEthnonymsManager()

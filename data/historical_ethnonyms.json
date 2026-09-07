@@ -114,5 +114,28 @@
         "catatan_redaksi": "Bangsa Sioux terbagi menjadi tiga dialek/kelompok utama: Lakota, Dakota, dan Nakota."
       }
     }
-  }
+  },
+  "aturan_disambiguasi_homonim": [
+    {
+      "id_aturan": "han_qiang_vs_dinasti_han",
+      "konteks_wajib": ["qiang", "zhao chongguo", "qinghai", "huangshui", "xianlian", "kai"],
+      "pola_salah": "\\bsuku\\s+Han\\b(?!\\s*\\([罕Hǎn]|\\s*Qiang)",
+      "pengganti_baku": "suku Qiang Han",
+      "alasan": "Dalam konteks kampanye Qiang, suku Han (罕, Hǎn) adalah subsuku bangsa Qiang Barat, bukan etnis Tionghoa Han (漢) atau Dinasti Han."
+    },
+    {
+      "id_aturan": "romawi_suci_vs_romawi_kuno",
+      "konteks_wajib": ["habsburg", "charlemagne", "karel yang agung", "1806", "konfederasi rhine", "reichstag", "hohenstaufen", "ottonian"],
+      "pola_salah": "\\bKekaisaran Romawi\\b(?!\\s*Suci|\\s*Barat|\\s*Timur)",
+      "pengganti_baku": "Kekaisaran Romawi Suci",
+      "alasan": "Bedakan Kekaisaran Romawi Kuno (runtuh 476 M) dengan Kekaisaran Romawi Suci (HRE, 962–1806 M)."
+    },
+    {
+      "id_aturan": "makedonia_kuno_vs_modern",
+      "konteks_wajib": ["aleksander agung", "alexander the great", "filipus ii", "philip ii", "hellenistik", "antigonid", "argead"],
+      "pola_salah": "\\bMakedonia\\b(?!\\s*Kuno|\\s*Utara)",
+      "pengganti_baku": "Makedonia Kuno",
+      "alasan": "Bedakan Kerajaan Makedonia Kuno dengan negara modern Makedonia Utara."
+    }
+  ]
 }

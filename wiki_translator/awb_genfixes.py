@@ -16,6 +16,7 @@ import mwparserfromhell
 from .slop_linter import default_slop_linter
 from .gramatika_engine import default_gramatika_engine
 from .eyd_engine import default_eyd_engine
+from .historical_ethnonyms import default_ethnonyms_manager
 from typing import Dict, List, Optional, Set, Tuple
 
 
@@ -1040,6 +1041,7 @@ class AWBGenFixes:
         2. RegEx Typo Fixes (spelling corrections safely avoiding URLs, tags, templates)
         3. Gramatika Engine (TBBBI / Kateglo: sentence opener conjunctions, negation agreement, adversarial commas)
         4. EYD V Engine (bound morphemes, particle pun, en-dash ranges)
+        5. Historical Disambiguation Guardrail (homonym / false conflation protection)
         """
         if not wikitext:
             return ""
@@ -1054,6 +1056,9 @@ class AWBGenFixes:
 
         # Step 4: EYD V Engine (Official orthography)
         fixed, _, _ = default_eyd_engine.apply_all_eyd_fixes(fixed)
+
+        # Step 5: Historical Disambiguation Guardrail (Zero-Blunder)
+        fixed, _, _ = default_ethnonyms_manager.audit_and_fix_homonym_blunders(fixed)
 
         return fixed
 
