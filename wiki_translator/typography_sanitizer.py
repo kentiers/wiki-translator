@@ -78,13 +78,13 @@ LOWERCASE_HEADING_WORDS: Set[str] = {
 KNOWN_PROPER_NOUNS: Set[str] = {
     "indonesia", "jawa", "sumatra", "sumatera", "kalimantan", "sulawesi", "papua", "bali",
     "jakarta", "eropa", "asia", "amerika", "afrika", "australia", "inggris", "pasifik",
-    "atlantik", "blu-ray", "perang", "dunia", "rusia", "soviet", "jerman", "tiongkok",
-    "putin", "stalin", "lenin", "khrushchev", "brezhnev", "gorbachev", "komunis", "partai",
+    "atlantik", "blu-ray", "perang", "dunia", "rusia", "soviet", "uni", "jerman", "tiongkok",
+    "putin", "vladimir", "stalin", "lenin", "khrushchev", "brezhnev", "gorbachev", "komunis", "partai",
     "kudeta", "agustus", "teluk", "kaukasus", "stavropol", "moskow", "moskwa", "komsomol",
     "politbiro", "parlemen", "lituania", "estonia", "latvia", "ukraina", "belarus", "georgia",
     "armenia", "moldova", "persemakmuran", "kanada", "prancis", "barat", "timur", "kuba",
     "vietnam", "korea", "libya", "suriah", "afganistan", "reagan", "thatcher", "yeltsin",
-    "trudeau", "kursk", "pkus", "duma", "balkon", "chernobyl", "nato", "pbb",
+    "trudeau", "kursk", "pkus", "duma", "balkon", "chernobyl", "nato", "pbb", "komite", "pusat",
 }
 COMMON_SENTENCE_ABBREVIATIONS: Set[str] = {
     "hlm", "hal", "dkk", "dll", "dsb", "ca", "vol", "no", "dr", "prof",

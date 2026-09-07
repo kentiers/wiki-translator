@@ -415,6 +415,14 @@ Penghargaan."""
         self.assertIn("=== Pemeran dan karakter ===", result)
         self.assertIn("== Tanggapan kritis ==", result)
         self.assertIn("== Penghargaan dan nominasi ==", result)
+    def test_heading_sentence_case_proper_nouns(self):
+        wikitext = """== Pemimpin Uni Soviet (1985–1991) ==
+== Sekretaris Komite Pusat PKUS ==
+=== 2008–2022: kritik terbuka terhadap Vladimir Putin ==="""
+        result = self.sanitizer.sanitize_wikitext(wikitext)
+        self.assertIn("== Pemimpin Uni Soviet (1985–1991) ==", result)
+        self.assertIn("== Sekretaris Komite Pusat PKUS ==", result)
+        self.assertIn("=== 2008–2022: kritik terbuka terhadap Vladimir Putin ===", result)
 
     def test_heading_sentence_case_markdown(self):
         md = """# The Runner (Film 2026)
