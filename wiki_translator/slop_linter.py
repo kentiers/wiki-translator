@@ -119,6 +119,8 @@ class AntiAISlopLinter:
                  ["Gunakan 'bukan' alih-alih 'tidak' di depan kata penggolong nomina (TBBBI Bab IX Tabel 9.5 Kata Ingkar)"]),
                 ("tbbbi_negation_copula", r"\btidak\s+merupakan\b",
                  ["Gunakan 'bukan merupakan' alih-alih 'tidak merupakan' (TBBBI Tabel 9.5 Kata Ingkar)"]),
+                ("calque_pensiun_ke", r"\b(?:pensiun|mengundurkan\s+diri)\s+ke\s+(?:rumah|kediaman|kampung|desa|daerah|negeri|tanah|wilayah)(?:nya)?\b",
+                 ["Kata 'pensiun' bukan verba pergerakan (kalkir dari 'retired to'); gunakan 'pensiun dan kembali ke...', 'pensiun lalu menetap di...', atau 'menghabiskan masa pensiun di...'"]),
             ]
         ]
         for typo, spelling in {
