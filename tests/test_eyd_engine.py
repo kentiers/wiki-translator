@@ -58,6 +58,12 @@ class TestEYDEngine(unittest.TestCase):
         self.assertIn("pascaperang", fixed)
         self.assertIn("apa pun", fixed)
         self.assertIn("1945–1949", fixed)
+    def test_bound_morphemes_avoids_conjunctions_and_musim_semi(self):
+        # 'musim semi dan musim panas' must NOT become 'semidan'
+        text = "Pasukan hidup dari hasil bumi setempat selama musim semi dan musim panas."
+        fixed, count, details = self.engine.normalize_bound_morphemes(text)
+        self.assertEqual(count, 0)
+        self.assertEqual(fixed, text)
 
 
 if __name__ == "__main__":

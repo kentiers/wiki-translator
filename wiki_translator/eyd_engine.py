@@ -97,8 +97,13 @@ class EYDEngine:
                 "Gunakan tanda hubung (-) setelah bentuk terikat sebelum huruf kapital (EYD V Bab II Huruf B)."
             ))
 
-            # Rule B: Followed by Lowercase word (must be merged into single word: "pasca perang" -> "pascaperang")
-            pat_lower = re.compile(rf"\b({prefix_group})\s+([a-z][a-z0-9]+)\b")
+            # Exclude function words that must never be merged with a prefix (dan, atau, yang, di, ke, dll.)
+            function_words = "dan|atau|yang|di|ke|dari|pada|untuk|dengan|ini|itu|juga|pun|ada|bisa|dapat"
+            # Rule B: Followed by Lowercase content word (min 3 chars). Negative lookbehind prevents 'musim semi' collision.
+            pat_lower = re.compile(
+                rf"(?<!\bmusim\s)\b({prefix_group})\s+(?!(?:{function_words})\b)([a-z]{{3,}})\b",
+                re.IGNORECASE,
+            )
             self._bound_morpheme_patterns.append((
                 pat_lower,
                 r"\1\2",

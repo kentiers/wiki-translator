@@ -202,7 +202,7 @@ INDONESIAN_TYPO_PAIRS: Dict[str, str] = {
     "sepion": "spion",
     "silahkan": "silakan",
     "sistim": "sistem",
-    # "sistematik" is a valid adjective; do not rewrite it to a noun.
+    "semidan": "semi dan",
     "standarisasi": "standardisasi",
     "stres": "stres",
     "stress": "stres",
@@ -756,8 +756,8 @@ class GeneralFixesEngine:
         sanitized = self.clean_age_phrasing(sanitized)
         sanitized = self.clean_family_name_footnotes(sanitized)
         sanitized = self.clean_image_directions(sanitized)
+        sanitized = self.separate_fused_words(sanitized)
         from .lexical_register import default_lexical_reranker
-        sanitized, _, _ = default_lexical_reranker.elevate_text(sanitized)
         return sanitized
 
     def clean_editorial_quote_brackets(self, text: str) -> str:
@@ -773,7 +773,21 @@ class GeneralFixesEngine:
             # Never corrupt double-bracket wikilinks [[...]] or piped links [[...|...]]
             cleaned_inner = re.sub(r"(?<!\[)\[([a-zA-Z\s]+)\](?!\])", r"\1", inner)
             return f'"{cleaned_inner}"'
+
         return re.sub(r'"([^"\n]+)"', repl, text)
+
+    def separate_fused_words(self, text: str) -> str:
+        """
+        Separates common fused words where a space was accidentally dropped before conjunctions/prepositions.
+        e.g. 'musim semidan musim panas' -> 'musim semi dan musim panas'
+        """
+        if not text:
+            return ""
+        # 1. Seasons + dan (musim semidan -> musim semi dan)
+        text = re.sub(r"\b(musim\s+(?:semi|panas|gugur|dingin|hujan|kemarau))dan\b", r"\1 dan", text, flags=re.IGNORECASE)
+        # 2. Pronouns + dan (inidan -> ini dan)
+        text = re.sub(r"\b(ini|itu|saya|mereka|beliau)dan\b", r"\1 dan", text, flags=re.IGNORECASE)
+        return text
     def clean_narrative_colons(self, text: str) -> str:
         """
         Splits narrative sentences where colons inappropriately continue subordinate clauses.
