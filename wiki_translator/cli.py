@@ -530,9 +530,26 @@ class WikiTranslatorCLI:
                             continue
 
             # 3. LLM Translation with Token Compression
-            context_notes = None
-            translated_text = ""
+            # 3. LLM Translation with Token Compression & Dynamic Context Guidance
+            guidance_parts = []
+            try:
+                from .historical_offices import default_offices_manager
+                off_guide = default_offices_manager.get_editorial_guidance_for_text(s.full_source)
+                if off_guide:
+                    guidance_parts.append(off_guide)
+            except Exception:
+                pass
 
+            try:
+                from .historical_ethnonyms import default_ethnonyms_manager
+                eth_guide = default_ethnonyms_manager.get_editorial_guidance_for_text(s.full_source)
+                if eth_guide:
+                    guidance_parts.append(eth_guide)
+            except Exception:
+                pass
+
+            context_notes = "\n\n".join(guidance_parts) if guidance_parts else None
+            translated_text = ""
             while True:
                 source_text_to_translate = s.full_source
                 placeholders = {}

@@ -157,6 +157,21 @@ class AntiAISlopLinter:
                 ))
         except Exception:
             pass
+        # Dynamically load community peer-review rules from FeaturedArticleHarvester
+        try:
+            from .featured_article_harvester import default_fa_harvester
+            for cp in default_fa_harvester.SEED_CRITIQUE_POINTS:
+                if cp.quote and cp.critique:
+                    clean_id = re.sub(r"[^a-zA-Z0-9]", "_", cp.quote).strip("_")[:24]
+                    rules.append(SlopRule(
+                        rule_id=f"ap_critique_{clean_id}",
+                        pattern=re.compile(rf"\b{re.escape(cp.quote)}\b", re.IGNORECASE),
+                        severity="medium",
+                        explanation=f"Konsensus Peninjau Artikel Pilihan (WP:AP '{cp.article_title}'): {cp.critique}",
+                        suggestions=[cp.critique],
+                    ))
+        except Exception:
+            pass
 
         return rules
     def _mask_protected_zones(self, text: str) -> Tuple[str, List[Tuple[str, str]]]:

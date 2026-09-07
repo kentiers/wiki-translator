@@ -129,6 +129,21 @@ class HistoricalOfficesManager:
                 lines.append(f"  ({m.explanation})")
 
         return "\n".join(lines)
+    def audit_translated_titles(self, id_wikitext: str) -> List[str]:
+        """
+        Audits Indonesian wikitext for common calques or mistranslated ancient bureaucratic titles.
+        Returns a list of warning descriptions.
+        """
+        warnings: List[str] = []
+        flawed_patterns = [
+            (re.compile(r"\bnegara\s+dependen\b", re.IGNORECASE), "Anakronisme gelar/wilayah: 'negara dependen' -> gunakan 'wilayah dependensi (shuguo)' (bukan negara berdaulat merdeka)."),
+            (re.compile(r"\b(?:komanderi\s+administrator|administrator\s+komanderi)\b", re.IGNORECASE), "Kalkir modern kantor: 'administrator komanderi' -> gunakan 'Gubernur Komanderi' (Tàishǒu)."),
+            (re.compile(r"\bmenteri\s+pelayan\b", re.IGNORECASE), "Kalkir harfiah: 'menteri pelayan' -> gunakan 'Bendahara Rumah Tangga Istana' (Shǎo Fǔ)."),
+        ]
+        for pat, desc in flawed_patterns:
+            for match in pat.finditer(id_wikitext):
+                warnings.append(f"{desc} (ditemukan '{match.group(0)}')")
+        return warnings
 
 
 default_offices_manager = HistoricalOfficesManager()

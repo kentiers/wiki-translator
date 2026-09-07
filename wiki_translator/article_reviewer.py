@@ -535,6 +535,22 @@ class ArticleReviewer:
                     suggested_fix=f'Sediakan teks rujukan lengkap <ref name="{m_ref}">...</ref>',
                 )
             )
+        # Cross-audit with EditorialQAPipeline Layer 3 (Technician & Infobox schemas)
+        try:
+            from .editorial_qa import default_qa_pipeline
+            tech_res = default_qa_pipeline.audit_wiki_technician(id_wikitext)
+            for err in tech_res.errors:
+                reference_issues.append(
+                    ReviewFinding(
+                        category="Referensi & Sintaks",
+                        severity="HIGH",
+                        description=f"Kendala teknis wikitext: {err}",
+                        original_text="",
+                        suggested_fix="Perbaiki markah wikitext atau sesuaikan kunci infobox.",
+                    )
+                )
+        except Exception:
+            pass
 
         # Check category health
         categories = re.findall(r"\[\[(?:Kategori|Category):([^\]]+)\]\]", id_wikitext, re.IGNORECASE)

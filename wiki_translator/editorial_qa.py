@@ -32,7 +32,9 @@ from .lexical_register import LexicalRegisterReranker, default_lexical_reranker
 from .gramatika_engine import GramatikaEngine, default_gramatika_engine
 from .eyd_engine import EYDEngine, default_eyd_engine
 from .semantic_verifier import UniversalSemanticVerifier, default_semantic_verifier
-
+from .historical_offices import HistoricalOfficesManager, default_offices_manager
+from .historical_ethnonyms import HistoricalEthnonymsManager, default_ethnonyms_manager
+from .featured_article_harvester import FeaturedArticleHarvester, default_fa_harvester
 @dataclass
 class DrafterAuditResult:
     word_count: int
@@ -232,6 +234,9 @@ class EditorialQAPipeline:
         gramatika_engine: Optional[GramatikaEngine] = None,
         eyd_engine: Optional[EYDEngine] = None,
         semantic_verifier: Optional[UniversalSemanticVerifier] = None,
+        offices_manager: Optional[HistoricalOfficesManager] = None,
+        ethnonyms_manager: Optional[HistoricalEthnonymsManager] = None,
+        fa_harvester: Optional[FeaturedArticleHarvester] = None,
     ):
         self.slop_linter = slop_linter or default_slop_linter
         self.syntax_balancer = syntax_balancer or default_syntax_balancer
@@ -241,6 +246,9 @@ class EditorialQAPipeline:
         self.gramatika_engine = gramatika_engine or default_gramatika_engine
         self.eyd_engine = eyd_engine or default_eyd_engine
         self.semantic_verifier = semantic_verifier or default_semantic_verifier
+        self.offices_manager = offices_manager or default_offices_manager
+        self.ethnonyms_manager = ethnonyms_manager or default_ethnonyms_manager
+        self.fa_harvester = fa_harvester or default_fa_harvester
     # -------------------------------------------------------------------------
     def audit_drafter(self, wikitext: str) -> DrafterAuditResult:
         """Audits word count, section count, and presence of lead & references."""
@@ -441,6 +449,25 @@ class EditorialQAPipeline:
                 f"Terdapat {pun_fixes} penulisan partikel 'pun' yang belum dipisah (EYD V Bab II Huruf G): {pun_details[0]}."
             )
 
+        # Check historical offices & bureaucratic titles
+        if self.offices_manager:
+            try:
+                off_warnings = self.offices_manager.audit_translated_titles(masked_prose)
+                if off_warnings:
+                    eyd_deductions += min(15, len(off_warnings) * 5)
+                    warnings.extend(off_warnings)
+            except Exception:
+                pass
+
+        # Check historical ethnonyms & homonyms
+        if self.ethnonyms_manager:
+            try:
+                _, eth_fixes, eth_details = self.ethnonyms_manager.audit_and_fix_homonym_blunders(masked_prose)
+                if eth_fixes > 0:
+                    eyd_deductions += min(15, eth_fixes * 5)
+                    warnings.extend(eth_details)
+            except Exception:
+                pass
         eyd_compliance_score = max(0, 100 - eyd_deductions)
 
         # Lexical register & diction maturity check
