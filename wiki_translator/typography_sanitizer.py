@@ -530,21 +530,94 @@ class TypographySanitizer:
             return f"{prev_word}.{cites_and_spaces}{first_char.upper()}{rest}"
 
         return pattern.sub(replacer, text)
-    def normalize_image_thumbnail_syntax(self, text: str) -> str:
+    def normalize_image_thumbnail_syntax(
+        self, text: str, source_wikitext: Optional[str] = None
+    ) -> str:
         """
-        Dynamically normalizes MediaWiki image thumbnail options to canonical 'thumb',
-        matching English Wikipedia standard across all articles (eliminating 'jempol', 'jmpl', 'jempolan', 'mini'):
-        - [[File:...|jempol|...]] -> [[File:...|thumb|...]]
-        - [[Berkas:...|jmpl|...]] -> [[Berkas:...|thumb|...]]
+        Dynamically normalizes MediaWiki image syntax to canonical English Wikipedia standards
+        across all articles (eliminating 'jmbl', 'jempol', 'jmpl', 'jempolan', 'mini', 'kiri', 'kanan', 'tegak'):
+        - Uses 'File:' namespace prefix consistently.
+        - Uses 'thumb' consistently.
+        - Uses 'left' / 'right' / 'center' for alignment.
+        - Uses 'upright' / 'upright=X' for proportional scaling.
+        - When source_wikitext is available, pairs images by filename and aligns options 1-to-1 with source.
+        - Retains 100% of the translated Indonesian captions.
         Handles balanced brackets for captions with nested wikilinks.
         """
         if not text:
             return ""
 
+        def clean_filename(s: str) -> str:
+            s = s.strip()
+            for p in ("file:", "berkas:", "image:", "gambar:"):
+                if s.lower().startswith(p):
+                    s = s[len(p) :].strip()
+                    break
+            return s.replace("_", " ")
+
+        def split_image_parts(tag: str) -> List[str]:
+            inner = tag[2:-2]
+            parts = []
+            cur = []
+            d = 0
+            for ch in inner:
+                if ch in "{[":
+                    d += 1
+                elif ch in "}]":
+                    d -= 1
+                if ch == "|" and d == 0:
+                    parts.append("".join(cur).strip())
+                    cur = []
+                else:
+                    cur.append(ch)
+            if cur:
+                parts.append("".join(cur).strip())
+            return parts
+
         file_prefix_re = re.compile(r"\[\[\s*(?:File|Berkas|Image)\s*:", re.IGNORECASE)
+
+        source_map = {}
+        if source_wikitext:
+            pos = 0
+            while pos < len(source_wikitext):
+                m = file_prefix_re.search(source_wikitext, pos)
+                if not m:
+                    break
+                start = m.start()
+                d = 0
+                i = start
+                end = len(source_wikitext)
+                while i < len(source_wikitext):
+                    if source_wikitext[i : i + 2] == "[[":
+                        d += 1
+                        i += 2
+                    elif source_wikitext[i : i + 2] == "]]":
+                        d -= 1
+                        if d == 0:
+                            end = i + 2
+                            break
+                        i += 2
+                    else:
+                        i += 1
+                raw = source_wikitext[start:end]
+                parts = split_image_parts(raw)
+                fname = clean_filename(parts[0]).lower()
+                options = []
+                for p in parts[1:]:
+                    p_low = p.lower()
+                    if (
+                        p_low in ("thumb", "thumbnail", "frame", "framed", "border", "frameless", "left", "right", "center", "none")
+                        or re.match(r"^(?:(?:\d+)x(?:\d+)|(?:\d+)|x(?:\d+))px$", p_low)
+                        or p_low.startswith("upright")
+                        or p_low.startswith("alt=")
+                        or p_low.startswith("link=")
+                    ):
+                        options.append(p)
+                source_map[fname] = options
+                pos = end
+
         pos = 0
         out = []
-
         while pos < len(text):
             m = file_prefix_re.search(text, pos)
             if not m:
@@ -569,10 +642,47 @@ class TypographySanitizer:
                 else:
                     i += 1
 
-            raw_file = text[start:end]
-            norm_file = re.sub(r"\|\s*(?:jempolan|jempol|jmpl|mini)\s*(\||\]\])", r"|thumb\1", raw_file, flags=re.IGNORECASE)
-            norm_file = re.sub(r"\|\s*thumb\s*\|\s*thumb\b", "|thumb", norm_file, flags=re.IGNORECASE)
-            out.append(norm_file)
+            raw_draft = text[start:end]
+            d_parts = split_image_parts(raw_draft)
+            raw_fname = d_parts[0]
+            fname_base = clean_filename(raw_fname)
+
+            id_caption = ""
+            draft_options = []
+            for p in d_parts[1:]:
+                p_low = p.lower()
+                if (
+                    p_low in ("thumb", "thumbnail", "jempolan", "jempol", "jmpl", "jmbl", "mini", "frame", "framed", "border", "pembatas", "frameless", "left", "right", "center", "none", "kiri", "kanan", "tengah")
+                    or re.match(r"^(?:(?:\d+)x(?:\d+)|(?:\d+)|x(?:\d+))px$", p_low)
+                    or p_low.startswith("upright")
+                    or p_low.startswith("tegak")
+                    or p_low.startswith("alt=")
+                    or p_low.startswith("link=")
+                ):
+                    opt = p
+                    if p_low in ("jempolan", "jempol", "jmpl", "jmbl", "mini"):
+                        opt = "thumb"
+                    elif p_low == "kiri":
+                        opt = "left"
+                    elif p_low == "kanan":
+                        opt = "right"
+                    elif p_low == "tengah":
+                        opt = "center"
+                    elif p_low.startswith("tegak"):
+                        opt = p.replace("tegak", "upright").replace("Tegak", "upright")
+                    draft_options.append(opt)
+                else:
+                    id_caption = p
+
+            chosen_options = source_map.get(fname_base.lower(), draft_options)
+            if not any(o.lower() in ("thumb", "thumbnail") for o in chosen_options):
+                chosen_options.insert(0, "thumb")
+
+            new_parts = [f"File:{fname_base}"] + chosen_options
+            if id_caption:
+                new_parts.append(id_caption)
+
+            out.append("[[" + "|".join(new_parts) + "]]")
             pos = end
 
         return "".join(out)

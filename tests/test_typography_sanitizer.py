@@ -433,8 +433,10 @@ class TestTypographySanitizerPillars(unittest.TestCase):
         # MediaWiki image thumbnail options: jempol, jmpl, mini, jempolan -> thumb
         text1 = "[[Berkas:Photo1.jpg|jempol|kiri|upright=0.7|Gorbachev dengan [[Raisa Gorbacheva]].]]"
         res1 = self.sanitizer.normalize_image_thumbnail_syntax(text1)
-        self.assertIn("|thumb|kiri|", res1)
+        self.assertIn("File:Photo1.jpg", res1)
+        self.assertIn("|thumb|left|", res1)
         self.assertNotIn("|jempol|", res1)
+        self.assertNotIn("|kiri|", res1)
 
         text2 = "[[File:Photo2.png|jmpl|right|Deskripsi gambar.]]"
         res2 = self.sanitizer.normalize_image_thumbnail_syntax(text2)
@@ -443,9 +445,9 @@ class TestTypographySanitizerPillars(unittest.TestCase):
 
         text3 = "[[File:Photo3.jpg|mini|tegak|Patung lilin.]]"
         res3 = self.sanitizer.normalize_image_thumbnail_syntax(text3)
-        self.assertIn("|thumb|tegak|", res3)
+        self.assertIn("|thumb|upright|", res3)
         self.assertNotIn("|mini|", res3)
-
+        self.assertNotIn("|tegak|", res3)
         text4 = "[[File:AlreadyThumb.jpg|thumb|right|Foto]]"
         res4 = self.sanitizer.normalize_image_thumbnail_syntax(text4)
         self.assertEqual(res4, text4)
