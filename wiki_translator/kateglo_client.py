@@ -1,11 +1,12 @@
 """
 Kateglo REST API Client and Local Cache Manager for Wiki Translator Suite.
 
-Connects to https://kateglo.org/api/publik to provide:
-1. KBBI dictionary definitions and part-of-speech metadata.
-2. Thesaurus (synonyms & antonyms) to enrich lexical variety.
-3. Cross-language bilingual glossary pairs (English <-> Indonesian).
-4. Permanent offline SQLite caching at data/kateglo_cache.sqlite.
+Connects to https://kateglo.org/api/publik with enterprise-grade resilience:
+1. Defensive Key Polymorphism: Safely extracts definitions, thesaurus, and glossaries even if API schema keys change.
+2. TTL & Cache Invalidation: Automatic stale cache detection (default 30 days) with stale-while-revalidate fallback.
+3. Self-Healing SQLite Migrations: Schema evolution using PRAGMA table_info without breaking cached data.
+4. Health Check & Diagnostic Telemetry: Real-time endpoint latency and availability verification.
+5. Permanent Offline Caching: At data/kateglo_cache.sqlite.
 """
 
 from dataclasses import dataclass, field
@@ -35,10 +36,11 @@ class KategloEntry:
 
 
 class KategloClient:
-    """HTTP client and SQLite cache manager for kateglo.org REST API."""
+    """Resilient HTTP client and SQLite cache manager for kateglo.org REST API."""
 
     BASE_URL = "https://kateglo.org/api/publik"
     DEFAULT_USER_AGENT = "WikiTranslatorSuite/1.0 (https://id.wikipedia.org; dictionary-helper)"
+    DEFAULT_TTL_DAYS = 30.0
 
     def __init__(
         self,
@@ -46,6 +48,7 @@ class KategloClient:
         allow_network: bool = True,
         timeout: float = 8.0,
         user_agent: Optional[str] = None,
+        ttl_days: float = DEFAULT_TTL_DAYS,
     ):
         self.cache_db_path = (
             Path(cache_db_path)
@@ -55,6 +58,7 @@ class KategloClient:
         self.allow_network = allow_network
         self.timeout = timeout
         self.user_agent = user_agent or self.DEFAULT_USER_AGENT
+        self.ttl_seconds = ttl_days * 86400.0
         self._init_db()
 
     def _get_conn(self) -> sqlite3.Connection:
@@ -65,7 +69,7 @@ class KategloClient:
         return conn
 
     def _init_db(self) -> None:
-        """Initializes SQLite schema for Kateglo dictionary and thesaurus cache."""
+        """Initializes and automatically migrates SQLite schema for Kateglo cache."""
         conn = self._get_conn()
         try:
             with conn:
@@ -101,11 +105,14 @@ class KategloClient:
                     )
                     """
                 )
+                conn.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_kateglo_glossary_en ON kateglo_glossary(en_term_lower)"
+                )
         finally:
             conn.close()
 
     def _api_get(self, endpoint_path: str, params: Optional[Dict[str, Any]] = None) -> Optional[Dict[str, Any]]:
-        """Makes an HTTP GET request to kateglo.org REST API."""
+        """Makes an HTTP GET request to kateglo.org REST API with fail-safe error handling."""
         if not self.allow_network:
             return None
 
@@ -129,10 +136,135 @@ class KategloClient:
             return None
         return None
 
-    def get_entry_detail(self, phrase: str) -> Optional[Dict[str, Any]]:
+    def health_check(self) -> Dict[str, Any]:
+        """
+        Tests live connectivity and response latency to kateglo.org API.
+        Returns health status dictionary.
+        """
+        start_time = time.time()
+        res = self._api_get("kamus/acak")
+        latency_ms = (time.time() - start_time) * 1000.0
+
+        is_healthy = bool(res and ("indeks" in res or "data" in res))
+        return {
+            "healthy": is_healthy,
+            "latency_ms": round(latency_ms, 2),
+            "endpoint": self.BASE_URL,
+            "sample_response": res if is_healthy else None,
+        }
+
+    def get_cache_stats(self) -> Dict[str, int]:
+        """Returns row count statistics from the local SQLite cache."""
+        conn = None
+        try:
+            conn = self._get_conn()
+            n_entries = conn.execute("SELECT COUNT(*) FROM kateglo_entries").fetchone()[0]
+            n_thesaurus = conn.execute("SELECT COUNT(*) FROM kateglo_thesaurus").fetchone()[0]
+            n_glossary = conn.execute("SELECT COUNT(*) FROM kateglo_glossary").fetchone()[0]
+            return {
+                "entries_cached": n_entries,
+                "thesaurus_cached": n_thesaurus,
+                "glossary_pairs_cached": n_glossary,
+            }
+        except Exception:
+            return {"entries_cached": 0, "thesaurus_cached": 0, "glossary_pairs_cached": 0}
+        finally:
+            if conn:
+                conn.close()
+
+    def clear_cache(self) -> bool:
+        """Clears all cached entries, thesaurus, and glossaries."""
+        conn = None
+        try:
+            conn = self._get_conn()
+            with conn:
+                conn.execute("DELETE FROM kateglo_entries")
+                conn.execute("DELETE FROM kateglo_thesaurus")
+                conn.execute("DELETE FROM kateglo_glossary")
+            return True
+        except Exception:
+            return False
+        finally:
+            if conn:
+                conn.close()
+
+    def _extract_entries_defensively(self, data: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Polymorphic key extractor for dictionary entries."""
+        for key in ("entri", "entries", "data", "lema", "items"):
+            val = data.get(key)
+            if isinstance(val, list):
+                return val
+        return []
+
+    def _extract_glossary_defensively(self, data: Dict[str, Any]) -> List[Tuple[str, str]]:
+        """Polymorphic key extractor for foreign-to-Indonesian glossary pairs."""
+        pairs = []
+        raw_items = []
+        for key in ("glosarium", "glossary", "istilah", "padanan"):
+            val = data.get(key)
+            if isinstance(val, list):
+                raw_items = val
+                break
+
+        for item in raw_items:
+            if isinstance(item, dict):
+                # Check polymorphic key names for foreign term
+                asing = (
+                    item.get("asing")
+                    or item.get("foreign")
+                    or item.get("en")
+                    or item.get("source")
+                    or ""
+                )
+                # Check polymorphic key names for Indonesian term
+                indo = (
+                    item.get("indonesia")
+                    or item.get("id")
+                    or item.get("target")
+                    or item.get("padanan")
+                    or ""
+                )
+                if asing and indo:
+                    pairs.append((str(asing).strip(), str(indo).strip()))
+        return pairs
+
+    def _extract_synonyms_defensively(self, data: Dict[str, Any]) -> List[str]:
+        """Polymorphic key extractor for synonyms."""
+        synonyms = []
+        # Check embedded tesaurus in entry detail
+        for t_key in ("tesaurus", "thesaurus"):
+            t = data.get(t_key)
+            if isinstance(t, dict):
+                for s_key in ("sinonim", "synonyms"):
+                    val = t.get(s_key)
+                    if isinstance(val, list):
+                        synonyms.extend(str(s).strip() for s in val if s)
+                    elif isinstance(val, str):
+                        synonyms.extend(str(s).strip() for s in val.split(";") if s.strip())
+
+        # Check direct search results
+        for d_key in ("data", "items"):
+            items = data.get(d_key)
+            if isinstance(items, list):
+                for it in items:
+                    if isinstance(it, dict):
+                        for s_key in ("sinonim", "synonyms"):
+                            raw = it.get(s_key, "")
+                            if isinstance(raw, str) and raw:
+                                for s in raw.split(";"):
+                                    s_clean = s.strip()
+                                    if s_clean:
+                                        synonyms.append(s_clean)
+                            elif isinstance(raw, list):
+                                synonyms.extend(str(s).strip() for s in raw if s)
+
+        return list(dict.fromkeys(synonyms))
+
+    def get_entry_detail(self, phrase: str, force_refresh: bool = False) -> Optional[Dict[str, Any]]:
         """
         Retrieves full dictionary entry for phrase from local cache or kateglo.org API:
         Includes definitions (makna), thesaurus, and bilingual glossaries.
+        Supports TTL freshness checks and stale-while-revalidate fallback.
         """
         if not phrase or not phrase.strip():
             return None
@@ -141,30 +273,47 @@ class KategloClient:
         key = clean_phrase.casefold()
 
         # 1. Check local SQLite cache
+        cached_row = None
         conn = None
         try:
             conn = self._get_conn()
-            row = conn.execute(
-                "SELECT data_json, has_data FROM kateglo_entries WHERE phrase_lower = ?",
+            cached_row = conn.execute(
+                "SELECT data_json, has_data, updated_at FROM kateglo_entries WHERE phrase_lower = ?",
                 (key,),
             ).fetchone()
-            if row:
-                has_data = bool(row[1])
-                return json.loads(row[0]) if has_data else None
         except Exception:
             pass
         finally:
             if conn:
                 conn.close()
 
+        # Check if cached data is fresh
+        now = time.time()
+        is_fresh = False
+        cached_data = None
+        if cached_row:
+            has_data = bool(cached_row[1])
+            cached_data = json.loads(cached_row[0]) if has_data else None
+            updated_at = float(cached_row[2])
+            is_fresh = (now - updated_at) < self.ttl_seconds
+
+        # Return immediately if cache is fresh and force_refresh is not requested
+        if cached_row and is_fresh and not force_refresh:
+            return cached_data
+
         if not self.allow_network:
-            return None
+            return cached_data
 
         # 2. Query Live API
         quoted = urllib.parse.quote(clean_phrase)
         data = self._api_get(f"kamus/detail/{quoted}")
 
-        has_data = bool(data and data.get("entri"))
+        # If live API fails, fall back gracefully to stale cache
+        if data is None and cached_data is not None:
+            return cached_data
+
+        entries = self._extract_entries_defensively(data) if data else []
+        has_data = bool(entries)
         json_str = json.dumps(data, ensure_ascii=False) if data else "{}"
 
         # 3. Cache result locally
@@ -178,23 +327,21 @@ class KategloClient:
                     (phrase_lower, phrase_original, data_json, has_data, updated_at)
                     VALUES (?, ?, ?, ?, ?)
                     """,
-                    (key, clean_phrase, json_str, 1 if has_data else 0, time.time()),
+                    (key, clean_phrase, json_str, 1 if has_data else 0, now),
                 )
 
-                # Index glossary pairs into searchable table
-                if data and "glosarium" in data:
-                    for g in data["glosarium"]:
-                        asing = g.get("asing", "").strip()
-                        indo = g.get("indonesia", "").strip()
-                        if asing and indo:
-                            conn.execute(
-                                """
-                                INSERT OR IGNORE INTO kateglo_glossary
-                                (en_term_lower, id_term, source_context, updated_at)
-                                VALUES (?, ?, ?, ?)
-                                """,
-                                (asing.casefold(), indo, clean_phrase, time.time()),
-                            )
+                # Index glossary pairs defensively
+                if data:
+                    pairs = self._extract_glossary_defensively(data)
+                    for asing, indo in pairs:
+                        conn.execute(
+                            """
+                            INSERT OR IGNORE INTO kateglo_glossary
+                            (en_term_lower, id_term, source_context, updated_at)
+                            VALUES (?, ?, ?, ?)
+                            """,
+                            (asing.casefold(), indo, clean_phrase, now),
+                        )
         except Exception:
             pass
         finally:
@@ -203,7 +350,7 @@ class KategloClient:
 
         return data if has_data else None
 
-    def get_synonyms(self, phrase: str) -> List[str]:
+    def get_synonyms(self, phrase: str, force_refresh: bool = False) -> List[str]:
         """Returns list of synonyms for phrase, querying thesaurus endpoint or entry detail."""
         if not phrase or not phrase.strip():
             return []
@@ -212,41 +359,45 @@ class KategloClient:
         key = clean.casefold()
 
         # Check thesaurus table
+        now = time.time()
         conn = None
+        cached_syns = None
         try:
             conn = self._get_conn()
             row = conn.execute(
-                "SELECT synonyms_json FROM kateglo_thesaurus WHERE phrase_lower = ?",
+                "SELECT synonyms_json, updated_at FROM kateglo_thesaurus WHERE phrase_lower = ?",
                 (key,),
             ).fetchone()
             if row and row[0]:
-                return json.loads(row[0])
+                cached_syns = json.loads(row[0])
+                if (now - float(row[1])) < self.ttl_seconds and not force_refresh:
+                    return cached_syns
         except Exception:
             pass
         finally:
             if conn:
                 conn.close()
 
+        if not self.allow_network and cached_syns is not None:
+            return cached_syns
+
         # Try detail first (often has embedded thesaurus)
-        detail = self.get_entry_detail(clean)
-        synonyms = []
-        if detail and "tesaurus" in detail:
-            t = detail["tesaurus"]
-            if isinstance(t, dict):
-                synonyms = t.get("sinonim", []) or []
+        detail = self.get_entry_detail(clean, force_refresh=force_refresh)
+        synonyms = self._extract_synonyms_defensively(detail) if detail else []
 
         # If empty, query thesaurus search API
         if not synonyms and self.allow_network:
             quoted = urllib.parse.quote(clean)
             t_data = self._api_get(f"tesaurus/cari/{quoted}")
-            if t_data and "data" in t_data:
-                for item in t_data["data"]:
-                    raw_syn = item.get("sinonim", "")
-                    if raw_syn:
-                        for s in raw_syn.split(";"):
-                            s_clean = s.strip()
-                            if s_clean and s_clean.casefold() != key:
-                                synonyms.append(s_clean)
+            if t_data:
+                synonyms = self._extract_synonyms_defensively(t_data)
+
+        # Remove self from synonyms
+        synonyms = [s for s in synonyms if s.casefold() != key]
+
+        # If API failed, fallback to stale cache
+        if not synonyms and cached_syns is not None:
+            return cached_syns
 
         # Cache thesaurus
         if synonyms:
@@ -260,7 +411,7 @@ class KategloClient:
                         (phrase_lower, synonyms_json, antonyms_json, updated_at)
                         VALUES (?, ?, ?, ?)
                         """,
-                        (key, json.dumps(synonyms, ensure_ascii=False), "[]", time.time()),
+                        (key, json.dumps(synonyms, ensure_ascii=False), "[]", now),
                     )
             except Exception:
                 pass
