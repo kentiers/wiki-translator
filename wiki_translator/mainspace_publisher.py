@@ -373,6 +373,15 @@ class MainspacePublisher:
         talk_title = f"Pembicaraan:{clean_title}"
         talk_url = f"{self.BASE_WEB_URL}/{urllib.parse.quote(talk_title.replace(' ', '_'), safe='/:()')}"
 
+        # Strip draft/review banners and sandbox notices from mainspace content
+        import re
+        wikitext = re.sub(
+            r"^\s*\{\|[^\n]*\n\|[^\n]*(?:'''Draf perbaikan'''|ℹ️|draf\s+perbaikan)[^\n]*\n\|\}\s*",
+            "",
+            wikitext or "",
+            flags=re.IGNORECASE,
+        )
+        wikitext = re.sub(r"\{\{Kotak pemberitahuan[\s\S]*?\}\}\s*", "", wikitext, flags=re.IGNORECASE).strip()
         edit_summary = sanitize_edit_summary(summary or self.DEFAULT_PUBLISH_SUMMARY, default_fallback=self.DEFAULT_PUBLISH_SUMMARY)
 
         # Collision check
