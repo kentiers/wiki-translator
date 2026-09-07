@@ -1694,7 +1694,7 @@ class WikiLinkMapper:
             text = sanitize_ill_foreign_targets(text)
             # Step 4: Validate link fidelity & convert existing links
             if hasattr(self, "fidelity_validator") and self.fidelity_validator:
-                text, _ = self.fidelity_validator.auto_convert_existing_links(text)
+                text, _ = self.fidelity_validator.auto_convert_existing_links(text, allow_network=self.allow_network)
                 # Step 5: Safeguard remaining naked redlinks with {{ill}} when source is provided
                 if use_ill_templates and source_wikitext is not None:
                     text, _, _ = self.fidelity_validator.safeguard_redlinks_with_ill(text, source_wikitext=source_wikitext)

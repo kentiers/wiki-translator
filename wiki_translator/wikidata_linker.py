@@ -11,7 +11,7 @@ import os
 import urllib.error
 import urllib.parse
 import urllib.request
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 from wiki_translator.http_client import MediaWikiApiClient
 
 logger = logging.getLogger(__name__)
@@ -268,6 +268,60 @@ class WikidataLinker:
                     return item_id
 
         return None
+
+    def get_idwiki_sitelinks_batch(self, en_titles: List[str]) -> Dict[str, Dict[str, Any]]:
+        """
+        Batch queries Wikidata API (wbgetentities) for up to 50 titles per chunk.
+        Returns a mapping of {lowercase_en_title: {"qid": str, "canonical_en": str, "id_title": Optional[str], "exists_on_id": bool}}.
+        """
+        if not en_titles:
+            return {}
+
+        results: Dict[str, Dict[str, Any]] = {}
+        batch_size = 50
+
+        # Filter and clean unique titles
+        clean_titles = []
+        seen = set()
+        for t in en_titles:
+            ct = t.strip()
+            if ct and ct.lower() not in seen:
+                seen.add(ct.lower())
+                clean_titles.append(ct)
+
+        for i in range(0, len(clean_titles), batch_size):
+            chunk = clean_titles[i : i + batch_size]
+            params = {
+                "action": "wbgetentities",
+                "sites": "enwiki",
+                "titles": "|".join(chunk),
+                "props": "sitelinks",
+                "format": "json",
+            }
+            res, _ = self._make_request(params, method="GET")
+            if not res or "entities" not in res:
+                continue
+
+            for qid, edata in res["entities"].items():
+                if qid == "-1" or "missing" in edata:
+                    continue
+                sitelinks = edata.get("sitelinks", {})
+                en_t = sitelinks.get("enwiki", {}).get("title")
+                id_t = sitelinks.get("idwiki", {}).get("title")
+
+                item_info = {
+                    "qid": qid,
+                    "canonical_en": en_t or "",
+                    "id_title": id_t,
+                    "exists_on_id": id_t is not None,
+                }
+                if en_t:
+                    results[en_t.lower()] = item_info
+                for req_t in chunk:
+                    if en_t and req_t.lower() == en_t.lower():
+                        results[req_t.lower()] = item_info
+
+        return results
 
     def link_idwiki_sitelink(
         self,

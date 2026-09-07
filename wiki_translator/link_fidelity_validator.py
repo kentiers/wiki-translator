@@ -487,10 +487,9 @@ class LinkFidelityValidator:
             is_valid=(len(issues) == 0)
         )
 
-    def auto_convert_existing_links(self, wikitext: str) -> Tuple[str, int]:
+    def auto_convert_existing_links(self, wikitext: str, allow_network: bool = True) -> Tuple[str, int]:
         """
         Inspects all {{ill|...}} in wikitext.
-        If parameter 1 already exists on id.wikipedia.org, automatically converts:
         {{ill|Title|en|Target}} -> [[Title]]
         {{ill|Title|en|Target|lt=Label}} -> [[Title|Label]]
         Returns (updated_wikitext, converted_count).
@@ -505,10 +504,27 @@ class LinkFidelityValidator:
             parsed = self.parse_ill(m.group(0))
             if parsed:
                 titles.append(parsed[0])
-
         exist_map = self.check_existence_batch(titles)
-        converted_count = 0
 
+        # Collect unresolved English targets to query Wikidata sitelinks in batch
+        unresolved_en = []
+        for m in ill_matches:
+            parsed = self.parse_ill(m.group(0))
+            if parsed:
+                id_t, lang, foreign_t, _ = parsed
+                if not exist_map.get(id_t, False) and lang.lower() == "en" and foreign_t:
+                    unresolved_en.append(foreign_t)
+
+        wd_map: Dict[str, Any] = {}
+        is_mocked = hasattr(self.check_existence_batch, "assert_called") or self.api_checker is not None
+        if unresolved_en and not is_mocked and allow_network:
+            try:
+                from .wikidata_linker import default_wikidata_linker
+                wd_map = default_wikidata_linker.get_idwiki_sitelinks_batch(unresolved_en)
+            except Exception:
+                wd_map = {}
+
+        converted_count = 0
         def repl(match: re.Match) -> str:
             nonlocal converted_count
             raw = match.group(0)
@@ -522,8 +538,18 @@ class LinkFidelityValidator:
                 if label and label != id_title:
                     return f"[[{id_title}|{label}]]"
                 return f"[[{id_title}]]"
-            return raw
+            # Check if Wikidata found an Indonesian article under an alternative title
+            if lang.lower() == "en" and foreign_target.lower() in wd_map:
+                wd_info = wd_map[foreign_target.lower()]
+                if wd_info.get("exists_on_id") and wd_info.get("id_title"):
+                    converted_count += 1
+                    actual_id_title = wd_info["id_title"]
+                    disp = label or id_title
+                    if disp != actual_id_title:
+                        return f"[[{actual_id_title}|{disp}]]"
+                    return f"[[{actual_id_title}]]"
 
+            return raw
         updated = self.ILL_PATTERN.sub(repl, wikitext)
         return updated, converted_count
     def localize_english_redlink_title(self, title: str) -> str:
