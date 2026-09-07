@@ -334,9 +334,19 @@ class TestWikiLinkMapperHatnotes(unittest.TestCase):
     def setUp(self):
         self.temp_dir = tempfile.TemporaryDirectory()
         self.cache_db = Path(self.temp_dir.name) / "test_hatnote_cache.db"
-        self.mapper = WikiLinkMapper(cache_db_path=str(self.cache_db), allow_network=False)
+        self.mapper = WikiLinkMapper(cache_db_path=str(self.cache_db), allow_network=True)
 
-    def test_map_hatnotes_with_known_mappings(self):
+    @patch.object(WikiLinkMapper, "check_id_wiki_pages_exist")
+    @patch.object(WikiLinkMapper, "fetch_en_to_id_langlinks")
+    def test_map_hatnotes_with_dynamic_resolutions(self, mock_langlinks, mock_exists):
+        mock_exists.side_effect = lambda titles: {t: (t == "Commonwealth of Independent States") for t in titles}
+        self.mapper._canonical_id_titles["Commonwealth of Independent States"] = "Persemakmuran Negara-Negara Merdeka"
+        mock_langlinks.return_value = {
+            "Dissolution of the Soviet Union": "Pembubaran Uni Soviet",
+            "Revolutions of 1989": "Revolusi 1989",
+            "Mikhail Gorbachev 1996 presidential campaign": "Kampanye kepresidenan Mikhail Gorbachev 1996",
+            "Political views of Mikhail Gorbachev": None,
+        }
         wikitext = """== Sejarah ==
 {{main|Dissolution of the Soviet Union|Revolutions of 1989}}
 {{main|Mikhail Gorbachev 1996 presidential campaign}}

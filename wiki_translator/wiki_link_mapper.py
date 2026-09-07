@@ -138,13 +138,6 @@ KNOWN_PAGE_MAPPINGS: Dict[str, str] = {
     "people from st. petersburg": "Kategori:Tokoh dari Sankt-Peterburg",
     "saint petersburg state university": "Universitas Negeri Sankt-Peterburg",
     "st. petersburg state university": "Universitas Negeri Sankt-Peterburg",
-    "order of lenin": "Orde Lenin",
-    "commonwealth of independent states": "Persemakmuran Negara-Negara Merdeka",
-    "parliament of australia": "Parlemen Australia",
-    "dissolution of the soviet union": "Pembubaran Uni Soviet",
-    "revolutions of 1989": "Revolusi 1989",
-    "mikhail gorbachev 1996 presidential campaign": "Kampanye kepresidenan Mikhail Gorbachev 1996",
-    "political views of mikhail gorbachev": "Pandangan politik Mikhail Gorbachev",
 }
 
 
@@ -238,6 +231,7 @@ class WikiLinkMapper:
             or "WikiTranslatorLinkMapper/1.0 (https://id.wikipedia.org; translator-tool)"
         )
         self._init_db()
+        self._canonical_id_titles: Dict[str, str] = {}
 
     def _get_cache_conn(self) -> sqlite3.Connection:
         conn = sqlite3.connect(self.cache_db_path, timeout=10.0)
@@ -544,8 +538,9 @@ class WikiLinkMapper:
                 norm_title = normalize_title(title)
                 for original in target_to_batch.get(norm_title, []):
                     results[original] = exists
+                    if exists and title:
+                        self._canonical_id_titles[original] = title
                     confirmed_in_batch.add(original)
-
             # Persist ONLY confirmed titles to SQLite cache
             if confirmed_in_batch:
                 conn = None
@@ -1145,8 +1140,14 @@ class WikiLinkMapper:
         remaining: List[str] = []
         for u in uncached:
             if id_exist_map.get(u, False):
-                res = LinkResolution(original_target=u, target_id=u, exists_on_id=True, source="id_direct")
-                self.cache_page_link(u, u, True, "id_direct")
+                canonical = self._canonical_id_titles.get(u, u)
+                res = LinkResolution(
+                    original_target=u,
+                    target_id=canonical,
+                    exists_on_id=True,
+                    source="id_redirect" if canonical.casefold() != u.casefold() else "id_direct",
+                )
+                self.cache_page_link(u, canonical, True, res.source)
                 resolutions[u] = res
             else:
                 remaining.append(u)
@@ -1252,17 +1253,35 @@ class WikiLinkMapper:
 
         def translate_title_fallback(en_title: str) -> str:
             t = en_title.strip()
-            t = re.sub(r"^Political views of\s+(.+)$", r"Pandangan politik \1", t, flags=re.IGNORECASE)
-            t = re.sub(r"^Bibliography of\s+(.+)$", r"Bibliografi \1", t, flags=re.IGNORECASE)
-            t = re.sub(r"^Early life of\s+(.+)$", r"Kehidupan awal \1", t, flags=re.IGNORECASE)
-            t = re.sub(r"^Presidency of\s+(.+)$", r"Kepresidenan \1", t, flags=re.IGNORECASE)
-            t = re.sub(r"^Electoral history of\s+(.+)$", r"Riwayat pemilihan umum \1", t, flags=re.IGNORECASE)
-            t = re.sub(r"^Death and funeral of\s+(.+)$", r"Kematian dan pemakaman \1", t, flags=re.IGNORECASE)
-            t = re.sub(r"^Dissolution of the\s+(.+)$", r"Pembubaran \1", t, flags=re.IGNORECASE)
-            t = re.sub(r"\bthe Russian Revolution and Civil War\b", "Revolusi Rusia dan Perang Saudara", t, flags=re.IGNORECASE)
-            t = re.sub(r"\bStalinism and the Soviet Union\b", "Stalinisme dan Uni Soviet", t, flags=re.IGNORECASE)
-            t = re.sub(r"\bthe post-Stalinist Soviet Union\b", "Uni Soviet pasca-Stalin", t, flags=re.IGNORECASE)
-            t = re.sub(r"\bSoviet Union\b", "Uni Soviet", t, flags=re.IGNORECASE)
+            # Match generic grammatical prefix patterns: [Prefix] of (the) [Subject]
+            m = re.match(
+                r"^(Bibliography|Political views|Early life|Presidency|Electoral history|Dissolution)\s+of\s+(?:the\s+)?(.+)$",
+                t,
+                re.IGNORECASE,
+            )
+            if m:
+                prefix = m.group(1).lower()
+                subject = m.group(2).strip()
+                prefix_map = {
+                    "bibliography": "Bibliografi",
+                    "political views": "Pandangan politik",
+                    "early life": "Kehidupan awal",
+                    "presidency": "Kepresidenan",
+                    "electoral history": "Riwayat pemilihan umum",
+                    "dissolution": "Pembubaran",
+                }
+                prefix_id = prefix_map.get(prefix, prefix.capitalize())
+                # Dynamically resolve subject entities via batch_resolve_wikilinks
+                parts = re.split(r"\s+(?:and|&)\s+", subject)
+                sub_resolutions = self.batch_resolve_wikilinks(parts)
+                resolved_parts = []
+                for p in parts:
+                    sub_res = sub_resolutions.get(p)
+                    if sub_res and sub_res.target_id:
+                        resolved_parts.append(sub_res.target_id)
+                    else:
+                        resolved_parts.append(p)
+                return f"{prefix_id} {' dan '.join(resolved_parts)}"
             return t
 
         def repl(m: re.Match) -> str:
