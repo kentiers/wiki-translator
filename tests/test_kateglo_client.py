@@ -90,6 +90,47 @@ class TestKategloClient(unittest.TestCase):
         self.assertIn("tes", synonyms)
         self.assertIn("eksperimen", synonyms)
         self.assertIn("percobaan", synonyms)
+    @patch.object(KategloClient, "_api_get")
+    def test_search_by_definition_caches_results(self, mock_api):
+        mock_api.return_value = {
+            "query": "pemerintahan",
+            "total": 1,
+            "data": [
+                {"entri": "absolutisme", "makna_cocok": [{"makna": "bentuk pemerintahan monarki"}]}
+            ],
+        }
+
+        results = self.client.search_by_definition("pemerintahan")
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]["entri"], "absolutisme")
+        mock_api.assert_called_once()
+
+        # Second call hits cache
+        mock_api.reset_mock()
+        cached = self.client.search_by_definition("pemerintahan")
+        self.assertEqual(len(cached), 1)
+        mock_api.assert_not_called()
+
+    @patch.object(KategloClient, "_api_get")
+    def test_get_categories_and_bidang(self, mock_api):
+        mock_api.return_value = {
+            "bidang": [{"kode": "Fis", "nama": "Fisika"}],
+            "kelas_kata": [{"kode": "n", "nama": "Nomina"}],
+        }
+        cats = self.client.get_categories()
+        self.assertIn("bidang", cats)
+        self.assertEqual(cats["bidang"][0]["nama"], "Fisika")
+
+    @patch.object(KategloClient, "_api_get")
+    def test_rhyme_and_call_endpoint(self, mock_api):
+        mock_api.return_value = {"pemenggalan": "de.mok.ra.si", "rima_akhir": "si"}
+        r = self.client.get_rhyme_and_syllabification("demokrasi")
+        self.assertEqual(r["pemenggalan"], "de.mok.ra.si")
+
+        # Dynamic pass-through dispatcher
+        mock_api.return_value = {"custom_feature": True}
+        res = self.client.call_endpoint("etimologi/cari/kata")
+        self.assertTrue(res.get("custom_feature"))
 
 
 if __name__ == "__main__":

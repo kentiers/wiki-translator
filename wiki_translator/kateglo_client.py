@@ -2,11 +2,21 @@
 Kateglo REST API Client and Local Cache Manager for Wiki Translator Suite.
 
 Connects to https://kateglo.org/api/publik with enterprise-grade resilience:
-1. Defensive Key Polymorphism: Safely extracts definitions, thesaurus, and glossaries even if API schema keys change.
-2. TTL & Cache Invalidation: Automatic stale cache detection (default 30 days) with stale-while-revalidate fallback.
-3. Self-Healing SQLite Migrations: Schema evolution using PRAGMA table_info without breaking cached data.
-4. Health Check & Diagnostic Telemetry: Real-time endpoint latency and availability verification.
-5. Permanent Offline Caching: At data/kateglo_cache.sqlite.
+1. Complete Feature Coverage:
+   - Dictionary lookup & KBBI meanings (kamus/detail)
+   - Reverse dictionary / full-text definition search (makna/cari)
+   - Thesaurus search for synonyms and antonyms (tesaurus/cari)
+   - 68 Subject domains (bidang) & 10 word classes (kelas_kata) (kamus/kategori)
+   - Syllabification & rhyme phonetics (rima/cari)
+   - Random lemma generation (kamus/acak)
+2. Future-Proof API Extensibility:
+   - Dynamic generic dispatcher `call_endpoint()` allowing instant calls to any newly introduced Kateglo API endpoint.
+3. Defensive Key Polymorphism:
+   - Safely extracts definitions, thesaurus, and glossaries even if API schema keys change.
+4. TTL & Cache Invalidation:
+   - Automatic stale cache detection (default 30 days) with stale-while-revalidate fallback.
+5. Self-Healing SQLite Schema & Indexing:
+   - Fully indexed, WAL-mode SQLite tables in data/kateglo_cache.sqlite.
 """
 
 from dataclasses import dataclass, field
@@ -36,7 +46,7 @@ class KategloEntry:
 
 
 class KategloClient:
-    """Resilient HTTP client and SQLite cache manager for kateglo.org REST API."""
+    """Comprehensive, resilient HTTP client and SQLite cache manager for kateglo.org REST API."""
 
     BASE_URL = "https://kateglo.org/api/publik"
     DEFAULT_USER_AGENT = "WikiTranslatorSuite/1.0 (https://id.wikipedia.org; dictionary-helper)"
@@ -106,6 +116,24 @@ class KategloClient:
                     """
                 )
                 conn.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS kateglo_definition_search (
+                        query_lower TEXT PRIMARY KEY,
+                        results_json TEXT NOT NULL,
+                        updated_at REAL NOT NULL
+                    )
+                    """
+                )
+                conn.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS kateglo_metadata (
+                        key TEXT PRIMARY KEY,
+                        value_json TEXT NOT NULL,
+                        updated_at REAL NOT NULL
+                    )
+                    """
+                )
+                conn.execute(
                     "CREATE INDEX IF NOT EXISTS idx_kateglo_glossary_en ON kateglo_glossary(en_term_lower)"
                 )
         finally:
@@ -116,7 +144,8 @@ class KategloClient:
         if not self.allow_network:
             return None
 
-        url = f"{self.BASE_URL}/{endpoint_path.lstrip('/')}"
+        clean_endpoint = endpoint_path.strip().lstrip("/")
+        url = f"{self.BASE_URL}/{clean_endpoint}"
         if params:
             url += "?" + urllib.parse.urlencode(params)
 
@@ -135,6 +164,15 @@ class KategloClient:
         except Exception:
             return None
         return None
+
+    def call_endpoint(self, endpoint_path: str, params: Optional[Dict[str, Any]] = None) -> Any:
+        """
+        Generic, future-proof API dispatcher.
+        Allows immediate consumption of any current or future endpoint on kateglo.org
+        without waiting for client library updates.
+        e.g. call_endpoint('etimologi/cari/kata') or call_endpoint('peribahasa/acak')
+        """
+        return self._api_get(endpoint_path, params)
 
     def health_check(self) -> Dict[str, Any]:
         """
@@ -161,13 +199,15 @@ class KategloClient:
             n_entries = conn.execute("SELECT COUNT(*) FROM kateglo_entries").fetchone()[0]
             n_thesaurus = conn.execute("SELECT COUNT(*) FROM kateglo_thesaurus").fetchone()[0]
             n_glossary = conn.execute("SELECT COUNT(*) FROM kateglo_glossary").fetchone()[0]
+            n_def_search = conn.execute("SELECT COUNT(*) FROM kateglo_definition_search").fetchone()[0]
             return {
                 "entries_cached": n_entries,
                 "thesaurus_cached": n_thesaurus,
                 "glossary_pairs_cached": n_glossary,
+                "definition_searches_cached": n_def_search,
             }
         except Exception:
-            return {"entries_cached": 0, "thesaurus_cached": 0, "glossary_pairs_cached": 0}
+            return {"entries_cached": 0, "thesaurus_cached": 0, "glossary_pairs_cached": 0, "definition_searches_cached": 0}
         finally:
             if conn:
                 conn.close()
@@ -181,6 +221,8 @@ class KategloClient:
                 conn.execute("DELETE FROM kateglo_entries")
                 conn.execute("DELETE FROM kateglo_thesaurus")
                 conn.execute("DELETE FROM kateglo_glossary")
+                conn.execute("DELETE FROM kateglo_definition_search")
+                conn.execute("DELETE FROM kateglo_metadata")
             return True
         except Exception:
             return False
@@ -208,7 +250,6 @@ class KategloClient:
 
         for item in raw_items:
             if isinstance(item, dict):
-                # Check polymorphic key names for foreign term
                 asing = (
                     item.get("asing")
                     or item.get("foreign")
@@ -216,7 +257,6 @@ class KategloClient:
                     or item.get("source")
                     or ""
                 )
-                # Check polymorphic key names for Indonesian term
                 indo = (
                     item.get("indonesia")
                     or item.get("id")
@@ -231,7 +271,6 @@ class KategloClient:
     def _extract_synonyms_defensively(self, data: Dict[str, Any]) -> List[str]:
         """Polymorphic key extractor for synonyms."""
         synonyms = []
-        # Check embedded tesaurus in entry detail
         for t_key in ("tesaurus", "thesaurus"):
             t = data.get(t_key)
             if isinstance(t, dict):
@@ -242,7 +281,6 @@ class KategloClient:
                     elif isinstance(val, str):
                         synonyms.extend(str(s).strip() for s in val.split(";") if s.strip())
 
-        # Check direct search results
         for d_key in ("data", "items"):
             items = data.get(d_key)
             if isinstance(items, list):
@@ -287,7 +325,6 @@ class KategloClient:
             if conn:
                 conn.close()
 
-        # Check if cached data is fresh
         now = time.time()
         is_fresh = False
         cached_data = None
@@ -297,7 +334,6 @@ class KategloClient:
             updated_at = float(cached_row[2])
             is_fresh = (now - updated_at) < self.ttl_seconds
 
-        # Return immediately if cache is fresh and force_refresh is not requested
         if cached_row and is_fresh and not force_refresh:
             return cached_data
 
@@ -308,7 +344,6 @@ class KategloClient:
         quoted = urllib.parse.quote(clean_phrase)
         data = self._api_get(f"kamus/detail/{quoted}")
 
-        # If live API fails, fall back gracefully to stale cache
         if data is None and cached_data is not None:
             return cached_data
 
@@ -330,7 +365,6 @@ class KategloClient:
                     (key, clean_phrase, json_str, 1 if has_data else 0, now),
                 )
 
-                # Index glossary pairs defensively
                 if data:
                     pairs = self._extract_glossary_defensively(data)
                     for asing, indo in pairs:
@@ -358,7 +392,6 @@ class KategloClient:
         clean = phrase.strip()
         key = clean.casefold()
 
-        # Check thesaurus table
         now = time.time()
         conn = None
         cached_syns = None
@@ -381,25 +414,20 @@ class KategloClient:
         if not self.allow_network and cached_syns is not None:
             return cached_syns
 
-        # Try detail first (often has embedded thesaurus)
         detail = self.get_entry_detail(clean, force_refresh=force_refresh)
         synonyms = self._extract_synonyms_defensively(detail) if detail else []
 
-        # If empty, query thesaurus search API
         if not synonyms and self.allow_network:
             quoted = urllib.parse.quote(clean)
             t_data = self._api_get(f"tesaurus/cari/{quoted}")
             if t_data:
                 synonyms = self._extract_synonyms_defensively(t_data)
 
-        # Remove self from synonyms
         synonyms = [s for s in synonyms if s.casefold() != key]
 
-        # If API failed, fallback to stale cache
         if not synonyms and cached_syns is not None:
             return cached_syns
 
-        # Cache thesaurus
         if synonyms:
             conn = None
             try:
@@ -420,6 +448,125 @@ class KategloClient:
                     conn.close()
 
         return synonyms
+
+    def search_by_definition(self, query: str, limit: int = 20) -> List[Dict[str, Any]]:
+        """
+        Reverse dictionary search: finds Indonesian lemmas by searching within KBBI definitions.
+        e.g. searching 'bentuk pemerintahan' returns absolutisme, monarki, dll.
+        """
+        if not query or not query.strip():
+            return []
+
+        clean_query = query.strip()
+        key = clean_query.casefold()
+
+        # 1. Check cache
+        conn = None
+        try:
+            conn = self._get_conn()
+            row = conn.execute(
+                "SELECT results_json FROM kateglo_definition_search WHERE query_lower = ?",
+                (key,),
+            ).fetchone()
+            if row and row[0]:
+                return json.loads(row[0])
+        except Exception:
+            pass
+        finally:
+            if conn:
+                conn.close()
+
+        if not self.allow_network:
+            return []
+
+        # 2. Query Live API
+        quoted = urllib.parse.quote(clean_query)
+        payload = self._api_get(f"makna/cari/{quoted}", params={"limit": limit})
+        items = []
+        if payload and "data" in payload and isinstance(payload["data"], list):
+            items = payload["data"]
+
+        # 3. Cache result
+        conn = None
+        try:
+            conn = self._get_conn()
+            with conn:
+                conn.execute(
+                    """
+                    INSERT OR REPLACE INTO kateglo_definition_search
+                    (query_lower, results_json, updated_at)
+                    VALUES (?, ?, ?)
+                    """,
+                    (key, json.dumps(items, ensure_ascii=False), time.time()),
+                )
+        except Exception:
+            pass
+        finally:
+            if conn:
+                conn.close()
+
+        return items
+
+    def get_categories(self, force_refresh: bool = False) -> Dict[str, Any]:
+        """
+        Retrieves the complete catalog of Kateglo taxonomies:
+        Includes all 68 subject domains (bidang) and 10 word classes (kelas_kata).
+        """
+        conn = None
+        try:
+            conn = self._get_conn()
+            row = conn.execute(
+                "SELECT value_json, updated_at FROM kateglo_metadata WHERE key = 'taxonomies'"
+            ).fetchone()
+            if row and row[0] and not force_refresh:
+                return json.loads(row[0])
+        except Exception:
+            pass
+        finally:
+            if conn:
+                conn.close()
+
+        if not self.allow_network:
+            return {}
+
+        payload = self._api_get("kamus/kategori")
+        if payload:
+            conn = None
+            try:
+                conn = self._get_conn()
+                with conn:
+                    conn.execute(
+                        """
+                        INSERT OR REPLACE INTO kateglo_metadata
+                        (key, value_json, updated_at)
+                        VALUES (?, ?, ?)
+                        """,
+                        ("taxonomies", json.dumps(payload, ensure_ascii=False), time.time()),
+                    )
+            except Exception:
+                pass
+            finally:
+                if conn:
+                    conn.close()
+            return payload
+        return {}
+
+    def get_random_lemma(self) -> Optional[str]:
+        """Fetches a random lemma from kateglo.org."""
+        res = self._api_get("kamus/acak")
+        if res and "indeks" in res:
+            return res["indeks"]
+        return None
+
+    def get_rhyme_and_syllabification(self, phrase: str) -> Optional[Dict[str, Any]]:
+        """
+        Retrieves syllable segmentation (pemenggalan) and rhyme phonetics for phrase.
+        e.g. 'demokrasi' -> {'pemenggalan': 'de.mok.ra.si', 'rima_akhir': 'si', 'rima_awal': 'de'}
+        """
+        if not phrase or not phrase.strip():
+            return None
+        quoted = urllib.parse.quote(phrase.strip())
+        return self._api_get(f"rima/cari/{quoted}")
 
     def find_glossary_terms(self, en_term: str) -> List[str]:
         """
