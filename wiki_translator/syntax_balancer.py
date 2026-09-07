@@ -125,6 +125,9 @@ class WikitextSyntaxBalancer:
         # 7. Repair wikitables {| ... |}
         repaired = self._repair_wikitables(repaired)
 
+        # 8. Normalize {{efn}} footnote groups (|group=lower-greek, etc.)
+        repaired = self.normalize_efn_groups(repaired)
+
         return repaired
 
     # -------------------------------------------------------------------------
@@ -830,6 +833,19 @@ class WikitextSyntaxBalancer:
                 text = text[:close_pos] + text[close_pos + 2:]
 
         return text
+    def normalize_efn_groups(self, text: str) -> str:
+        """
+        Repairs malformed or missing |group= parameter in {{efn}} templates.
+        e.g. {{Efn|...lower-greek}} -> {{Efn|...|group=lower-greek}}
+        e.g. {{Efn|...|group=Lower-greek}} -> {{Efn|...|group=lower-greek}}
+        Ensures all footnotes are properly bound to the corresponding <references group="..." />.
+        """
+        if not text:
+            return ""
+        pat = re.compile(r"(?:\|group=\s*|\b(?<!\|group=))([Ll]ower-(?:greek|alpha|roman))\s*\}\}")
+        def repl(m: re.Match) -> str:
+            return "|group=" + m.group(1).lower() + "}}"
+        return pat.sub(repl, text)
 
 
 default_syntax_balancer = WikitextSyntaxBalancer()

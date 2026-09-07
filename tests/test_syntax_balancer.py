@@ -151,6 +151,12 @@ class TestWikitextSyntaxBalancer(unittest.TestCase):
         self.assertIsNotNone(default_syntax_balancer)
         res = default_syntax_balancer.check_balance("[[Link]]")
         self.assertEqual(res, [])
+    def test_normalize_efn_groups(self):
+        text = "{{Efn|Catatan pertama.{{sfn|Loewe}}lower-greek}}\n{{Efn|Catatan kedua.{{sfn|Dreyer}}Lower-greek}}\n{{Efn|Catatan ketiga.|group=Lower-greek}}"
+        repaired = self.balancer.auto_repair(text)
+        self.assertIn("{{Efn|Catatan pertama.{{sfn|Loewe}}|group=lower-greek}}", repaired)
+        self.assertIn("{{Efn|Catatan kedua.{{sfn|Dreyer}}|group=lower-greek}}", repaired)
+        self.assertIn("{{Efn|Catatan ketiga.|group=lower-greek}}", repaired)
 
 
 if __name__ == "__main__":
