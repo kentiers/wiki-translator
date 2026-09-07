@@ -566,6 +566,38 @@ class LinkFidelityValidator:
         """
         t = title.strip()
 
+        # 0. Disambiguation suffixes (WP:DISAMBIG & WP:PEDOMAN/FILM):
+        # e.g. (1953 film) -> (film 1953), (TV series) -> (seri televisi), (director) -> (sutradara)
+        for pat, repl in [
+            (re.compile(r"\s*\(\s*(\d{4})\s+film\s*\)$", re.I), r" (film \1)"),
+            (re.compile(r"\s*\(\s*film\s+(\d{4})\s*\)$", re.I), r" (film \1)"),
+            (re.compile(r"\s*\(\s*film\s*\)$", re.I), r" (film)"),
+            (re.compile(r"\s*\(\s*(\d{4})\s+TV\s+series\s*\)$", re.I), r" (seri televisi \1)"),
+            (re.compile(r"\s*\(\s*TV\s+series\s+(\d{4})\s*\)$", re.I), r" (seri televisi \1)"),
+            (re.compile(r"\s*\(\s*TV\s+series\s*\)$", re.I), r" (seri televisi)"),
+            (re.compile(r"\s*\(\s*television\s+series\s*\)$", re.I), r" (seri televisi)"),
+            (re.compile(r"\s*\(\s*director\s*\)$", re.I), r" (sutradara)"),
+            (re.compile(r"\s*\(\s*actor\s*\)$", re.I), r" (pemeran)"),
+            (re.compile(r"\s*\(\s*actress\s*\)$", re.I), r" (pemeran)"),
+            (re.compile(r"\s*\(\s*producer\s*\)$", re.I), r" (produser)"),
+            (re.compile(r"\s*\(\s*writer\s*\)$", re.I), r" (penulis)"),
+            (re.compile(r"\s*\(\s*author\s*\)$", re.I), r" (penulis)"),
+            (re.compile(r"\s*\(\s*musician\s*\)$", re.I), r" (musisi)"),
+            (re.compile(r"\s*\(\s*singer\s*\)$", re.I), r" (penyanyi)"),
+            (re.compile(r"\s*\(\s*play\s*\)$", re.I), r" (sandiwara)"),
+            (re.compile(r"\s*\(\s*musical\s*\)$", re.I), r" (musikal)"),
+            (re.compile(r"\s*\(\s*soundtrack\s*\)$", re.I), r" (jalur suara)"),
+            (re.compile(r"\s*\(\s*short\s+story\s*\)$", re.I), r" (cerita pendek)"),
+            (re.compile(r"\s*\(\s*magazine\s*\)$", re.I), r" (majalah)"),
+            (re.compile(r"\s*\(\s*newspaper\s*\)$", re.I), r" (surat kabar)"),
+            (re.compile(r"\s*\(\s*video\s+game\s*\)$", re.I), r" (permainan video)"),
+            (re.compile(r"\s*\(\s*painting\s*\)$", re.I), r" (lukisan)"),
+            (re.compile(r"\s*\(\s*ship\s*\)$", re.I), r" (kapal)"),
+            (re.compile(r"\s*\(\s*disambiguation\s*\)$", re.I), r" (disambiguasi)"),
+        ]:
+            if pat.search(t):
+                return pat.sub(repl, t).strip()
+
         # 1. City Council / City Hall
         m = re.match(r"^(.+?)\s+City\s+Council$", t, re.IGNORECASE)
         if m:
@@ -787,23 +819,22 @@ class LinkFidelityValidator:
             cross_wiki = self.resolve_cross_wiki_sitelinks(en_target, native_lang=native_lang)
             en_val = cross_wiki.get("en")
             native_val = cross_wiki.get(native_lang) if native_lang else None
+            # Always localize the target title for Indonesian Wikipedia conventions:
+            target = self.localize_english_redlink_title(target)
 
-            if target.casefold() == en_target.casefold():
-                target = self.localize_english_redlink_title(target)
-
+            # Prioritize 'en' as single foreign language. Only fallback to native_lang if 'en' is missing.
             ill_parts = [target]
-            if en_val:
-                ill_parts.extend(["en", en_val])
-            elif en_target:
-                ill_parts.extend(["en", en_target])
-            if native_val and native_val != en_val:
+            if en_val or en_target:
+                ill_parts.extend(["en", en_val or en_target])
+            elif native_val and native_lang:
                 ill_parts.extend([native_lang, native_val])
+
             if label and label != target:
                 ill_parts.append(f"lt={label}")
 
             ill_code = "{{" + f"ill|{'|'.join(str(p) for p in ill_parts if p is not None)}" + "}}"
             converted_count += 1
-            details.append(f"Converted redlink to multi-wiki {{{{ill}}}}: [[{target}]] -> {ill_code}")
+            details.append(f"Converted redlink to {{{{ill}}}}: [[{target}]] -> {ill_code}")
             return ill_code
         updated = WIKILINK_RE.sub(repl, draft_wikitext)
         return updated, converted_count, details

@@ -131,6 +131,11 @@ class TestLinkFidelityValidator(unittest.TestCase):
         self.assertEqual(self.validator.localize_english_redlink_title("Point Alpha Prize"), "Penghargaan Point Alpha")
         self.assertEqual(self.validator.localize_english_redlink_title("Harvard University"), "Universitas Harvard")
         self.assertEqual(self.validator.localize_english_redlink_title("Ohio State University"), "Universitas Negeri Ohio")
+        # Media and film disambiguation suffixes
+        self.assertEqual(self.validator.localize_english_redlink_title("Calamity Jane (1953 film)"), "Calamity Jane (film 1953)")
+        self.assertEqual(self.validator.localize_english_redlink_title("Better Times (1919 film)"), "Better Times (film 1919)")
+        self.assertEqual(self.validator.localize_english_redlink_title("Leave It to Beaver (TV series)"), "Leave It to Beaver (seri televisi)")
+        self.assertEqual(self.validator.localize_english_redlink_title("David Butler (director)"), "David Butler (sutradara)")
     def test_prune_ill_localizes_untranslated_title(self):
         """Ensures {{ill}} with raw English Parameter 1 title is automatically localized."""
         raw = "{{ill|Dublin City Council|en|Dublin City Council}}"
