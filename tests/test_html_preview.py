@@ -78,6 +78,14 @@ class TestHTMLPreviewGenerator(unittest.TestCase):
         self.assertNotIn("</div>]</div>", html)
         self.assertNotIn("</div>]", html)
         self.assertNotIn("]\n<p>Teks", html)
+    def test_offline_render_image_with_trailing_dimensions(self):
+        # MediaWiki image tag where dimension option (e.g. 354x354px) is placed after caption
+        wikitext = "[[File:Document.gif|right|thumb|Potret resmi Gorbachev di Uni Soviet.|354x354px]]"
+        html = self.generator.render_html("Uji Gambar Dimensi", wikitext, try_api_parse=False)
+
+        self.assertIn("Potret resmi Gorbachev di Uni Soviet.", html)
+        self.assertNotIn("354x354px</div>", html)
+        self.assertIn('style="width:354px;', html)
 
     def test_offline_render_multi_language_ill_badges(self):
         # Template with both English and Russian targets prioritizes 'en' and renders strictly single badge

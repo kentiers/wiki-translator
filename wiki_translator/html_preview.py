@@ -1013,7 +1013,8 @@ class HTMLPreviewGenerator:
 
             for p in parts[1:]:
                 p_low = p.lower()
-                if p_low in ("thumb", "thumbnail", "jempolan", "jmpl"):
+                size_match = re.match(r"^(?:(\d+)x(\d+)|(\d+)|x(\d+))px$", p_low)
+                if p_low in ("thumb", "thumbnail", "jempolan", "jmpl", "frame", "framed", "bingkai"):
                     pass
                 elif p_low in ("right", "kanan"):
                     align = "right"
@@ -1023,8 +1024,12 @@ class HTMLPreviewGenerator:
                     align = "center"
                 elif p_low.startswith("alt="):
                     alt = p[4:].strip()
-                elif re.match(r"^\d+px$", p_low):
-                    width = p_low[:-2]
+                elif p_low.startswith("link=") or p_low.startswith("tautan="):
+                    pass
+                elif p_low.startswith("class="):
+                    pass
+                elif size_match:
+                    width = size_match.group(1) or size_match.group(3) or width
                 elif p_low.startswith("upright") or p_low.startswith("tegak"):
                     factor_m = re.search(r"(?:upright|tegak)\s*=\s*([0-9.]+)", p_low)
                     if factor_m:
@@ -1035,11 +1040,10 @@ class HTMLPreviewGenerator:
                             width = "220"
                     else:
                         width = "220"
-                elif p_low in ("none", "frameless", "border", "pembatas"):
+                elif p_low in ("none", "frameless", "border", "pembatas", "baseline", "sub", "super", "top", "text-top", "middle", "bottom", "text-bottom"):
                     pass
                 else:
                     caption = p
-
             escaped_file = urllib.parse.quote(filename.replace(" ", "_"), safe="()-_.,")
             caption_html = re.sub(
                 r"\[\[([^\]|]+)(?:\|([^\]]+))?\]\]",
