@@ -526,13 +526,86 @@ class LinkFidelityValidator:
 
         updated = self.ILL_PATTERN.sub(repl, wikitext)
         return updated, converted_count
+    def localize_english_redlink_title(self, title: str) -> str:
+        """
+        Dynamically localizes common institutional, civic, award, and university English redlink titles:
+        - '[City] City Council' -> 'Dewan Kota [City]'
+        - '[City] City Hall' -> 'Balai Kota [City]'
+        - 'Freedom of the City of [City]' -> 'Penghargaan Kebebasan Kota [City]'
+        - 'Order of [X]' -> 'Orde [X]'
+        - 'National [X] Museum' -> 'Museum [X] Nasional'
+        - '[X] Prize / Award' -> 'Penghargaan [X]'
+        - '[X] State University' -> 'Universitas Negeri [X]'
+        - '[X] University' -> 'Universitas [X]'
+        """
+        t = title.strip()
+
+        # 1. City Council / City Hall
+        m = re.match(r"^(.+?)\s+City\s+Council$", t, re.IGNORECASE)
+        if m:
+            return f"Dewan Kota {m.group(1)}"
+        m = re.match(r"^(.+?)\s+City\s+Hall$", t, re.IGNORECASE)
+        if m:
+            return f"Balai Kota {m.group(1)}"
+
+        # 2. Freedom of the City of [City]
+        m = re.match(r"^Freedom\s+of\s+the\s+City\s+of\s+(.+)$", t, re.IGNORECASE)
+        if m:
+            return f"Penghargaan Kebebasan Kota {m.group(1)}"
+
+        # 3. Order of [X]
+        m = re.match(r"^Order\s+of\s+(.+)$", t, re.IGNORECASE)
+        if m:
+            val = m.group(1).strip()
+            val_map = {
+                "liberty": "Kebebasan",
+                "freedom": "Kebebasan",
+                "merit": "Jasa",
+                "glory": "Kejayaan",
+                "honor": "Kehormatan",
+                "lenin": "Lenin",
+                "the british empire": "Imperium Britania",
+                "the bath": "Bath",
+                "the rising sun": "Matahari Terbit",
+            }
+            id_val = val_map.get(val.lower(), val)
+            return f"Orde {id_val}"
+
+        # 4. National [X] Museum
+        m = re.match(r"^National\s+(.+?)\s+Museum$", t, re.IGNORECASE)
+        if m:
+            core = m.group(1).strip()
+            core_map = {
+                "civil rights": "Hak-Hak Sipil",
+                "art": "Seni",
+                "history": "Sejarah",
+                "natural history": "Sejarah Alam",
+            }
+            id_core = core_map.get(core.lower(), core)
+            return f"Museum {id_core} Nasional"
+
+        # 5. [X] Prize / Award
+        m = re.match(r"^(.+?)\s+(?:Prize|Award)$", t, re.IGNORECASE)
+        if m:
+            return f"Penghargaan {m.group(1)}"
+
+        # 6. [X] University / State University
+        m = re.match(r"^(.+?)\s+State\s+University$", t, re.IGNORECASE)
+        if m:
+            return f"Universitas Negeri {m.group(1)}"
+        m = re.match(r"^(.+?)\s+University$", t, re.IGNORECASE)
+        if m:
+            return f"Universitas {m.group(1)}"
+
+        return t
+
     def prune_ill_to_single_language(self, wikitext: str) -> Tuple[str, int]:
         """
         Prunes multi-language {{ill|...}} templates to strictly ONE foreign language:
         - Prioritizes 'en' if present.
         - If 'en' is not present, falls back to the first available foreign language.
         - Preserves '|lt=...' parameter if present.
-        Ensures that wikilinks render with only a single language badge (e.g. '(en)' or '(ru)', never '(en) (ru)').
+        - Automatically localizes untranslated English Parameter 1 titles.
         """
         if not wikitext:
             return wikitext, 0
@@ -570,12 +643,22 @@ class LinkFidelityValidator:
                     named_params.append(p)
                     idx += 1
 
-            if len(lang_pairs) <= 1:
+            if not lang_pairs:
                 return m.group(0)
 
             # Prioritize 'en'; fallback to first available foreign language
             selected_pair = next((pair for pair in lang_pairs if pair[0] == "en"), lang_pairs[0])
-            pruned_count += 1
+
+            # If title is in English (identical to foreign target), localize it
+            if title.casefold() == selected_pair[1].casefold():
+                localized = self.localize_english_redlink_title(title)
+                if localized != title:
+                    title = localized
+                    pruned_count += 1
+
+            if len(lang_pairs) > 1:
+                pruned_count += 1
+
             named_part = ("|" + "|".join(named_params)) if named_params else ""
             return f"{{{{ill|{title}|{selected_pair[0]}|{selected_pair[1]}{named_part}}}}}"
 
@@ -697,6 +780,9 @@ class LinkFidelityValidator:
             cross_wiki = self.resolve_cross_wiki_sitelinks(en_target, native_lang=native_lang)
             en_val = cross_wiki.get("en")
             native_val = cross_wiki.get(native_lang) if native_lang else None
+
+            if target.casefold() == en_target.casefold():
+                target = self.localize_english_redlink_title(target)
 
             ill_parts = [target]
             if en_val:
