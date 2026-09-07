@@ -450,6 +450,23 @@ def build_cli_parser() -> argparse.ArgumentParser:
         help="Audit and review an existing Indonesian Wikipedia article against en.wiki and WP:KAP",
     )
     parser.add_argument(
+        "--auto-full-threshold",
+        type=int,
+        default=60,
+        help="Audit score threshold below which review mode automatically runs full translation from en.wiki (default: 60)",
+    )
+    parser.add_argument(
+        "--min-completeness-ratio",
+        type=float,
+        default=0.40,
+        help="Completeness ratio threshold (id/en word count) below which review mode automatically runs full translation (default: 0.40)",
+    )
+    parser.add_argument(
+        "--no-auto-full",
+        action="store_true",
+        help="Disable automatic escalation to full translation in review mode",
+    )
+    parser.add_argument(
         "--glossary-memory",
         default=".cache/glossary_memory.db",
         help="SQLite glossary memory path (default: .cache/glossary_memory.db)",

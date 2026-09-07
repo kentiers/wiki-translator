@@ -248,6 +248,26 @@ class TestArticleReviewer(unittest.TestCase):
         self.assertEqual(dash_kwargs["activity_type"], "review")
         self.assertEqual(dash_kwargs["requester"], "Glorious Engine")
         self.assertEqual(dash_kwargs["article_title"], "Anna Filosofova")
+    def test_evaluate_full_translation_threshold(self):
+        """Tests automatic detection of stubs and severely broken translations for full escalation."""
+        # Case 1: Incomplete stub (e.g. 20 words id vs 500 words en)
+        id_stub = "Tokoh ini adalah seorang jenderal penting."
+        en_full = " ".join(["Word"] * 500)
+        report = self.reviewer.audit_translation_quality(id_stub, en_full, "Tokoh")
+        needs_full, reason, ratio = self.reviewer.evaluate_full_translation_threshold(
+            id_stub, en_full, report, min_score=60, min_ratio=0.40
+        )
+        self.assertTrue(needs_full)
+        self.assertIn("sangat tidak lengkap", reason)
+
+        # Case 2: Broken legacy translation (low score < 60)
+        en_doc = " ".join(["Word"] * 300)
+        report_bad = self.reviewer.audit_translation_quality(self.sample_bad_id_wikitext, en_doc, "Tokoh")
+        needs_bad, reason_bad, ratio_bad = self.reviewer.evaluate_full_translation_threshold(
+            self.sample_bad_id_wikitext, en_doc, report_bad, min_score=60, min_ratio=0.40
+        )
+        self.assertTrue(needs_bad)
+        self.assertIn("Skor audit mutu teks lama terlalu rendah", reason_bad)
 
 if __name__ == "__main__":
     unittest.main()

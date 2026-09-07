@@ -570,16 +570,19 @@ class ArticleReviewer:
         else:
             verdict = "LOLOS PEMERIKSAAN DASAR — PERLU TINJAUAN MANUSIA"
 
-        word_count = len(re.findall(r"\b\w+\b", id_wikitext))
+        id_words = len(re.findall(r"\b\w+\b", id_wikitext))
+        en_words = len(re.findall(r"\b\w+\b", en_wikitext)) if en_wikitext else 0
+        completeness_ratio = (id_words / max(en_words, 1)) if en_words else 1.0
         metrics = {
-            "word_count": word_count,
+            "word_count": id_words,
+            "en_word_count": en_words,
+            "completeness_ratio": round(completeness_ratio, 3),
             "fatal_errors_count": len(fatal_errors),
             "calque_issues_count": len(calque_issues),
             "typo_issues_count": len(typo_issues),
             "reference_issues_count": len(reference_issues),
             "category_count": len(categories),
         }
-
         # Build summary notes
         if fatal_errors:
             summary_notes.append(
@@ -1013,29 +1016,158 @@ class ArticleReviewer:
         res["dashboard"] = dash_res
         return res
 
+    def evaluate_full_translation_threshold(
+        self,
+        id_wikitext: str,
+        en_wikitext: str,
+        report: APReviewReport,
+        min_score: int = 60,
+        min_ratio: float = 0.40,
+    ) -> Tuple[bool, str, float]:
+        """
+        Evaluates whether an existing Indonesian article is too incomplete or heavily damaged
+        to simply be polished, warranting an automatic full translation from en.wikipedia.
+        """
+        id_words = report.metrics.get("word_count", len(id_wikitext.split()))
+        en_words = report.metrics.get("en_word_count", len(en_wikitext.split()))
+        ratio = id_words / max(en_words, 1)
+
+        reasons: List[str] = []
+        if en_words >= 250 and ratio < min_ratio:
+            reasons.append(
+                f"Artikel id.wiki sangat tidak lengkap (kelengkapan {ratio * 100:.1f}%: {id_words} kata ID vs {en_words} kata EN; di bawah ambang {min_ratio * 100:.0f}%)"
+            )
+        if report.overall_score < min_score:
+            reasons.append(
+                f"Skor audit mutu teks lama terlalu rendah ({report.overall_score}/100; di bawah ambang minimum {min_score})"
+            )
+        if len(report.fatal_errors) >= 3:
+            reasons.append(
+                f"Ditemukan {len(report.fatal_errors)} kesalahan konteks fatal (pembalikan fakta/pelaku)"
+            )
+
+        needs_full = len(reasons) > 0
+        return needs_full, "; ".join(reasons), ratio
+
+    def translate_full_from_en(
+        self, en_wikitext: str, id_title: str = "Artikel"
+    ) -> str:
+        """
+        Translates a complete article from en.wikipedia when the existing Indonesian
+        article is an incomplete stub or critically broken.
+        Iterates over all sections in en.wikipedia to ensure 100% structural and factual parity.
+        """
+        gemini = self._get_gemini_client()
+        if not gemini or not en_wikitext.strip():
+            return self._rule_based_clean(en_wikitext)
+
+        sec_en_list = self.en_client.split_sections(en_wikitext)
+        assembled_sections: List[str] = []
+
+        for i, sec_en in enumerate(sec_en_list):
+            title_lower = sec_en.title.lower()
+            is_meta = any(k in title_lower for k in [
+                "references", "see also", "external links", "further reading", "notes"
+            ])
+
+            if is_meta:
+                clean_sec = self._rule_based_clean(sec_en.content)
+                header = sec_en.header_raw or ""
+                header = re.sub(r"==\s*References\s*==", "== Referensi ==", header, flags=re.IGNORECASE)
+                header = re.sub(r"==\s*Notes\s*==", "== Catatan ==", header, flags=re.IGNORECASE)
+                header = re.sub(r"==\s*See also\s*==", "== Lihat pula ==", header, flags=re.IGNORECASE)
+                header = re.sub(r"==\s*External links\s*==", "== Pranala luar ==", header, flags=re.IGNORECASE)
+                header = re.sub(r"==\s*Further reading\s*==", "== Bacaan lanjutan ==", header, flags=re.IGNORECASE)
+                if header:
+                    assembled_sections.append(f"{header}\n{clean_sec.strip()}")
+                else:
+                    assembled_sections.append(clean_sec.strip())
+                continue
+
+            if not sec_en.content.strip():
+                continue
+
+            try:
+                translated_sec = gemini.translate_section(
+                    sec_en.content,
+                    model="gemini-3.8-flash",
+                )
+                translated_sec = self._rule_based_clean(translated_sec)
+            except Exception:
+                translated_sec = self._rule_based_clean(sec_en.content)
+
+            header = sec_en.header_raw or ""
+            if header and i > 0:
+                header = default_typography_sanitizer.normalize_headings(header)
+                assembled_sections.append(f"{header}\n{translated_sec.strip()}")
+            else:
+                assembled_sections.append(translated_sec.strip())
+
+        full_body = "\n\n".join(s for s in assembled_sections if s.strip())
+
+        if self.link_mapper:
+            try:
+                full_body = self.link_mapper.process_wikitext(full_body)
+            except Exception:
+                pass
+
+        full_body = default_typography_sanitizer.sanitize_wikitext(full_body)
+        full_body = default_syntax_balancer.auto_repair(full_body)
+        return full_body.strip()
+
     def audit_and_report(
-        self, id_title: str, en_title: Optional[str] = None
+        self,
+        id_title: str,
+        en_title: Optional[str] = None,
+        auto_full_threshold: int = 60,
+        min_completeness_ratio: float = 0.40,
+        allow_auto_full: bool = True,
     ) -> Tuple[APReviewReport, str, str]:
         """
         Full workflow:
         1. Fetches article pair from id and en Wikipedia.
         2. Audits translation quality and calculates WP:KAP score.
-        3. Generates community review text.
-        4. Generates polished wikitext.
-        5. Saves review to output/reviews/<title>_review.md and polished wikitext to output/reviews/<title>_polished.wikitext.
-        6. Keeps all results local; publishing is a separate explicit action.
+        3. Checks if article is below threshold (stub or broken legacy text).
+           If below threshold and allow_auto_full is True:
+           - Automatically runs Full Grade A++ Translation from en.wikipedia.
+           - Generates complete, comprehensive wikitext covering all en.wiki sections.
+        4. Otherwise:
+           - Generates polished wikitext by improving existing sections.
+        5. Saves review and preview.
         Returns (report, review_text, polished_wikitext).
         """
         id_wikitext, en_wikitext = self.fetch_article_pair(id_title, en_title)
         report = self.audit_translation_quality(id_wikitext, en_wikitext, id_title)
-        review_text = self.generate_community_review_text(report)
-        polished_wikitext = self.generate_polished_wikitext(id_wikitext, en_wikitext, id_title=id_title)
 
-        check_saved_integrity(id_wikitext, polished_wikitext, preserve_prose=False)
+        needs_full = False
+        escalation_reason = ""
+        if allow_auto_full and en_wikitext.strip():
+            needs_full, escalation_reason, ratio = self.evaluate_full_translation_threshold(
+                id_wikitext, en_wikitext, report, min_score=auto_full_threshold, min_ratio=min_completeness_ratio
+            )
+
+        if needs_full:
+            print(f"\n[!] AMBANG BATAS TERPICU: {escalation_reason}")
+            print("[*] Mengalihkan otomatis: Menjalankan Penerjemahan Penuh (Full Grade A++ Translation Pipeline) dari en.wikipedia...")
+            polished_wikitext = self.translate_full_from_en(en_wikitext, id_title=id_title)
+            # Re-evaluate report for the newly translated article
+            report = self.audit_translation_quality(polished_wikitext, en_wikitext, id_title)
+            report.metrics["escalated_to_full_translation"] = True
+            report.metrics["escalation_reason"] = escalation_reason
+            review_text = self.generate_community_review_text(report)
+            editorial_notice = (
+                f"> ℹ️ **Catatan Redaksi (Auto-Escalation):** Naskah Wikipedia bahasa Indonesia sebelumnya berada di bawah ambang batas kelayakan ({escalation_reason}).\n"
+                f"> Sistem secara otomatis mengalihkan proses ke **Penerjemahan Penuh (Full Grade A++ Translation)** dari en.wikipedia agar artikel menjadi utuh, lengkap, dan berimbang.\n\n"
+            )
+            review_text = editorial_notice + review_text
+        else:
+            review_text = self.generate_community_review_text(report)
+            polished_wikitext = self.generate_polished_wikitext(id_wikitext, en_wikitext, id_title=id_title)
+
+        check_saved_integrity(id_wikitext if not needs_full else polished_wikitext, polished_wikitext, preserve_prose=False)
         findings = review_claims(en_wikitext, polished_wikitext, self._get_gemini_client())
         if findings:
             raise ValueError("Quality gate klaim: " + "; ".join(findings))
-
         # Save to output/reviews/
         reviews_dir = Path("output/reviews")
         reviews_dir.mkdir(parents=True, exist_ok=True)

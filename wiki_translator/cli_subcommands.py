@@ -400,7 +400,12 @@ def handle_ecosystem_and_category_commands(
 
     if args.review_article:
         print(f"[*] Auditing and reviewing article '{args.review_article}' against en.wiki and WP:KAP...")
-        report, review_text, polished = mod.default_article_reviewer.audit_and_report(args.review_article)
+        report, review_text, polished = mod.default_article_reviewer.audit_and_report(
+            args.review_article,
+            auto_full_threshold=getattr(args, "auto_full_threshold", 60),
+            min_completeness_ratio=getattr(args, "min_completeness_ratio", 0.40),
+            allow_auto_full=not getattr(args, "no_auto_full", False),
+        )
         clean_filename = re.sub(r'[\\/*?:"<>| ]', "_", args.review_article)
         review_path = Path("output/reviews") / f"{clean_filename}_review.md"
         polished_path = Path("output/reviews") / f"{clean_filename}_polished.wikitext"
@@ -409,6 +414,9 @@ def handle_ecosystem_and_category_commands(
         print("=" * 60)
         print(f" Skor Keseluruhan   : {report.overall_score}/100")
         print(f" Status Kelayakan   : {report.verdict}")
+        if report.metrics.get("escalated_to_full_translation"):
+            print(f" Mode Eksekusi      : ESKALASI OTOMATIS KE PENERJEMAHAN PENUH (FULL TRANSLATION)")
+            print(f" Alasan Eskalasi    : {report.metrics.get('escalation_reason')}")
         print(f" Kesalahan Fatal    : {len(report.fatal_errors)}")
         print(f" Kalkir / Slop MT   : {len(report.calque_issues)}")
         print(f" Tipografi / EYD    : {len(report.typo_issues)}")
