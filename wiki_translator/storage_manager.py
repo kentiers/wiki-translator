@@ -220,6 +220,36 @@ class StorageManager:
                 continue
             results[key] = self.clear_database(key)
         return results
+    def optimize_all_databases(self) -> Dict[str, Dict[str, Any]]:
+        """
+        Runs PRAGMA optimize, checks integrity, and ensures WAL mode across all known databases.
+        Returns detailed optimization and health report.
+        """
+        report: Dict[str, Dict[str, Any]] = {}
+        for key in KNOWN_DATABASES:
+            path = self.get_db_path(key, ensure_parent=False)
+            if not path.exists():
+                continue
+            conn = None
+            try:
+                conn = sqlite3.connect(str(path), timeout=10.0)
+                cur = conn.cursor()
+                cur.execute("PRAGMA journal_mode=WAL")
+                cur.execute("PRAGMA synchronous=NORMAL")
+                integrity = cur.execute("PRAGMA integrity_check").fetchone()[0]
+                cur.execute("PRAGMA optimize")
+                report[key] = {
+                    "path": str(path),
+                    "integrity": integrity,
+                    "journal_mode": "wal",
+                    "status": "healthy" if integrity == "ok" else "error",
+                }
+            except Exception as e:
+                report[key] = {"path": str(path), "status": "error", "error": str(e)}
+            finally:
+                if conn:
+                    conn.close()
+        return report
 
 
 default_storage_manager = StorageManager()

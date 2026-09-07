@@ -58,6 +58,8 @@ class TestStorageManager(unittest.TestCase):
         self.assertEqual(self.mgr.wiki_templates_cache_db.name, "wiki_templates_cache.db")
         self.assertEqual(self.mgr.wiki_links_cache_db.name, "wiki_links_cache.db")
         self.assertEqual(self.mgr.wiki_link_data_db.name, "wiki_link_cache.sqlite")
+        self.assertEqual(self.mgr.kateglo_cache_db.name, "kateglo_cache.sqlite")
+        self.assertEqual(self.mgr.kateglo_cache_db.parent, self.mgr.data_dir)
 
     def test_inspect_and_clear_databases(self):
         db_path = self.mgr.get_db_path("translation_cache")
@@ -86,6 +88,20 @@ class TestStorageManager(unittest.TestCase):
     def test_default_storage_manager_singleton(self):
         self.assertIsInstance(default_storage_manager, StorageManager)
         self.assertTrue(str(default_storage_manager.cache_dir).endswith(".cache"))
+    def test_optimize_all_databases(self):
+        import sqlite3
+        db_path = self.mgr.get_db_path("translation_cache")
+        conn = sqlite3.connect(str(db_path))
+        try:
+            conn.execute("CREATE TABLE test_table (id INT)")
+            conn.commit()
+        finally:
+            conn.close()
+
+        report = self.mgr.optimize_all_databases()
+        self.assertIn("translation_cache", report)
+        self.assertEqual(report["translation_cache"]["integrity"], "ok")
+        self.assertEqual(report["translation_cache"]["status"], "healthy")
 
 
 if __name__ == "__main__":
