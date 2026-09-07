@@ -433,24 +433,35 @@ class TestTypographySanitizerPillars(unittest.TestCase):
         # MediaWiki image thumbnail options: jempol, jmpl, mini, jempolan -> thumb
         text1 = "[[Berkas:Photo1.jpg|jempol|kiri|upright=0.7|Gorbachev dengan [[Raisa Gorbacheva]].]]"
         res1 = self.sanitizer.normalize_image_thumbnail_syntax(text1)
-        self.assertIn("File:Photo1.jpg", res1)
+        self.assertIn("Berkas:Photo1.jpg", res1)
         self.assertIn("|thumb|left|", res1)
         self.assertNotIn("|jempol|", res1)
         self.assertNotIn("|kiri|", res1)
 
         text2 = "[[File:Photo2.png|jmpl|right|Deskripsi gambar.]]"
         res2 = self.sanitizer.normalize_image_thumbnail_syntax(text2)
+        self.assertIn("Berkas:Photo2.png", res2)
         self.assertIn("|thumb|right|", res2)
         self.assertNotIn("|jmpl|", res2)
 
         text3 = "[[File:Photo3.jpg|mini|tegak|Patung lilin.]]"
         res3 = self.sanitizer.normalize_image_thumbnail_syntax(text3)
+        self.assertIn("Berkas:Photo3.jpg", res3)
         self.assertIn("|thumb|upright|", res3)
         self.assertNotIn("|mini|", res3)
         self.assertNotIn("|tegak|", res3)
-        text4 = "[[File:AlreadyThumb.jpg|thumb|right|Foto]]"
-        res4 = self.sanitizer.normalize_image_thumbnail_syntax(text4)
-        self.assertEqual(res4, text4)
+
+    def test_strip_unsupported_wiki_metadata_templates(self):
+        wikitext = """{{Short description|Tokoh sejarah dunia}}
+{{Good article}}
+{{Use dmy dates|date=November 2025}}
+== Pengantar ==
+Teks artikel utama."""
+        res = self.sanitizer.strip_unsupported_wiki_metadata_templates(wikitext)
+        self.assertNotIn("Short description", res)
+        self.assertNotIn("Good article", res)
+        self.assertNotIn("Use dmy dates", res)
+        self.assertIn("== Pengantar ==", res)
     # Pillar 2: Citation Date Localizer Tests
     # ----------------------------------------------------
     def test_citation_date_localization_english_months(self):

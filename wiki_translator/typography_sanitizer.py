@@ -112,8 +112,8 @@ class TypographySanitizer:
 
     def sanitize_wikitext(self, text: str) -> str:
         """Normalize explicit formatting while protecting markup and quotations."""
-        normalized = self._sanitize_prose(text)
-        normalized = self.clean_indirect_speech_fragmented_quotes(normalized)
+        normalized = self.strip_unsupported_wiki_metadata_templates(text)
+        normalized = self._sanitize_prose(normalized)
         normalized = self.clean_parenthetical_quotes(normalized)
         normalized = self.normalize_wikilink_italics(normalized)
         normalized = self.normalize_sentence_case_after_periods(normalized)
@@ -125,6 +125,29 @@ class TypographySanitizer:
         normalized = self.clean_indirect_speech_fragmented_quotes(normalized)
         normalized = self.clean_parenthetical_quotes(normalized)
         return self.normalize_sentence_case_after_periods(normalized)
+    def strip_unsupported_wiki_metadata_templates(self, text: str) -> str:
+        """
+        Strips English Wikipedia-specific metadata and status templates that are either:
+        1. Not supported on id.wikipedia.org (e.g. {{Short description}}, {{SHORTDESC:...}}).
+        2. Forbidden from direct copying because id.wiki requires community consensus (WP:AP/U, WP:AB/U):
+           e.g. {{Good article}}, {{Featured article}}, {{GA}}, {{FA}}, {{Artikel bagus}}, {{Artikel pilihan}}.
+        3. Date/variety maintenance tags: {{Use dmy dates}}, {{Use mdy dates}}, {{engvarb}}, etc.
+        """
+        if not text:
+            return ""
+
+        METADATA_PATTERNS = [
+            r"\{\{\s*(?:Short[ _]description|short[ _]desc)\s*\|[^\}]*\}\}\s*",
+            r"\{\{\s*SHORTDESC\s*:[^\}]*\}\}\s*",
+            r"\{\{\s*Deskripsi[ _]singkat\s*\|[^\}]*\}\}\s*",
+            r"\{\{\s*(?:Good[ _]article|Featured[ _]article|Artikel[ _]bagus|Artikel[ _]pilihan|GA|FA)\s*\}\}\s*",
+            r"\{\{\s*(?:Use[ _]dmy[ _]dates|Use[ _]mdy[ _]dates|Use[ _]dmy|Use[ _]mdy|engvarb|Use[ _]American[ _]English|Use[ _]British[ _]English)\s*(?:\|[^\}]*)?\}\}\s*",
+        ]
+
+        for pat in METADATA_PATTERNS:
+            text = re.sub(pat, "", text, flags=re.IGNORECASE)
+
+        return text
     def _sanitize_prose(self, text: str) -> str:
         if not text:
             return ""
@@ -678,7 +701,7 @@ class TypographySanitizer:
             if not any(o.lower() in ("thumb", "thumbnail") for o in chosen_options):
                 chosen_options.insert(0, "thumb")
 
-            new_parts = [f"File:{fname_base}"] + chosen_options
+            new_parts = [f"Berkas:{fname_base}"] + chosen_options
             if id_caption:
                 new_parts.append(id_caption)
 
