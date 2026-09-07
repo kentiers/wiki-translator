@@ -25,6 +25,7 @@ import urllib.request
 
 from .auth import AuthManager
 from .awb_genfixes import default_genfixes
+from .gramatika_engine import default_gramatika_engine
 from .editorial_qa import default_qa_pipeline
 from .factual_audit import default_factual_auditor
 from .article_quality import check_saved_integrity, review_claims
@@ -277,6 +278,7 @@ class ArticleReviewer:
         """
         # Source-dependent semantic repairs belong to the LLM/source audit.
         cleaned, _ = default_slop_linter.auto_fix(text)
+        cleaned, _, _ = default_gramatika_engine.apply_all_gramatika_fixes(cleaned)
         # 6. Strip status/metadata templates and comments
         cleaned = re.sub(
             r"<!--\s*Templat belum tersedia di id\.wiki:\s*\{\{\s*(?:deskripsi singkat|short description)[^\}]*\}\}\s*-->\s*",

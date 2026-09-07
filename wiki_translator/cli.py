@@ -46,6 +46,7 @@ from .syntax_balancer import WikitextSyntaxBalancer, default_syntax_balancer
 from .infobox_mapper import InfoboxMapper, default_infobox_mapper
 from .template_mapper import WikiTemplateMapper, default_template_mapper
 from .typography_sanitizer import TypographySanitizer, default_typography_sanitizer
+from .gramatika_engine import GramatikaEngine, default_gramatika_engine
 from .wiki_client import WikipediaClient, WikiSection
 from .html_preview import (
     HTMLPreviewGenerator,
@@ -770,8 +771,10 @@ class WikiTranslatorCLI:
                     if self.enable_slop_linter and self.slop_linter:
                         fixed_text, fix_count = self.slop_linter.auto_fix(fixed_text)
                         print(f"[+] Applied {fix_count} slop/calque auto-corrections.")
+                    fixed_text, gram_c, _ = default_gramatika_engine.apply_all_gramatika_fixes(fixed_text)
+                    if gram_c > 0:
+                        print(f"[+] Applied {gram_c} Gramatika (TBBBI) syntactic normalizations.")
                     if self.enable_syntax_balancer and self.syntax_balancer:
-                        fixed_text = self.syntax_balancer.auto_repair(fixed_text)
                         print("[+] Syntax balanced and repaired.")
                     translated_text = fixed_text
                     s.translated_content = translated_text
@@ -983,6 +986,15 @@ class WikiTranslatorCLI:
             except Exception as e:
                 print(f"[!] Warning: Anti-AI-Slop auto-fix encountered an issue: {e}")
                 record_pipeline_issue("slop_linter", e)
+
+        # Apply dynamic Gramatika Engine (TBBBI) normalizations
+        print("[*] Running Gramatika Engine (TBBBI syntax, negation, and apposition normalizer)...")
+        try:
+            final_wikitext, gram_c, _ = default_gramatika_engine.apply_all_gramatika_fixes(final_wikitext)
+            print(f"[+] Gramatika Engine completed: {gram_c} syntactic issues normalized.")
+        except Exception as e:
+            print(f"[!] Warning: Gramatika normalization encountered an issue: {e}")
+            record_pipeline_issue("gramatika_engine", e)
 
         # Apply wikitext syntax balancer auto-repair if enabled
         if self.enable_syntax_balancer and self.syntax_balancer:

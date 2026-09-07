@@ -18,8 +18,7 @@ import re
 from typing import Dict, List, Optional, Tuple, Set
 from .awb_genfixes import default_genfixes
 from .slop_linter import default_slop_linter
-
-
+from .gramatika_engine import default_gramatika_engine
 ENGLISH_TO_INDONESIAN_MONTHS: Dict[str, str] = {
     "january": "Januari",
     "february": "Februari",
@@ -74,6 +73,12 @@ LOWERCASE_HEADING_WORDS: Set[str] = {
     "antara",
 }
 
+# Dynamically augment lowercase heading words from GramatikaEngine subordinate conjunctions
+for _words in default_gramatika_engine.subordinate_categories.values():
+    if isinstance(_words, list):
+        for _w in _words:
+            if len(_w) <= 10 and " " not in _w:
+                LOWERCASE_HEADING_WORDS.add(_w.lower())
 # Known proper names / historic events / geographic / entities in Indonesian headings that must preserve Capitalization
 KNOWN_PROPER_NOUNS: Set[str] = {
     "indonesia", "jawa", "sumatra", "sumatera", "kalimantan", "sulawesi", "papua", "bali",

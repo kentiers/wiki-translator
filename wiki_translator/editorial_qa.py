@@ -29,7 +29,7 @@ from .syntax_balancer import WikitextSyntaxBalancer, default_syntax_balancer
 from .template_mapper import STRIP_METADATA_TEMPLATES
 from .factual_audit import FactualConsistencyResult, default_factual_auditor
 from .lexical_register import LexicalRegisterReranker, default_lexical_reranker
-
+from .gramatika_engine import GramatikaEngine, default_gramatika_engine
 @dataclass
 class DrafterAuditResult:
     word_count: int
@@ -226,13 +226,14 @@ class EditorialQAPipeline:
         infobox_mapper: Optional[InfoboxMapper] = None,
         factual_auditor=None,
         lexical_reranker: Optional[LexicalRegisterReranker] = None,
+        gramatika_engine: Optional[GramatikaEngine] = None,
     ):
         self.slop_linter = slop_linter or default_slop_linter
         self.syntax_balancer = syntax_balancer or default_syntax_balancer
         self.infobox_mapper = infobox_mapper or default_infobox_mapper
         self.factual_auditor = factual_auditor or default_factual_auditor
         self.lexical_reranker = lexical_reranker or default_lexical_reranker
-    # -------------------------------------------------------------------------
+        self.gramatika_engine = gramatika_engine or default_gramatika_engine
     # Layer 1: Drafter Audit
     # -------------------------------------------------------------------------
     def audit_drafter(self, wikitext: str) -> DrafterAuditResult:
@@ -402,6 +403,21 @@ class EditorialQAPipeline:
             nxt = appositive_commas[0][3]
             eyd_warnings.append(
                 f"Terdapat {len(appositive_commas)} frasa aposisi koma ganda yang menjepit nama diri ('{desc}, {name}, {nxt}'). Sesuai EYD V sebutan atributif langsung tidak perlu diapit koma."
+            )
+
+        # Check Gramatika TBBBI compliance (Sentence openers, Negation, Restrictive appositives)
+        _, opener_fixes, opener_details = self.gramatika_engine.normalize_sentence_openers(masked_prose)
+        if opener_fixes > 0:
+            eyd_deductions += min(15, opener_fixes * 3)
+            eyd_warnings.append(
+                f"Terdapat {opener_fixes} konjungsi intrakalimat di awal kalimat baru (TBBBI Bab VIII & X): {opener_details[0]}."
+            )
+
+        _, neg_fixes, neg_details = self.gramatika_engine.normalize_negation_agreement(masked_prose)
+        if neg_fixes > 0:
+            eyd_deductions += min(15, neg_fixes * 3)
+            eyd_warnings.append(
+                f"Terdapat {neg_fixes} ketidaksesuaian kata ingkar (TBBBI Tabel 9.5): {neg_details[0]}."
             )
 
         eyd_compliance_score = max(0, 100 - eyd_deductions)
