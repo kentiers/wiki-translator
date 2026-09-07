@@ -553,36 +553,17 @@ class LinkFidelityValidator:
         if m:
             return f"Penghargaan Kebebasan Kota {m.group(1)}"
 
-        # 3. Order of [X]
+        # 3. Order of [X] -> Orde [X]
         m = re.match(r"^Order\s+of\s+(.+)$", t, re.IGNORECASE)
         if m:
             val = m.group(1).strip()
-            val_map = {
-                "liberty": "Kebebasan",
-                "freedom": "Kebebasan",
-                "merit": "Jasa",
-                "glory": "Kejayaan",
-                "honor": "Kehormatan",
-                "lenin": "Lenin",
-                "the british empire": "Imperium Britania",
-                "the bath": "Bath",
-                "the rising sun": "Matahari Terbit",
-            }
-            id_val = val_map.get(val.lower(), val)
-            return f"Orde {id_val}"
+            return f"Orde {val}"
 
-        # 4. National [X] Museum
+        # 4. National [X] Museum -> Museum [X] Nasional
         m = re.match(r"^National\s+(.+?)\s+Museum$", t, re.IGNORECASE)
         if m:
             core = m.group(1).strip()
-            core_map = {
-                "civil rights": "Hak-Hak Sipil",
-                "art": "Seni",
-                "history": "Sejarah",
-                "natural history": "Sejarah Alam",
-            }
-            id_core = core_map.get(core.lower(), core)
-            return f"Museum {id_core} Nasional"
+            return f"Museum {core} Nasional"
 
         # 5. [X] Prize / Award
         m = re.match(r"^(.+?)\s+(?:Prize|Award)$", t, re.IGNORECASE)

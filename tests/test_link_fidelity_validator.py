@@ -123,13 +123,14 @@ class TestLinkFidelityValidator(unittest.TestCase):
         self.assertEqual(count3, 0)
         self.assertEqual(pruned3, text3)
     def test_localize_english_redlink_title(self):
-        """Tests dynamic localization of common institutional and award redlinks."""
+        """Tests dynamic structural localization of common institutional and award redlinks."""
         self.assertEqual(self.validator.localize_english_redlink_title("Dublin City Council"), "Dewan Kota Dublin")
         self.assertEqual(self.validator.localize_english_redlink_title("Freedom of the City of Dublin"), "Penghargaan Kebebasan Kota Dublin")
-        self.assertEqual(self.validator.localize_english_redlink_title("Order of Liberty"), "Orde Kebebasan")
-        self.assertEqual(self.validator.localize_english_redlink_title("National Civil Rights Museum"), "Museum Hak-Hak Sipil Nasional")
+        self.assertEqual(self.validator.localize_english_redlink_title("Order of Canada"), "Orde Canada")
+        self.assertEqual(self.validator.localize_english_redlink_title("National History Museum"), "Museum History Nasional")
         self.assertEqual(self.validator.localize_english_redlink_title("Point Alpha Prize"), "Penghargaan Point Alpha")
-
+        self.assertEqual(self.validator.localize_english_redlink_title("Harvard University"), "Universitas Harvard")
+        self.assertEqual(self.validator.localize_english_redlink_title("Ohio State University"), "Universitas Negeri Ohio")
     def test_prune_ill_localizes_untranslated_title(self):
         """Ensures {{ill}} with raw English Parameter 1 title is automatically localized."""
         raw = "{{ill|Dublin City Council|en|Dublin City Council}}"
