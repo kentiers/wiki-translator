@@ -284,6 +284,33 @@ class TestTypographySanitizerPillars(unittest.TestCase):
         text4 = "Pada awalnya mulanya rencana tersebut ditolak mentah-mentah."
         res4 = self.sanitizer.restructure_double_temporal_markers(text4)
         self.assertEqual("pada awalnya rencana tersebut ditolak mentah-mentah.", res4)
+    def test_normalize_temporal_year_classifiers(self):
+        # Standalone years with prepositions get 'tahun'
+        text1 = "Pada 2000, Gorbachev turut membentuk partai."
+        res1 = self.sanitizer.normalize_temporal_year_classifiers(text1)
+        self.assertEqual("Pada tahun 2000, Gorbachev turut membentuk partai.", res1)
+
+        text2 = "Partai tersebut kemudian dibubarkan pada 2007 oleh Mahkamah Agung."
+        res2 = self.sanitizer.normalize_temporal_year_classifiers(text2)
+        self.assertEqual("Partai tersebut kemudian dibubarkan pada tahun 2007 oleh Mahkamah Agung.", res2)
+
+        text3 = "Ia menjabat sebagai sekretaris jenderal sejak 1985 hingga 1991."
+        res3 = self.sanitizer.normalize_temporal_year_classifiers(text3)
+        self.assertEqual("Ia menjabat sebagai sekretaris jenderal sejak tahun 1985 hingga tahun 1991.", res3)
+
+        # Month + year remains natural and concise (no 'tahun' added)
+        text4 = "Pada Juni 2002, ia menghadiri pertemuan dengan Putin."
+        res4 = self.sanitizer.normalize_temporal_year_classifiers(text4)
+        self.assertEqual("Pada Juni 2002, ia menghadiri pertemuan dengan Putin.", res4)
+
+        text5 = "Ia mengundurkan diri pada Mei 2004 seusai pemilu."
+        res5 = self.sanitizer.normalize_temporal_year_classifiers(text5)
+        self.assertEqual("Ia mengundurkan diri pada Mei 2004 seusai pemilu.", res5)
+
+        # Citations and ranges remain untouched
+        text6 = "{{sfn|Taubman|2017|p=678}} periode 1985–1991."
+        res6 = self.sanitizer.normalize_temporal_year_classifiers(text6)
+        self.assertEqual("{{sfn|Taubman|2017|p=678}} periode 1985–1991.", res6)
 
     def test_relative_clause_comma_normalization(self):
         # Relative clause 'yang' comma sandwich

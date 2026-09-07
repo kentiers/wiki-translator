@@ -138,6 +138,7 @@ class TypographySanitizer:
         masked = self.normalize_common_spelling_mistakes(masked)
         masked = self.normalize_stylistic_collocations(masked)
         masked = self.restructure_double_temporal_markers(masked)
+        masked = self.normalize_temporal_year_classifiers(masked)
         masked = self.normalize_appositive_commas(masked)
         masked = self.normalize_coordinating_conjunction_commas(masked)
         masked = self.normalize_introductory_adverbial_commas(masked)
@@ -452,6 +453,35 @@ class TypographySanitizer:
         text = re.sub(r"\bkemudian\s+setelah\s+itu\b", "setelah itu", text, flags=re.IGNORECASE)
         text = re.sub(r"\blalu\s+kemudian\b", "kemudian", text, flags=re.IGNORECASE)
         return text
+    def normalize_temporal_year_classifiers(self, text: str) -> str:
+        """
+        Normalizes standalone 4-digit calendar years preceded by prepositions into formal Indonesian encyclopedic register:
+        - 'pada 2000' -> 'pada tahun 2000'
+        - 'sejak 1985' -> 'sejak tahun 1985'
+        - 'hingga 1991' -> 'hingga tahun 1991'
+        - 'dari 1985' -> 'dari tahun 1985'
+        - 'menjelang 1968' -> 'menjelang tahun 1968'
+        Preserves natural month-year and full-date combinations:
+        - 'pada Juni 2002' remains untouched (already natural and concise).
+        - 'pada 11 Maret 2000' remains untouched.
+        - '|date=14 Februari 2023' remains untouched.
+        """
+        if not text:
+            return ""
+
+        MONTHS = r"(?:Januari|Februari|Maret|April|Mei|Juni|Juli|Agustus|September|Oktober|November|Desember)"
+        PREPOSITIONS = r"(?:Pada|pada|Sejak|sejak|Hingga|hingga|Sampai|sampai|Menjelang|menjelang|Dari|dari)"
+
+        pat = re.compile(
+            rf"\b({PREPOSITIONS})\s+([12]\d{{3}})\b(?!\s*[-–—]\s*\d|\s+{MONTHS})"
+        )
+
+        def repl(m: re.Match) -> str:
+            prep = m.group(1)
+            year = m.group(2)
+            return f"{prep} tahun {year}"
+
+        return pat.sub(repl, text)
     def normalize_sentence_case_after_periods(self, text: str) -> str:
         """
         Capitalizes the first letter of a sentence following a period and optional citation templates / refs.
