@@ -330,6 +330,24 @@ class TestCLIIntegration(unittest.TestCase):
         content = wikitext_file.read_text(encoding="utf-8")
         self.assertIn("ill|Quantum computing|en|Quantum computing", content)
 
+class TestWikiLinkMapperHatnotes(unittest.TestCase):
+    def setUp(self):
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.cache_db = Path(self.temp_dir.name) / "test_hatnote_cache.db"
+        self.mapper = WikiLinkMapper(cache_db_path=str(self.cache_db), allow_network=False)
+
+    def test_map_hatnotes_with_known_mappings(self):
+        wikitext = """== Sejarah ==
+{{main|Dissolution of the Soviet Union|Revolutions of 1989}}
+{{main|Mikhail Gorbachev 1996 presidential campaign}}
+{{further|Commonwealth of Independent States}}
+{{see also|Political views of Mikhail Gorbachev}}
+"""
+        mapped = self.mapper.map_hatnotes(wikitext)
+        self.assertIn("{{Utama|Pembubaran Uni Soviet|Revolusi 1989}}", mapped)
+        self.assertIn("{{Utama|Kampanye kepresidenan Mikhail Gorbachev 1996}}", mapped)
+        self.assertIn("{{Informasi lebih lanjut|Persemakmuran Negara-Negara Merdeka}}", mapped)
+        self.assertIn("{{Lihat pula|Pandangan politik Mikhail Gorbachev}}", mapped)
 
 if __name__ == "__main__":
     unittest.main()

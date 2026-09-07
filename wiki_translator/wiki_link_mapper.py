@@ -138,6 +138,13 @@ KNOWN_PAGE_MAPPINGS: Dict[str, str] = {
     "people from st. petersburg": "Kategori:Tokoh dari Sankt-Peterburg",
     "saint petersburg state university": "Universitas Negeri Sankt-Peterburg",
     "st. petersburg state university": "Universitas Negeri Sankt-Peterburg",
+    "order of lenin": "Orde Lenin",
+    "commonwealth of independent states": "Persemakmuran Negara-Negara Merdeka",
+    "parliament of australia": "Parlemen Australia",
+    "dissolution of the soviet union": "Pembubaran Uni Soviet",
+    "revolutions of 1989": "Revolusi 1989",
+    "mikhail gorbachev 1996 presidential campaign": "Kampanye kepresidenan Mikhail Gorbachev 1996",
+    "political views of mikhail gorbachev": "Pandangan politik Mikhail Gorbachev",
 }
 
 
@@ -1210,6 +1217,83 @@ class WikiLinkMapper:
                 else:
                     return f"[[Kategori:{final_name}{sortkey_str}]]"
         return cat_pattern.sub(replace_cat, wikitext)
+    def map_hatnotes(self, wikitext: str) -> str:
+        """
+        Extracts, resolves, and maps article targets in hatnote templates:
+        - {{Main|Target1|Target2}} / {{Utama|...}} / {{Artikel utama|...}}
+        - {{Further|Target1|Target2}} / {{Informasi lebih lanjut|...}} / {{Detail|...}}
+        - {{See also|Target1|Target2}} / {{Lihat pula|...}}
+        Maps English targets to official Indonesian Wikipedia article titles via batch_resolve_wikilinks,
+        or translates descriptive English targets (e.g. 'Political views of X' -> 'Pandangan politik X').
+        """
+        if not wikitext:
+            return ""
+
+        HATNOTE_NAMES = (
+            r"Main|main|Utama|utama|Artikel utama|artikel utama|"
+            r"Further|further|Informasi lebih lanjut|informasi lebih lanjut|Detail|detail|"
+            r"See also|see also|Lihat pula|lihat pula"
+        )
+        pattern = re.compile(rf"\{{\{{\s*({HATNOTE_NAMES})\s*\|([^\}}]+)\}}\}}")
+
+        targets_to_resolve: List[str] = []
+        matches = list(pattern.finditer(wikitext))
+        for m in matches:
+            args = m.group(2).split("|")
+            for a in args:
+                clean = a.strip()
+                if clean and "=" not in clean and not clean.startswith("{"):
+                    targets_to_resolve.append(clean)
+
+        if not targets_to_resolve:
+            return wikitext
+
+        resolutions = self.batch_resolve_wikilinks(targets_to_resolve)
+
+        def translate_title_fallback(en_title: str) -> str:
+            t = en_title.strip()
+            t = re.sub(r"^Political views of\s+(.+)$", r"Pandangan politik \1", t, flags=re.IGNORECASE)
+            t = re.sub(r"^Bibliography of\s+(.+)$", r"Bibliografi \1", t, flags=re.IGNORECASE)
+            t = re.sub(r"^Early life of\s+(.+)$", r"Kehidupan awal \1", t, flags=re.IGNORECASE)
+            t = re.sub(r"^Presidency of\s+(.+)$", r"Kepresidenan \1", t, flags=re.IGNORECASE)
+            t = re.sub(r"^Electoral history of\s+(.+)$", r"Riwayat pemilihan umum \1", t, flags=re.IGNORECASE)
+            t = re.sub(r"^Death and funeral of\s+(.+)$", r"Kematian dan pemakaman \1", t, flags=re.IGNORECASE)
+            t = re.sub(r"^Dissolution of the\s+(.+)$", r"Pembubaran \1", t, flags=re.IGNORECASE)
+            t = re.sub(r"\bthe Russian Revolution and Civil War\b", "Revolusi Rusia dan Perang Saudara", t, flags=re.IGNORECASE)
+            t = re.sub(r"\bStalinism and the Soviet Union\b", "Stalinisme dan Uni Soviet", t, flags=re.IGNORECASE)
+            t = re.sub(r"\bthe post-Stalinist Soviet Union\b", "Uni Soviet pasca-Stalin", t, flags=re.IGNORECASE)
+            t = re.sub(r"\bSoviet Union\b", "Uni Soviet", t, flags=re.IGNORECASE)
+            return t
+
+        def repl(m: re.Match) -> str:
+            tmpl = m.group(1).strip()
+            tl = tmpl.lower()
+            if tl in ("main", "artikel utama"):
+                norm_tmpl = "Utama"
+            elif tl in ("see also", "lihat pula"):
+                norm_tmpl = "Lihat pula"
+            elif tl in ("further", "detail", "informasi lebih lanjut"):
+                norm_tmpl = "Informasi lebih lanjut"
+            else:
+                norm_tmpl = tmpl
+
+            args = m.group(2).split("|")
+            new_args = []
+            for a in args:
+                clean = a.strip()
+                if not clean or "=" in clean or clean.startswith("{"):
+                    new_args.append(a)
+                    continue
+
+                res = resolutions.get(clean)
+                if res and res.target_id:
+                    new_args.append(res.target_id)
+                else:
+                    new_args.append(translate_title_fallback(clean))
+
+            return "{{" + norm_tmpl + "|" + "|".join(new_args) + "}}"
+
+        return pattern.sub(repl, wikitext)
 
     def adapt_link_alias(self, alias: Optional[str], en_target: str, id_target: str) -> str:
         """
@@ -1489,6 +1573,8 @@ class WikiLinkMapper:
         try:
             # Step 1: Map categories
             text = self.map_categories(wikitext)
+            # Step 1b: Map hatnote templates (Main, Further, See also)
+            text = self.map_hatnotes(text)
             # Step 2: Map wikilinks (converts uncreated links into {{ill|Label_ID|en|Target_EN}})
             text = self.map_wikilinks(text, resolve_disambiguation=resolve_disambiguation)
             text = sanitize_ill_foreign_targets(text)
