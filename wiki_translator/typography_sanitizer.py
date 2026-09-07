@@ -561,6 +561,9 @@ class TypographySanitizer:
             # If adverb contains a full clause (subject + action verb), preserve comma
             if re.search(r"\b(?:ia|dia|mereka|kami|kita)\s+(?:bertolak|pergi|datang|mulai|mencapai)\b", adverb):
                 return m.group(0)
+            # Protect boundary comma before capitalized Subject (Proper Noun) or wikilink
+            if nxt.isupper() or nxt == "[":
+                return m.group(0)
             return f"{connector}, {adverb} {nxt}"
 
         return pattern.sub(replacer, text)

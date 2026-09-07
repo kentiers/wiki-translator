@@ -244,11 +244,16 @@ class TestTypographySanitizerPillars(unittest.TestCase):
         res4 = self.sanitizer.normalize_introductory_adverbial_commas(text4)
         self.assertIn("Namun, Kamerad, janganlah", res4)
 
-        # Double introductory adverbials
-        text5 = "Tak lama berselang, pada Juli, Raisa didiagnosis mengidap leukemia."
+        # Double introductory adverbials with lowercase continuation
+        text5 = "Tak lama kemudian, pada November, pemerintah Jerman Timur membuka perbatasan."
         res5 = self.sanitizer.normalize_introductory_adverbial_commas(text5)
-        self.assertIn("Tak lama berselang, pada Juli Raisa", res5)
-        self.assertNotIn("pada Juli,", res5)
+        self.assertIn("Tak lama kemudian, pada November pemerintah Jerman Timur", res5)
+        self.assertNotIn("pada November,", res5)
+
+        # Preserves boundary comma before capitalized proper noun subject
+        text6 = "Tak lama berselang, pada Juli, Raisa didiagnosis mengidap leukemia."
+        res6 = self.sanitizer.normalize_introductory_adverbial_commas(text6)
+        self.assertIn("pada Juli, Raisa", res6)
 
     def test_relative_clause_comma_normalization(self):
         # Relative clause 'yang' comma sandwich
