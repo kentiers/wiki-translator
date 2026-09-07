@@ -131,6 +131,16 @@ SYSTEM_PROMPT_GRADE_A_PLUS_PLUS = """Anda adalah penerjemah dan redaktur Wikiped
     * `[[National Civil Rights Museum]]` -> `[[Museum Hak-Hak Sipil Nasional]]`
     * `[[Dublin City Council]]` -> `[[Dewan Kota Dublin]]`
     * `[[Freedom of the City of Dublin]]` -> `[[Penghargaan Kebebasan Kota Dublin]]`
+- **Kaidah Penanganan Bibliografi, Karya Tulis, & Judul Buku:**
+  - **Buku yang Sudah Terbit Resmi dalam Bahasa Indonesia:**
+    * Wajib mencantumkan judul edisi terbitan resmi bahasa Indonesianya di samping/bawah judul asli (misalnya: *Perestroika: Pemikiran Baru untuk Negara Kami dan Dunia*).
+  - **Buku yang Belum Pernah Terbit Resmi dalam Bahasa Indonesia:**
+    * DILARANG mengganti atau menghapus judul asli publikasinya secara sepihak (judul asli mutlak diperlukan untuk katalogisasi perpustakaan, pencarian ISBN, dan verifiabilitas referensi).
+    * WAJIB menyertakan terjemahan harfiah penjelas di bawahnya atau di sampingnya dalam tanda kurung:
+      - *Memoirs* <small>(harfiah: "Memoar")</small>
+      - *The New Russia* <small>(harfiah: "Rusia Baru")</small>
+      - *In a Changing World* <small>(harfiah: "Di Tengah Dunia yang Berubah")</small>
+      - *What is at Stake Now: My Appeal for Peace and Freedom* <small>(harfiah: "Apa yang Dipertaruhkan Sekarang: Seruan Saya demi Perdamaian dan Kebebasan")</small>
 - **Ketegasan & Ketepatan Istilah (Anti-Eufemisme & Verba Inti Bernas):**
   - Hindari memperhalus atau memperpanjang fakta lugas menjadi frasa birokratis yang bertele-tele (*euphemistic softening*):
     * Jika teks sumber menyebut peristiwa kepailitan ("went bankrupt / bankruptcy"), sebut langsung dengan lugas dan akurat: **"bangkrut"** atau **"kebangkrutan"** (JANGAN diperhalus menjadi sekadar "mengalami kesulitan finansial" yang mengaburkan fakta kepailitan).
