@@ -304,7 +304,15 @@ class ArticleReviewer:
         """
         if not en_wikitext.strip() or not id_wikitext.strip():
             return id_wikitext
-        return id_wikitext
+        try:
+            from .link_fidelity_validator import default_fidelity_validator
+            reconciled, _, _ = default_fidelity_validator.safeguard_redlinks_with_ill(
+                draft_wikitext=id_wikitext,
+                source_wikitext=en_wikitext,
+            )
+            return reconciled
+        except Exception:
+            return id_wikitext
     def fetch_article_pair(
         self, id_title: str, en_title: Optional[str] = None
     ) -> Tuple[str, str]:

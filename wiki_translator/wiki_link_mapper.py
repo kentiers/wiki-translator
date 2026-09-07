@@ -141,6 +141,23 @@ KNOWN_PAGE_MAPPINGS: Dict[str, str] = {
 }
 
 
+def _is_indonesian_lexical_phrase(phrase: str) -> bool:
+    """
+    Dynamically checks via Kateglo / KBBI cache if phrase contains Indonesian words.
+    Zero hardcoding: utilizes the indexed local dictionary database.
+    """
+    if not phrase or not phrase.strip():
+        return False
+    try:
+        from .kateglo_client import default_kateglo_client
+        tokens = [w.lower() for w in re.findall(r"\b[a-zA-Z]{3,}\b", phrase)]
+        if not tokens:
+            return False
+        return any(default_kateglo_client.get_entry_detail(t) is not None for t in tokens)
+    except Exception:
+        return False
+
+
 def sanitize_ill_foreign_targets(wikitext: str) -> str:
     """
     Scans all {{ill|Target_ID|...}} templates and:
@@ -175,12 +192,8 @@ def sanitize_ill_foreign_targets(wikitext: str) -> str:
             en_target = "Mixed-sex education"
         elif en_target.lower() in ("tanah dan kebebasan", "tanah dan kebebasan (rusia)"):
             en_target = "Land and Liberty (Russia)"
-        elif en_target.lower() == target_id.lower() and re.search(
-            r"\b(?:perhimpunan|kongres|sekolah|gerakan|partai|kementerian|kudeta|ktt|dewan|sejarah|kematian|peran|krisis|pemberontakan|kanal|bintang|tempat|pemakaman|referendum|pemilihan|pemilu|ordo|orde|rumah sakit|universitas|institut)\b",
-            en_target,
-            re.IGNORECASE,
-        ):
-            # If target_id and foreign en target are identical Indonesian phrases that don't exist on en.wiki
+        elif en_target.lower() == target_id.lower() and _is_indonesian_lexical_phrase(en_target):
+            # If target_id and foreign en target are identical Indonesian phrases verified via dictionary
             return f"[[{target_id}]]"
         for pat, replacement in ILL_EN_DISAMBIGUATION_RULES:
             en_target = pat.sub(replacement, en_target)
@@ -1636,6 +1649,12 @@ class WikiLinkMapper:
                 # Prevent creating {{ill}} targeting Indonesian words as en target (e.g. film cerita seru laga)
                 if base_target.lower() in ("film cerita seru laga", "cerita seru laga", "action thriller", "action thriller film"):
                     return "[[Film laga|cerita seru laga]]"
+                # If base_target contains Indonesian terms or proper names already localized,
+                # do NOT construct an invalid {{ill|X|en|X}} targeting an Indonesian phrase!
+                if _is_indonesian_lexical_phrase(base_target):
+                    display = self.adapt_link_alias(alias, base_target, base_target) if alias else base_target
+                    return f"[[{display}]]" if display == base_target else f"[[{base_target}|{display}]]"
+
                 id_display = self.adapt_link_alias(alias, base_target, base_target) if alias else base_target
                 # {{ill|Nama Indonesia|en|Target English}}
                 return f"{{{{ill|{id_display}|en|{base_target}}}}}"
