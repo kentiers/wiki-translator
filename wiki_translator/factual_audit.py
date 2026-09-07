@@ -71,10 +71,20 @@ class FactualConsistencyAuditor:
         draft_numbers = self._NUMBER.findall(draft_clean)
         remaining = list(draft_numbers)
         missing: List[str] = []
+        def _core_num(s: str) -> str:
+            m = re.search(r"\d+(?:[.,]\d+)?", s)
+            return m.group(0).replace(",", ".") if m else s
+
+        def _matches_number(val: str, candidates: List[str]) -> bool:
+            val_core = _core_num(val)
+            for i, cand in enumerate(candidates):
+                if _core_num(cand) == val_core:
+                    candidates.pop(i)
+                    return True
+            return False
+
         for value in source_numbers:
-            if value in remaining:
-                remaining.remove(value)
-            else:
+            if not _matches_number(value, remaining):
                 missing.append(value)
         source_refs = len(re.findall(r"<ref\b", source_wikitext or "", re.I))
         draft_refs = len(re.findall(r"<ref\b", draft_wikitext or "", re.I))

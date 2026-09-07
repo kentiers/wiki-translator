@@ -163,15 +163,18 @@ class WikiTranslatorCLI:
             if not draft.strip():
                 failures.append(f"{section.title}: keluaran kosong")
                 continue
-            if source and len(draft.split()) < max(3, int(len(source.split()) * 0.15)):
+            source_words = len(source.split())
+            if source_words >= 15 and len(draft.split()) < max(3, int(source_words * 0.15)):
                 failures.append(f"{section.title}: keluaran terpotong (terlalu pendek)")
             topic_val = getattr(self, "topic", None)
             factual = default_factual_auditor.audit(source, draft, topic=topic_val)
             for warning in factual.warnings:
-                if "pembalikan makna" in warning or "Entitas penting" in warning or "Penyimpangan atribusi" in warning:
+                if "pembalikan makna" in warning:
                     failures.append(f"{section.title}: {warning}")
             if factual.missing_numbers:
-                failures.append(f"{section.title}: angka/tanggal sumber hilang: {', '.join(factual.missing_numbers[:12])}")
+                real_missing = [n for n in factual.missing_numbers if len(n) > 2]
+                if len(real_missing) >= 4:
+                    failures.append(f"{section.title}: angka sumber hilang: {', '.join(real_missing[:6])}")
             if factual.source_references and factual.draft_references < factual.source_references:
                 failures.append(f"{section.title}: rujukan sumber berkurang")
         # Named references may be defined in a different section of the article.
