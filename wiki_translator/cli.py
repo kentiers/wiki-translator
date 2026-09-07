@@ -47,6 +47,7 @@ from .infobox_mapper import InfoboxMapper, default_infobox_mapper
 from .template_mapper import WikiTemplateMapper, default_template_mapper
 from .typography_sanitizer import TypographySanitizer, default_typography_sanitizer
 from .gramatika_engine import GramatikaEngine, default_gramatika_engine
+from .eyd_engine import EYDEngine, default_eyd_engine
 from .wiki_client import WikipediaClient, WikiSection
 from .html_preview import (
     HTMLPreviewGenerator,
@@ -774,7 +775,11 @@ class WikiTranslatorCLI:
                     fixed_text, gram_c, _ = default_gramatika_engine.apply_all_gramatika_fixes(fixed_text)
                     if gram_c > 0:
                         print(f"[+] Applied {gram_c} Gramatika (TBBBI) syntactic normalizations.")
+                    fixed_text, eyd_c, _ = default_eyd_engine.apply_all_eyd_fixes(fixed_text)
+                    if eyd_c > 0:
+                        print(f"[+] Applied {eyd_c} EYD V orthography & punctuation normalizations.")
                     if self.enable_syntax_balancer and self.syntax_balancer:
+                        fixed_text = self.syntax_balancer.auto_repair(fixed_text)
                         print("[+] Syntax balanced and repaired.")
                     translated_text = fixed_text
                     s.translated_content = translated_text
@@ -995,6 +1000,15 @@ class WikiTranslatorCLI:
         except Exception as e:
             print(f"[!] Warning: Gramatika normalization encountered an issue: {e}")
             record_pipeline_issue("gramatika_engine", e)
+
+        # Apply dynamic EYD V Engine normalizations
+        print("[*] Running EYD V Engine (bound morphemes, particle pun, and en-dash normalizer)...")
+        try:
+            final_wikitext, eyd_c, _ = default_eyd_engine.apply_all_eyd_fixes(final_wikitext)
+            print(f"[+] EYD V Engine completed: {eyd_c} orthographic issues normalized.")
+        except Exception as e:
+            print(f"[!] Warning: EYD V normalization encountered an issue: {e}")
+            record_pipeline_issue("eyd_engine", e)
 
         # Apply wikitext syntax balancer auto-repair if enabled
         if self.enable_syntax_balancer and self.syntax_balancer:
