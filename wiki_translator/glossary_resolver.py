@@ -626,6 +626,15 @@ class GlossaryResolver:
         except Exception:
             pass
 
+        # Inject matching historical bureaucratic/military offices dynamically from data/historical_offices.json
+        try:
+            from .historical_offices import default_offices_manager
+            office_dict = default_offices_manager.get_office_glossary(wikitext)
+            for k_off, v_off in office_dict.items():
+                resolved.setdefault(k_off, v_off)
+        except Exception:
+            pass
+
         # 2. Candidate terms resolution
         candidates = extract_candidate_terms(wikitext, max_terms=max_candidates)
         to_fetch_network: List[str] = []

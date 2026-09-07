@@ -1,0 +1,168 @@
+{
+  "deskripsi": "Basis Data Taksonomi Jabatan, Gelar Birokrasi, dan Pangkat Militer Sejarah Kuno",
+  "panduan_umum": "Hindari menerjemahkan jabatan kuno menjadi istilah kantor modern seperti 'administrator' atau 'manajer'. Gunakan padanan historiografi resmi berwibawa.",
+  "peradaban": {
+    "tiongkok_kuno_han": {
+      "taishou": {
+        "istilah_asli": "太守 (Tàishǒu)",
+        "en_triggers": ["grand administrator", "commandery administrator", "commandery governor"],
+        "id_baku": "Gubernur Komanderi",
+        "penjelasan": "Kepala eksekutif sipil dan panglima militer tertinggi atas satu komanderi (jùn)."
+      },
+      "duwei": {
+        "istilah_asli": "都尉 (Dūwèi)",
+        "en_triggers": ["commandery commandant", "chief commandant", "military commandant"],
+        "id_baku": "Komandan Militer Komanderi",
+        "penjelasan": "Perwira militer senior pembantu gubernur komanderi."
+      },
+      "chengxiang": {
+        "istilah_asli": "丞相 (Chéngxiàng)",
+        "en_triggers": ["chancellor", "prime minister", "grand chancellor"],
+        "id_baku": "Kanselir Kekaisaran / Perdana Menteri",
+        "penjelasan": "Pejabat sipil tertinggi pemegang administrasi pemerintahan kekaisaran."
+      },
+      "yushi_dafu": {
+        "istilah_asli": "御史大夫 (Yùshǐ Dàfū)",
+        "en_triggers": ["imperial secretary", "grand censor", "imperial counselor"],
+        "id_baku": "Sekretaris Pengawas Kekaisaran",
+        "penjelasan": "Pemimpin badan pengawas kekaisaran dan wakil kanselir."
+      },
+      "san_gong": {
+        "istilah_asli": "三公 (Sān Gōng)",
+        "en_triggers": ["three excellencies", "three dukes", "three lords"],
+        "id_baku": "Tiga Menteri Adipati (Tiga Bangsawan Agung)",
+        "penjelasan": "Tiga penasihat dan menteri tertinggi kekaisaran (Kanselir, Sekretaris Pengawas, dan Marsekal)."
+      },
+      "jiu_qing": {
+        "istilah_asli": "九卿 (Jiǔ Qīng)",
+        "en_triggers": ["nine ministers", "nine chamberlains"],
+        "id_baku": "Sembilan Menteri Kekaisaran",
+        "penjelasan": "Sembilan kementerian eksekutif pelaksana urusan istana dan negara."
+      },
+      "shao_fu": {
+        "istilah_asli": "少府 (Shǎo Fǔ)",
+        "en_triggers": ["minister steward", "privy purse steward", "steward"],
+        "id_baku": "Bendahara Rumah Tangga Istana",
+        "penjelasan": "Salah satu Sembilan Menteri yang mengelola pendapatan pribadi dan perbendaharaan kaisar."
+      },
+      "guangluxun": {
+        "istilah_asli": "光祿勳 (Guānglùxūn)",
+        "en_triggers": ["minister of the household", "superintendent of the household"],
+        "id_baku": "Menteri Rumah Tangga Kekaisaran",
+        "penjelasan": "Menteri yang membawahkan pengawal istana dan perwira kehormatan."
+      },
+      "weiwei": {
+        "istilah_asli": "衛尉 (Wèiwèi)",
+        "en_triggers": ["commandant of the guards", "minister of the guards"],
+        "id_baku": "Komandan Pengawal Gerbang Istana",
+        "penjelasan": "Menteri yang membawahkan pasukan jaga gerbang dan dinding istana."
+      },
+      "shuiheng_duwei": {
+        "istilah_asli": "水衡都尉 (Shuǐhéng Dūwèi)",
+        "en_triggers": ["commandant of waters and parks", "chief commandant of waters and parks"],
+        "id_baku": "Komandan Pengelola Taman Kekaisaran dan Percetakan Uang",
+        "penjelasan": "Pejabat yang mengelola Taman Shanglin dan percetakan uang koin tembaga negara."
+      },
+      "qian_jiangjun": {
+        "istilah_asli": "前將軍 (Qián Jiāngjūn)",
+        "en_triggers": ["front general", "general of the front", "general of the vanguard"],
+        "id_baku": "Jenderal Barisan Depan",
+        "penjelasan": "Salah satu jenderal senior empat penjuru Dinasti Han."
+      },
+      "hou_jiangjun": {
+        "istilah_asli": "後將軍 (Hòu Jiāngjūn)",
+        "en_triggers": ["rear general", "general of the rear"],
+        "id_baku": "Jenderal Barisan Belakang",
+        "penjelasan": "Salah satu jenderal senior empat penjuru Dinasti Han."
+      },
+      "poqiang_jiangjun": {
+        "istilah_asli": "破羌將軍 (Pòqiāng Jiāngjūn)",
+        "en_triggers": ["general who smashes the qiang", "qiang-quelling general", "general who conquers the qiang"],
+        "id_baku": "Jenderal Penumpas Qiang",
+        "penjelasan": "Gelar jenderal ekspedisi ad-hoc untuk memimpin penumpasan pemberontakan suku Qiang."
+      },
+      "qiangnu_jiangjun": {
+        "istilah_asli": "强弩将军 (Qiángnǔ Jiāngjūn)",
+        "en_triggers": ["strong crossbow general"],
+        "id_baku": "Jenderal Busur Silang",
+        "penjelasan": "Gelar jenderal kehormatan yang memimpin divisi pasukan panah silang kekaisaran."
+      },
+      "hujiang_xiaowei": {
+        "istilah_asli": "護羌校尉 (Hùqiāng Xiàowèi)",
+        "en_triggers": ["colonel protector of the qiang", "colonel guarding the qiang"],
+        "id_baku": "Kolonel Pengawas Qiang (Perwira Pelindung Qiang)",
+        "penjelasan": "Pejabat militer perbatasan pengawas hubungan damai dan keamanan perbatasan suku Qiang."
+      },
+      "yulin": {
+        "istilah_asli": "羽林 (Yǔlín)",
+        "en_triggers": ["feathered forest", "yulin cavalry", "yulin guards"],
+        "id_baku": "Pengawal Yulin (Kavaleri Yulin)",
+        "penjelasan": "Secara harfiah berarti 'Sayap Pelindung' atau 'Hutan Bulu', pasukan kavaleri pengawal elite kaisar."
+      },
+      "yulinlang": {
+        "istilah_asli": "羽林郎 (Yǔlínláng)",
+        "en_triggers": ["gentleman of the feathered forest", "gentlemen of the feathered forest"],
+        "id_baku": "Perwira Pengawal Yulin (Yulinlang)",
+        "penjelasan": "Perwira kavaleri pengawal kaisar yang direkrut dari keturunan prajurit gugur di perbatasan."
+      }
+    },
+    "kekaisaran_romawi": {
+      "consul": {
+        "istilah_asli": "Consul",
+        "en_triggers": ["consul", "consuls", "consulship"],
+        "id_baku": "Konsul",
+        "penjelasan": "Magistrat eksekutif dan panglima tertinggi Republik/Kekaisaran Romawi."
+      },
+      "praetor": {
+        "istilah_asli": "Praetor",
+        "en_triggers": ["praetor", "praetors", "praetorship"],
+        "id_baku": "Praetor",
+        "penjelasan": "Magistrat kehakiman dan komandan militer Romawi."
+      },
+      "legatus": {
+        "istilah_asli": "Legatus",
+        "en_triggers": ["legatus", "legate", "legatus legionis"],
+        "id_baku": "Legatus (Panglima Legiun)",
+        "penjelasan": "Jenderal komandan legiun militer Romawi atau duta gubernur."
+      },
+      "tribunus": {
+        "istilah_asli": "Tribunus",
+        "en_triggers": ["tribune", "tribunes", "military tribune", "tribune of the plebs"],
+        "id_baku": "Tribunus (Tribun Militer / Tribun Rakyat)",
+        "penjelasan": "Perwira militer senior atau perwakilan politik plebeian."
+      },
+      "quaestor": {
+        "istilah_asli": "Quaestor",
+        "en_triggers": ["quaestor", "quaestors"],
+        "id_baku": "Kwestor",
+        "penjelasan": "Pejabat pengelola keuangan publik dan logistik militer Romawi."
+      }
+    },
+    "kekaisaran_utsmaniyah": {
+      "grand_vizier": {
+        "istilah_asli": "Sadr-i A'zam (Sadrazam)",
+        "en_triggers": ["grand vizier", "grand viziers"],
+        "id_baku": "Wazir Agung",
+        "penjelasan": "Perdana menteri dan pemegang stempel kekaisaran Sultan Utsmaniyah."
+      },
+      "pasha": {
+        "istilah_asli": "Paşa",
+        "en_triggers": ["pasha", "pashas"],
+        "id_baku": "Pasha",
+        "penjelasan": "Gelar kehormatan tinggi militer (jenderal) dan sipil (gubernur provinsi)."
+      },
+      "bey": {
+        "istilah_asli": "Bey",
+        "en_triggers": ["bey", "beys", "beylik"],
+        "id_baku": "Bey",
+        "penjelasan": "Gelar gubernur distrik militer (sanjakbey) atau penguasa kadipaten."
+      },
+      "janissary": {
+        "istilah_asli": "Yeniçeri",
+        "en_triggers": ["janissary", "janissaries"],
+        "id_baku": "Yanisari",
+        "penjelasan": "Korps infanteri elite pengawal sultan Utsmaniyah."
+      }
+    }
+  }
+}

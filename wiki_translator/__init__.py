@@ -258,3 +258,7 @@ from .historical_ethnonyms import (
     HistoricalEthnonymsManager,
     default_ethnonyms_manager,
 )
+from .historical_offices import (
+    HistoricalOfficesManager,
+    default_offices_manager,
+)
