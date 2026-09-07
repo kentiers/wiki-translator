@@ -31,7 +31,7 @@ from .factual_audit import FactualConsistencyResult, default_factual_auditor
 from .lexical_register import LexicalRegisterReranker, default_lexical_reranker
 from .gramatika_engine import GramatikaEngine, default_gramatika_engine
 from .eyd_engine import EYDEngine, default_eyd_engine
-
+from .semantic_verifier import UniversalSemanticVerifier, default_semantic_verifier
 
 @dataclass
 class DrafterAuditResult:
@@ -231,6 +231,7 @@ class EditorialQAPipeline:
         lexical_reranker: Optional[LexicalRegisterReranker] = None,
         gramatika_engine: Optional[GramatikaEngine] = None,
         eyd_engine: Optional[EYDEngine] = None,
+        semantic_verifier: Optional[UniversalSemanticVerifier] = None,
     ):
         self.slop_linter = slop_linter or default_slop_linter
         self.syntax_balancer = syntax_balancer or default_syntax_balancer
@@ -239,6 +240,7 @@ class EditorialQAPipeline:
         self.lexical_reranker = lexical_reranker or default_lexical_reranker
         self.gramatika_engine = gramatika_engine or default_gramatika_engine
         self.eyd_engine = eyd_engine or default_eyd_engine
+        self.semantic_verifier = semantic_verifier or default_semantic_verifier
     # -------------------------------------------------------------------------
     def audit_drafter(self, wikitext: str) -> DrafterAuditResult:
         """Audits word count, section count, and presence of lead & references."""
@@ -621,6 +623,18 @@ class EditorialQAPipeline:
         if factual and not factual.passed:
             critical_errors.extend(factual.warnings)
 
+        # 2nd Checking Pass: Universal Line-by-Line Semantic Verification
+        if source_wikitext is not None:
+            try:
+                sem_report = self.semantic_verifier.verify_article(source_wikitext, wikitext, topic=topic)
+                if not sem_report.passed:
+                    for iss in sem_report.issues:
+                        if iss.severity == "CRITICAL":
+                            critical_errors.append(f"[Klaim #{iss.sentence_idx}] {iss.category}: {iss.explanation}")
+                        else:
+                            recommendations.append(f"[Kalimat #{iss.sentence_idx}] {iss.explanation}")
+            except Exception:
+                pass
         if layer1.word_count < 30:
             critical_errors.append("Panjang artikel tidak memadai untuk draf ensiklopedis (< 30 kata).")
 

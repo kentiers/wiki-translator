@@ -262,3 +262,7 @@ from .historical_offices import (
     HistoricalOfficesManager,
     default_offices_manager,
 )
+from .semantic_verifier import (
+    UniversalSemanticVerifier,
+    default_semantic_verifier,
+)
