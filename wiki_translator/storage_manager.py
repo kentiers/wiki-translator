@@ -10,7 +10,7 @@ from dataclasses import dataclass
 import os
 from pathlib import Path
 import sqlite3
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
 
 DEFAULT_CACHE_DIR = ".cache"
@@ -252,4 +252,122 @@ class StorageManager:
         return report
 
 
+@dataclass
+class ArticleIngestionRecord:
+    category: str
+    database_key: str
+    entry: str
+    details: str
+    timestamp: float = 0.0
+
+
+class ArticleSessionTracker:
+    """
+    Tracks all database insertions, lemma discoveries, glossary resolutions,
+    and cross-wiki link mappings performed specifically for the currently active article.
+    Provides clear visibility into what exact knowledge was ingested.
+    """
+
+    def __init__(self, article_title: str = ""):
+        self.article_title = article_title
+        self.records: List[ArticleIngestionRecord] = []
+        self._seen: Set[Tuple[str, str]] = set()
+
+    def start_article(self, article_title: str) -> None:
+        """Starts tracking a new article session."""
+        self.article_title = article_title
+        self.records.clear()
+        self._seen.clear()
+
+    def record_kateglo_lemma(self, lemma: str, definition: str = "", category: str = "Lema KBBI / Kateglo") -> None:
+        """Records a new dictionary lemma / KBBI entry cached for this article."""
+        clean = lemma.strip()
+        if not clean:
+            return
+        key = ("kateglo", clean.lower())
+        if key not in self._seen:
+            self._seen.add(key)
+            import time
+            short_def = definition.strip().replace("\n", " ")
+            if len(short_def) > 70:
+                short_def = short_def[:67] + "..."
+            self.records.append(ArticleIngestionRecord(
+                category="📖 Lema & Definisi (KBBI / Kateglo)",
+                database_key="kateglo_cache",
+                entry=clean,
+                details=short_def or "Entri lema & tesaurus tersimpan",
+                timestamp=time.time(),
+            ))
+
+    def record_glossary_term(self, en_term: str, id_term: str, source: str = "Glosarium Istilah") -> None:
+        """Records a bilingual glossary term pair resolved and cached for this article."""
+        en_clean = en_term.strip()
+        id_clean = id_term.strip() if id_term else ""
+        if not en_clean:
+            return
+        key = ("glossary", en_clean.lower())
+        if key not in self._seen:
+            self._seen.add(key)
+            import time
+            self.records.append(ArticleIngestionRecord(
+                category="🧠 Glosarium Istilah Baku (EN ➔ ID)",
+                database_key="glossary_memory",
+                entry=f"{en_clean} ➔ {id_clean}" if id_clean else en_clean,
+                details=f"Sumber: {source}",
+                timestamp=time.time(),
+            ))
+
+    def record_wiki_link(self, en_title: str, id_title: str, status: str = "Tervalidasi") -> None:
+        """Records a cross-wiki interlanguage page or category mapping cached for this article."""
+        en_clean = en_title.strip()
+        id_clean = id_title.strip() if id_title else ""
+        if not en_clean:
+            return
+        key = ("wikilink", en_clean.lower())
+        if key not in self._seen:
+            self._seen.add(key)
+            import time
+            self.records.append(ArticleIngestionRecord(
+                category="🔗 Pranala & Entitas Wiki (Lintas-Bahasa)",
+                database_key="wiki_links_cache",
+                entry=f"en:{en_clean} ➔ id:{id_clean}" if id_clean else f"en:{en_clean}",
+                details=status,
+                timestamp=time.time(),
+            ))
+
+    def record_template(self, template_name: str, status: str = "Terverifikasi") -> None:
+        """Records a template verified or mapped for this article."""
+        t_clean = template_name.strip()
+        if not t_clean:
+            return
+        key = ("template", t_clean.lower())
+        if key not in self._seen:
+            self._seen.add(key)
+            import time
+            self.records.append(ArticleIngestionRecord(
+                category="🧩 Templat & Modul Wiki",
+                database_key="wiki_templates_cache",
+                entry=t_clean,
+                details=status,
+                timestamp=time.time(),
+            ))
+
+    def get_records(self) -> List[ArticleIngestionRecord]:
+        """Returns all recorded ingestion items for the current session."""
+        return list(self.records)
+
+    def get_grouped_summary(self) -> Dict[str, List[ArticleIngestionRecord]]:
+        """Groups recorded items by category."""
+        grouped: Dict[str, List[ArticleIngestionRecord]] = {}
+        for r in self.records:
+            grouped.setdefault(r.category, []).append(r)
+        return grouped
+
+    def clear(self) -> None:
+        """Clears all records."""
+        self.records.clear()
+        self._seen.clear()
+
+
+default_session_tracker = ArticleSessionTracker()
 default_storage_manager = StorageManager()

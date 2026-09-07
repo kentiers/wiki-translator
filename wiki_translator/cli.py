@@ -138,11 +138,13 @@ from .cli_ui import (
     render_section_header,
     render_review_menu,
     render_diff_view,
+    render_article_database_summary,
     UI,
     ui,
     slugify,
     load_env_file,
 )
+from .storage_manager import default_session_tracker
 from .cli_subcommands import (
     handle_storage_commands,
     handle_glossary_actions,
@@ -362,10 +364,11 @@ class WikiTranslatorCLI:
                 print("\nOperation cancelled.")
                 return self._run_result(success=False, status="cancelled", error="Operation cancelled")
 
-        if not article_title:
-            print("[!] Article title cannot be empty.")
-            return self._run_result(success=False, status="invalid_title", error="Article title cannot be empty")
+            if not article_title:
+                print("[!] Article title cannot be empty.")
+                return self._run_result(success=False, status="invalid_title", error="Article title cannot be empty")
 
+        default_session_tracker.start_article(article_title)
         if revid is not None:
             print(f"\n[*] Fetching wikitext from en.wikipedia.org for '{article_title}' (revid: {revid})...")
         else:
@@ -863,6 +866,8 @@ class WikiTranslatorCLI:
         # Display Token Saver Dashboard
         print("\n" + self.tracker.get_summary_table())
         print("=" * 72)
+        # Display Article-Specific Database Ingestion Summary
+        render_article_database_summary(default_session_tracker, article_title)
 
         # Handle HTML preview opening if requested
         if self.auto_preview:

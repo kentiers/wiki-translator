@@ -877,8 +877,15 @@ class ArticleReviewer:
 
         # Ensure notice box is cleanly prepended exactly once
         final_text = notice_box + polished_body.strip()
-        return final_text.strip()
 
+        try:
+            from .cli_ui import render_article_database_summary
+            from .storage_manager import default_session_tracker
+            render_article_database_summary(default_session_tracker, id_title)
+        except Exception:
+            pass
+
+        return final_text.strip()
     def publish_polished_to_sandbox(
         self,
         id_title: str,

@@ -414,6 +414,12 @@ class GlossaryResolver:
                     """,
                     (en_lower, en_term.strip(), id_term.strip() if id_term else None, source, time.time()),
                 )
+                if id_term:
+                    try:
+                        from .storage_manager import default_session_tracker
+                        default_session_tracker.record_glossary_term(en_term.strip(), id_term.strip(), source)
+                    except Exception:
+                        pass
         finally:
             conn.close()
 

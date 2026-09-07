@@ -376,12 +376,23 @@ class KategloClient:
                             """,
                             (asing.casefold(), indo, clean_phrase, now),
                         )
-        except Exception:
-            pass
+
+            try:
+                from .storage_manager import default_session_tracker
+                first_def = ""
+                if entries and isinstance(entries, list) and isinstance(entries[0], dict):
+                    makna_list = entries[0].get("makna", [])
+                    if makna_list and isinstance(makna_list, list):
+                        first_def = str(makna_list[0]) if not isinstance(makna_list[0], dict) else makna_list[0].get("makna", "")
+                default_session_tracker.record_kateglo_lemma(clean_phrase, first_def)
+            except Exception:
+                pass
         finally:
             if conn:
-                conn.close()
-
+                try:
+                    conn.close()
+                except Exception:
+                    pass
         return data if has_data else None
 
     def get_synonyms(self, phrase: str, force_refresh: bool = False) -> List[str]:

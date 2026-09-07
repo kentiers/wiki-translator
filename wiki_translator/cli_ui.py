@@ -208,6 +208,74 @@ def render_database_update_notification(db_name: str, details: str = "") -> None
     else:
         print_console_safe(f"[+] [BASIS DATA DIPERBARUI] {db_name}: {details}".strip())
 
+
+def render_article_database_summary(tracker: Optional[Any] = None, article_title: str = "") -> None:
+    """
+    Renders an explicit, article-specific report listing exactly which new lemmas,
+    glossary terms, and cross-wiki links were ingested and saved into databases.
+    """
+    if tracker is None:
+        try:
+            from .storage_manager import default_session_tracker
+            tracker = default_session_tracker
+        except Exception:
+            return
+
+    records = tracker.get_records()
+    title = article_title or tracker.article_title or "Artikel"
+
+    if not records:
+        if is_rich_enabled():
+            get_console().print(f"[dim]ℹ️ Seluruh lema dan istilah untuk '{title}' telah tersedia di basis data lokal.[/]")
+        else:
+            print_console_safe(f"[*] Seluruh lema dan istilah untuk '{title}' telah tersedia di basis data lokal.")
+        return
+
+    grouped = tracker.get_grouped_summary()
+    total_count = len(records)
+
+    if is_rich_enabled():
+        console = get_console()
+        table = Table(
+            box=box.SIMPLE_HEAVY,
+            header_style="bold cyan",
+            border_style="dim",
+            padding=(0, 1),
+            show_lines=False,
+            expand=True,
+        )
+        table.add_column("Kategori", justify="left", style="bold white", ratio=3)
+        table.add_column("Entitas / Lema Baru", justify="left", style="bold cyan", ratio=3)
+        table.add_column("Keterangan / Makna", justify="left", style="dim", ratio=4)
+        table.add_column("Basis Data", justify="center", style="yellow", ratio=2)
+
+        for cat, items in grouped.items():
+            for idx, item in enumerate(items):
+                cat_label = cat if idx == 0 else ""
+                table.add_row(cat_label, item.entry, item.details, f"🗄️ {item.database_key}")
+
+        panel = Panel(
+            table,
+            title=f"[bold cyan]🗄️ LAPORAN PEMBARUAN BASIS DATA (Artikel: [white]{title}[/])[/]",
+            subtitle=f"[bold green]✔ {total_count} entri baru berhasil diserap dan disimpan permanen[/]",
+            border_style="cyan",
+            box=box.ROUNDED,
+            padding=(0, 1),
+        )
+        console.print()
+        console.print(panel)
+        console.print()
+    else:
+        print_console_safe("\n" + "=" * 72)
+        print_console_safe(f"   🗄️ LAPORAN PEMBARUAN BASIS DATA (Artikel: {title})")
+        print_console_safe("=" * 72)
+        for cat, items in grouped.items():
+            print_console_safe(f"\n{cat} ({len(items)} entri):")
+            for item in items:
+                print_console_safe(f"  • {item.entry:<35} -> {item.details} [{item.database_key}]")
+        print_console_safe("-" * 72)
+        print_console_safe(f"[+] Total: {total_count} entri baru berhasil diserap dan disimpan permanen.")
+        print_console_safe("=" * 72 + "\n")
 def render_sections_table(sections: List[Any]) -> None:
     """Renders the section breakdown table."""
     if is_rich_enabled():
@@ -425,6 +493,12 @@ class UI:
     @classmethod
     def db_update(cls, db_name: str, details: str = "") -> None:
         render_database_update_notification(db_name, details)
+
+    @classmethod
+    def article_db_summary(cls, tracker: Optional[Any] = None, article_title: str = "") -> None:
+        render_article_database_summary(tracker=tracker, article_title=article_title)
+
+    @classmethod
     def sections_table(cls, sections: List[Any]) -> None:
         render_sections_table(sections)
 

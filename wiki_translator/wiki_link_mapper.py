@@ -352,6 +352,12 @@ class WikiLinkMapper:
                         disambiguation_target.strip() if disambiguation_target else None,
                     ),
                 )
+                if id_title and exists_on_id:
+                    try:
+                        from .storage_manager import default_session_tracker
+                        default_session_tracker.record_wiki_link(en_title.strip(), id_title.strip(), f"Sumber: {source}")
+                    except Exception:
+                        pass
         finally:
             conn.close()
 
