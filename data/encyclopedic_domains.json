@@ -1,0 +1,265 @@
+{
+  "deskripsi": "Taksonomi Arketipe 8 Ranah Ensiklopedia Wikipedia Bahasa Indonesia (Grade A++)",
+  "versi": "1.0",
+  "ranah_ensiklopedia": {
+    "biografi_tokoh": {
+      "nama": "Biografi & Tokoh",
+      "deskripsi": "Tokoh sejarah, ilmuwan, politikus, seniman, atlet, militer, dan figur publik",
+      "templat_rintisan": {
+        "sutradara": "{{sutradara-stub}}",
+        "pemeran": "{{pemeran-stub}}",
+        "musisi": "{{musik-stub}}",
+        "penyanyi": "{{penyanyi-stub}}",
+        "penulis": "{{penulis-stub}}",
+        "ilmuwan": "{{ilmuwan-stub}}",
+        "politikus": "{{politikus-stub}}",
+        "pesepakbola": "{{pemain-sb-stub}}",
+        "atlet": "{{atlet-stub}}",
+        "militer": "{{militer-stub}}",
+        "dokter": "{{dokter-stub}}",
+        "arsitek": "{{arsitek-stub}}",
+        "tokoh_umum": "{{tokoh-stub}}"
+      },
+      "infobox_kanonik": [
+        "Infobox person",
+        "Infobox military person",
+        "Infobox scientist",
+        "Infobox officeholder",
+        "Infobox musical artist",
+        "Infobox football biography"
+      ],
+      "struktur_bab_kanonik": [
+        "== Kehidupan awal ==",
+        "== Karier ==",
+        "== Kehidupan pribadi ==",
+        "== Kematian ==",
+        "== Warisan ==",
+        "== Referensi ==",
+        "== Pranala luar =="
+      ],
+      "seksi_katalog_karya": [
+        "Filmografi",
+        "Bibliografi",
+        "Publikasi",
+        "Diskografi",
+        "Pameran",
+        "Penghargaan dan nominasi"
+      ],
+      "kategori_wajib": [
+        "Kelahiran <YYYY>",
+        "Kematian <YYYY> / Orang hidup"
+      ]
+    },
+    "karya_kreatif_media": {
+      "nama": "Karya Kreatif & Media",
+      "deskripsi": "Film, serial televisi, album musik, buku, novel, teater, permainan video",
+      "templat_rintisan": {
+        "film": "{{film-stub}}",
+        "televisi": "{{acara-tv-stub}}",
+        "album": "{{album-stub}}",
+        "lagu": "{{lagu-stub}}",
+        "musik": "{{musik-stub}}",
+        "buku": "{{buku-stub}}",
+        "novel": "{{novel-stub}}",
+        "video_game": "{{permainan-video-stub}}"
+      },
+      "infobox_kanonik": [
+        "Infobox film",
+        "Infobox television",
+        "Infobox album",
+        "Infobox song",
+        "Infobox book",
+        "Infobox video game"
+      ],
+      "struktur_bab_kanonik": [
+        "== Sinopsis ==",
+        "== Pemeran ==",
+        "== Produksi ==",
+        "== Musik ==",
+        "== Perilisan ==",
+        "== Penerimaan ==",
+        "== Penghargaan ==",
+        "== Referensi =="
+      ],
+      "sufiks_disambiguasi_baku": {
+        "film": "(film YYYY) atau (film)",
+        "televisi": "(seri televisi YYYY) atau (seri televisi)",
+        "album": "(album YYYY) atau (album)",
+        "lagu": "(lagu)",
+        "buku": "(buku)",
+        "novel": "(novel)",
+        "sandiwara": "(sandiwara)"
+      }
+    },
+    "sains_teknologi": {
+      "nama": "Sains Formal, Fisika & Teknologi",
+      "deskripsi": "Matematika, fisika, kimia, astronomi, ilmu komputer, perangkat lunak",
+      "templat_rintisan": {
+        "matematika": "{{matematika-stub}}",
+        "fisika": "{{fisika-stub}}",
+        "kimia": "{{kimia-stub}}",
+        "astronomi": "{{astronomi-stub}}",
+        "komputer": "{{komputer-stub}}",
+        "software": "{{perangkat-lunak-stub}}",
+        "teknologi": "{{teknologi-stub}}"
+      },
+      "infobox_kanonik": [
+        "Infobox software",
+        "Infobox element",
+        "Infobox chemical compound",
+        "Infobox astronomical object",
+        "Infobox planet"
+      ],
+      "struktur_bab_kanonik": [
+        "== Sejarah dan latar belakang ==",
+        "== Definisi dan konsep dasar ==",
+        "== Formulasi matematis ==",
+        "== Sifat fisik dan kimia ==",
+        "== Penerapan dan implementasi ==",
+        "== Lihat pula ==",
+        "== Referensi =="
+      ]
+    },
+    "ilmu_hayat_kesehatan": {
+      "nama": "Ilmu Hayat & Kesehatan",
+      "deskripsi": "Taksonomi hewan, tumbuhan, biologi, penyakit, obat-obatan, anatomi",
+      "templat_rintisan": {
+        "hewan": "{{hewan-stub}}",
+        "burung": "{{burung-stub}}",
+        "ikan": "{{ikan-stub}}",
+        "serangga": "{{serangga-stub}}",
+        "tumbuhan": "{{tumbuhan-stub}}",
+        "biologi": "{{biologi-stub}}",
+        "kedokteran": "{{kedokteran-stub}}",
+        "farmasi": "{{farmasi-stub}}",
+        "anatomi": "{{anatomi-stub}}"
+      },
+      "infobox_kanonik": [
+        "Taxobox",
+        "Infobox medical condition",
+        "Infobox drug",
+        "Infobox anatomy"
+      ],
+      "struktur_bab_kanonik": [
+        "== Deskripsi ==",
+        "== Taksonomi dan filogeni ==",
+        "== Habitat dan persebaran ==",
+        "== Perilaku dan ekologi ==",
+        "== Tanda dan gejala ==",
+        "== Diagnosis ==",
+        "== Pengobatan ==",
+        "== Konservasi ==",
+        "== Referensi =="
+      ]
+    },
+    "geografi_wilayah": {
+      "nama": "Geografi & Wilayah",
+      "deskripsi": "Gunung, danau, sungai, pulau, kota, desa, stasiun, bandar udara",
+      "templat_rintisan": {
+        "geografi": "{{geografi-stub}}",
+        "gunung": "{{gunung-stub}}",
+        "danau": "{{danau-stub}}",
+        "sungai": "{{sungai-stub}}",
+        "pulau": "{{pulau-stub}}",
+        "desa": "{{desa-stub}}",
+        "kelurahan": "{{kelurahan-stub}}",
+        "kecamatan": "{{kecamatan-stub}}",
+        "kota": "{{geografi-stub}}",
+        "stasiun": "{{stasiun-stub}}",
+        "bandara": "{{bandara-stub}}"
+      },
+      "infobox_kanonik": [
+        "Infobox settlement",
+        "Infobox mountain",
+        "Infobox river",
+        "Infobox lake",
+        "Infobox island",
+        "Infobox station",
+        "Infobox airport"
+      ],
+      "struktur_bab_kanonik": [
+        "== Geografi dan topografi ==",
+        "== Iklim ==",
+        "== Sejarah ==",
+        "== Demografi ==",
+        "== Ekonomi ==",
+        "== Transportasi ==",
+        "== Referensi =="
+      ]
+    },
+    "sejarah_militer": {
+      "nama": "Sejarah, Militer & Politik",
+      "deskripsi": "Perang, pertempuran, dinasti, perjanjian internasional, pemilu, hukum",
+      "templat_rintisan": {
+        "perang": "{{perang-stub}}",
+        "militer": "{{militer-stub}}",
+        "sejarah": "{{sejarah-stub}}",
+        "politik": "{{politik-stub}}",
+        "hukum": "{{hukum-stub}}"
+      },
+      "infobox_kanonik": [
+        "Infobox military conflict",
+        "Infobox civilian attack",
+        "Infobox treaty",
+        "Infobox election"
+      ],
+      "struktur_bab_kanonik": [
+        "== Latar belakang ==",
+        "== Jalannya peristiwa ==",
+        "== Pasukan dan kekuatan militer ==",
+        "== Akibat dan korban ==",
+        "== Dampak sejarah ==",
+        "== Referensi =="
+      ]
+    },
+    "lembaga_organisasi": {
+      "nama": "Lembaga, Bisnis & Pendidikan",
+      "deskripsi": "Perusahaan, universitas, sekolah, partai politik, yayasan",
+      "templat_rintisan": {
+        "perusahaan": "{{perusahaan-stub}}",
+        "universitas": "{{universitas-stub}}",
+        "sekolah": "{{sekolah-stub}}",
+        "organisasi": "{{organisasi-stub}}"
+      },
+      "infobox_kanonik": [
+        "Infobox company",
+        "Infobox university",
+        "Infobox school",
+        "Infobox organization"
+      ],
+      "struktur_bab_kanonik": [
+        "== Sejarah pendirian ==",
+        "== Struktur dan organisasi ==",
+        "== Produk dan operasi ==",
+        "== Akademik dan fakultas ==",
+        "== Kampus dan fasilitas ==",
+        "== Referensi =="
+      ]
+    },
+    "budaya_masyarakat": {
+      "nama": "Budaya, Masyarakat & Agama",
+      "deskripsi": "Agama, bahasa, makanan tradisional, tradisi, filsafat, olahraga",
+      "templat_rintisan": {
+        "agama": "{{agama-stub}}",
+        "bahasa": "{{bahasa-stub}}",
+        "makanan": "{{makanan-stub}}",
+        "olahraga": "{{olahraga-stub}}",
+        "budaya": "{{budaya-stub}}"
+      },
+      "infobox_kanonik": [
+        "Infobox language",
+        "Infobox food",
+        "Infobox sport",
+        "Infobox religious building"
+      ],
+      "struktur_bab_kanonik": [
+        "== Asal-usul ==",
+        "== Ciri khas dan karakteristik ==",
+        "== Bahan dan pembuatan ==",
+        "== Tata cara dan ritual ==",
+        "== Nilai filosofis ==",
+        "== Referensi =="
+      ]
+    }
+  }
+}

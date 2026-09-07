@@ -78,7 +78,17 @@ class StubGenerator:
         self.typography_sanitizer = typography_sanitizer or default_typography_sanitizer
         self.translator_client = translator_client
         self._translator_initialized = translator_client is not None
+        self.data_domains_file = Path(__file__).resolve().parent.parent / "data" / "encyclopedic_domains.json"
+        self._domains_taxonomy = self._load_domains_taxonomy()
 
+    def _load_domains_taxonomy(self) -> Dict[str, Any]:
+        """Loads the encyclopedic 8-metacategory taxonomy schema dynamically."""
+        if hasattr(self, "data_domains_file") and self.data_domains_file.exists():
+            try:
+                return json.loads(self.data_domains_file.read_text(encoding="utf-8"))
+            except Exception:
+                pass
+        return {}
     def _get_translator_client(self) -> Optional[Any]:
         """Lazily initializes and returns GeminiTranslatorClient if credentials exist."""
         if self._translator_initialized:
