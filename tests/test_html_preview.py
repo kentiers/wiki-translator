@@ -123,6 +123,33 @@ class TestHTMLPreviewGenerator(unittest.TestCase):
         self.assertNotIn("<p>people</p>", html)
         self.assertNotIn("people", html)
 
+    def test_offline_render_external_links_and_no_stray_braces(self):
+        wikitext = """== Pranala luar ==
+* {{Official website|https://www.gorby.ru/en/}}
+* {{IMDb name|0329784}}
+
+{{S-start}}
+{{S-ppo}}
+{{s-bef|before=Leonid Yefremov}}
+{{s-ttl|title=Sekretaris Pertama|years=1970–1978}}
+{{s-aft|after=Murakhovsky}}
+{{S-end}}
+
+{{Navboxes
+| title = Artikel terkait
+| list1 =
+{{Template1}}
+}}
+"""
+        html = self.generator.render_html("Uji Pranala Luar", wikitext, try_api_parse=False)
+
+        self.assertIn('<a href="https://www.gorby.ru/en/" class="external" target="_blank" rel="noopener">Situs web resmi</a>', html)
+        self.assertIn("di IMDb", html)
+        self.assertIn("succession-table", html)
+        self.assertIn("Jabatan Partai Politik", html)
+        self.assertIn("Sekretaris Pertama", html)
+        self.assertNotIn("}}</p>", html)
+        self.assertNotIn("<p>}}", html)
     def test_offline_render_references_and_citations(self):
         wikitext = (
             "Pernyataan ilmiah penting.<ref>{{cite web|title=Kuantum Hari Ini|url=https://quantum.org}}</ref>\n"

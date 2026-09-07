@@ -463,8 +463,8 @@ class HTMLPreviewGenerator:
                 used_api = True
 
         if html_body is None:
+            self._current_title = title
             html_body = self._render_offline(wikitext)
-
         return self._wrap_vector_template(title, html_body, is_api_parsed=used_api)
 
     def _try_api_parse(self, title: str, wikitext: str) -> Optional[str]:
@@ -1525,109 +1525,187 @@ class HTMLPreviewGenerator:
             return ""
         text = re.sub(r"\{\{\s*(commonscat|commons|wikiquote)\s*(?:\|([^}]+))?\}\}", sister_sub, text, flags=re.IGNORECASE)
 
-        # Handle succession boxes: {{S-start}}...{{S-end}}
+        # Handle External Link Templates in Pranala Luar
+        doc_title = getattr(self, "_current_title", "") or "Subjek"
+
+        def off_sub(m: re.Match) -> str:
+            parts = [p.strip() for p in m.group(1).split('|') if p.strip()]
+            url = parts[0] if parts else ''
+            if '=' in url:
+                for p in parts:
+                    if p.startswith('url='):
+                        url = p.split('=', 1)[1].strip()
+            return f'<a href="{url}" class="external" target="_blank" rel="noopener">Situs web resmi</a>'
+        text = re.sub(r"\{\{\s*(?:Official[ _]website|Situs[ _]resmi)\s*\|([^}]+)\}\}", off_sub, text, flags=re.I)
+
+        def imdb_sub(m: re.Match) -> str:
+            parts = [p.strip() for p in m.group(1).split('|') if p.strip()]
+            mid = parts[0] if parts else ''
+            name = parts[1] if len(parts) > 1 else doc_title
+            if mid and not mid.startswith('nm'):
+                mid = f'nm{mid.zfill(7)}'
+            url = f'https://www.imdb.com/name/{mid}/'
+            return f'<a href="{url}" class="external" target="_blank" rel="noopener">{name}</a> di IMDb'
+        text = re.sub(r"\{\{\s*IMDb[ _]name\s*\|([^}]+)\}\}", imdb_sub, text, flags=re.I)
+
+        def fg_sub(m: re.Match) -> str:
+            params = {}
+            for p in m.group(1).split('|'):
+                if '=' in p:
+                    k, v = p.split('=', 1)
+                    params[k.strip().lower()] = v.strip()
+                elif 'id' not in params:
+                    params['id'] = p.strip()
+            name = params.get('name', doc_title)
+            fid = params.get('id', '')
+            url = f'https://www.findagrave.com/memorial/{fid}' if fid else 'https://www.findagrave.com/'
+            return f'<a href="{url}" class="external" target="_blank" rel="noopener">{name}</a> di Find a Grave'
+        text = re.sub(r"\{\{\s*Find[ _]a[ _]Grave\s*\|?([^}]*)\}\}", fg_sub, text, flags=re.I)
+
+        def nobel_sub(m: re.Match) -> str:
+            return f'<a href="https://www.nobelprize.org/" class="external" target="_blank" rel="noopener">{doc_title}</a> pada situs Nobelprize.org'
+        text = re.sub(r"\{\{\s*Nobelprize\s*\|?([^}]*)\}\}", nobel_sub, text, flags=re.I)
+
+        def nyt_sub(m: re.Match) -> str:
+            params = {}
+            for p in m.group(1).split('|'):
+                if '=' in p:
+                    k, v = p.split('=', 1)
+                    params[k.strip().lower()] = v.strip()
+            nid = params.get('new_id', '') or params.get('id', '')
+            name = params.get('name', doc_title)
+            url = f'https://www.nytimes.com/topic/{nid}' if nid else 'https://www.nytimes.com'
+            return f'Koleksi berita dan komentar tentang <a href="{url}" class="external" target="_blank" rel="noopener">{name}</a> di <em>The New York Times</em>'
+        text = re.sub(r"\{\{\s*New[ _]York[ _]Times[ _]topic\s*\|([^}]+)\}\}", nyt_sub, text, flags=re.I)
+
+        # Handle succession boxes: {{S-start}}...{{S-end}} (both modular and legacy)
+        def clean_succ_cell(c: str) -> str:
+            c = re.sub(r"\{\{\s*flagicon\s*\|[^}]*\}\}\s*", "", c, flags=re.I)
+            c = re.sub(r"\{\{\s*ill\s*\|([^|]+)(?:\|[^}]+)*\}\}", r"\1", c, flags=re.I)
+            c = re.sub(r"\{\{\s*nobold\s*\|([^}]+)\}\}", r"\1", c, flags=re.I)
+            c = re.sub(r"\{\{\s*br entries\s*\|([^}]+)\}\}", lambda m: "<br>".join(m.group(1).split("|")), c, flags=re.I)
+            c = re.sub(r"\[\[([^|\]]+)\|([^\]]+)\]\]", r'<a href="https://id.wikipedia.org/wiki/\1">\2</a>', c)
+            c = re.sub(r"\[\[([^\]]+)\]\]", r'<a href="https://id.wikipedia.org/wiki/\1">\1</a>', c)
+            c = re.sub(r"'''''(.*?)'''''", r"<strong><em>\1</em></strong>", c)
+            c = re.sub(r"'''(.*?)'''", r"<strong>\1</strong>", c)
+            c = re.sub(r"''(.*?)''", r"<em>\1</em>", c)
+            return c.strip()
+
         def succession_sub(m: re.Match) -> str:
-            inner = m.group(0)
+            inner = m.group(1)
+            SECTION_HEADERS = {
+                "s-ppo": "Jabatan Partai Politik",
+                "s-off": "Jabatan Politik & Pemerintahan",
+                "s-ach": "Penghargaan & Prestasi",
+                "s-civ": "Gelar Kehormatan",
+                "s-mil": "Jabatan Militer",
+            }
             rows = []
-            box_pat = re.compile(r"\{\{\s*Succession[ _]box\b", re.I)
+            curr_before = "–"
+            curr_title = ""
+            curr_years = ""
+            curr_after = "–"
+            parts = re.findall(r"\{\{\s*([a-zA-Z0-9_-]+)(?:\|([^{}]+(?:\{\{[^{}]*\}\}[^{}]*)*))?\s*\}\}", inner)
+
+            for name, args in parts:
+                n_low = name.lower().strip()
+                params = {}
+                if args:
+                    for p in re.split(r"\|(?![^{]*\}\})(?![^\[]*\]\])", args):
+                        if "=" in p:
+                            k, v = p.split("=", 1)
+                            params[k.strip().lower()] = v.strip()
+                        elif "before" not in params and n_low == "s-bef":
+                            params["before"] = p.strip()
+                        elif "title" not in params and n_low == "s-ttl":
+                            params["title"] = p.strip()
+                        elif "after" not in params and n_low == "s-aft":
+                            params["after"] = p.strip()
+
+                if n_low in SECTION_HEADERS:
+                    rows.append(f'<tr><th colspan="3" style="background:#eaecf0; text-align:center;">{SECTION_HEADERS[n_low]}</th></tr>')
+                    curr_before = "–"
+                elif n_low in ("s-bef",):
+                    b_val = params.get("before", "")
+                    as_val = params.get("as", "")
+                    curr_before = f"{b_val}<br><small>({as_val})</small>" if as_val else b_val
+                elif n_low in ("s-non",):
+                    r_val = params.get("reason", "–")
+                    if not curr_title:
+                        curr_before = f"<em>{r_val}</em>"
+                    else:
+                        curr_after = f"<em>{r_val}</em>"
+                        rows.append(
+                            f'<tr><td style="width:30%; text-align:center; vertical-align:middle;">{clean_succ_cell(curr_before)}</td>'
+                            f'<td style="width:40%; text-align:center; font-weight:bold; vertical-align:middle;">{clean_succ_cell(curr_title)}<br><span style="font-weight:normal; font-size:90%; color:#555;">{clean_succ_cell(curr_years)}</span></td>'
+                            f'<td style="width:30%; text-align:center; vertical-align:middle;">{clean_succ_cell(curr_after)}</td></tr>'
+                        )
+                        curr_before = "–"
+                        curr_title = ""
+                        curr_years = ""
+                        curr_after = "–"
+                elif n_low in ("s-ttl",):
+                    curr_title = params.get("title", "")
+                    curr_years = params.get("years", "")
+                elif n_low in ("s-aft",):
+                    curr_after = params.get("after", "–")
+                    rows.append(
+                        f'<tr><td style="width:30%; text-align:center; vertical-align:middle;">{clean_succ_cell(curr_before)}</td>'
+                        f'<td style="width:40%; text-align:center; font-weight:bold; vertical-align:middle;">{clean_succ_cell(curr_title)}<br><span style="font-weight:normal; font-size:90%; color:#555;">{clean_succ_cell(curr_years)}</span></td>'
+                        f'<td style="width:30%; text-align:center; vertical-align:middle;">{clean_succ_cell(curr_after)}</td></tr>'
+                    )
+                    curr_before = "–"
+                    curr_title = ""
+                    curr_years = ""
+                    curr_after = "–"
+
+            if rows:
+                return (
+                    '<table class="wikitable succession-table" style="width:100%; font-size:90%; margin:1em 0;">\n'
+                    + "\n".join(rows) +
+                    '\n</table>'
+                )
+            return ""
+
+        text = re.sub(r"\{\{\s*S-start\s*\}\}([\s\S]*?)\{\{\s*S-end\s*\}\}", succession_sub, text, flags=re.IGNORECASE)
+
+        # Handle balanced {{Navboxes ...}} / {{Navbox ...}} without leaving stray braces
+        def parse_navboxes_balanced(t: str) -> str:
             pos = 0
-            while pos < len(inner):
-                bm = box_pat.search(inner, pos)
-                if not bm:
+            out = []
+            pat = re.compile(r"\{\{\s*(?:Navboxes|Navbox)\b", re.IGNORECASE)
+            while pos < len(t):
+                m = pat.search(t, pos)
+                if not m:
+                    out.append(t[pos:])
                     break
-                b_start = bm.start()
-                i = b_start
+                start = m.start()
+                out.append(t[pos:start])
+
                 d = 0
-                b_end = -1
-                while i < len(inner):
-                    if inner[i : i + 2] == "{{":
+                i = start
+                end = len(t)
+                while i < len(t):
+                    if t[i : i + 2] == "{{":
                         d += 1
                         i += 2
-                    elif inner[i : i + 2] == "}}":
+                    elif t[i : i + 2] == "}}":
                         d -= 1
                         if d == 0:
-                            b_end = i + 2
+                            end = i + 2
                             break
                         i += 2
                     else:
                         i += 1
-                if b_end == -1:
-                    pos = bm.end()
-                    continue
 
-                raw_box = inner[b_start:b_end]
-                box_content = raw_box.strip()[2:-2].strip()
+                raw_nav = t[start:end]
+                m_title = re.search(r"\|\s*(?:title|judul|name|nama)\s*=\s*([^|\n}]+)", raw_nav, re.IGNORECASE)
+                nav_title = m_title.group(1).strip() if m_title else "Kotak Navigasi Terkait"
+                out.append(f'<div class="navbox-container" style="border:1px solid #a2a9b1; background:#f8f9fa; padding:6px 12px; margin:1.5em 0; font-size:88%; text-align:center; border-radius:2px;"><strong>{html.escape(nav_title)}</strong></div>')
+                pos = end
+            return "".join(out)
 
-                params = {}
-                p_parts = []
-                p_cur = []
-                p_db = 0
-                p_dk = 0
-                pj = 0
-                while pj < len(box_content):
-                    if box_content[pj : pj + 2] == "{{":
-                        p_db += 1
-                        p_cur.append(box_content[pj : pj + 2])
-                        pj += 2
-                    elif box_content[pj : pj + 2] == "}}":
-                        p_db = max(0, p_db - 1)
-                        p_cur.append(box_content[pj : pj + 2])
-                        pj += 2
-                    elif box_content[pj : pj + 2] == "[[":
-                        p_dk += 1
-                        p_cur.append(box_content[pj : pj + 2])
-                        pj += 2
-                    elif box_content[pj : pj + 2] == "]]":
-                        p_dk = max(0, p_dk - 1)
-                        p_cur.append(box_content[pj : pj + 2])
-                        pj += 2
-                    elif box_content[pj] == "|" and p_db == 0 and p_dk == 0:
-                        p_parts.append("".join(p_cur).strip())
-                        p_cur = []
-                        pj += 1
-                    else:
-                        p_cur.append(box_content[pj])
-                        pj += 1
-                if p_cur:
-                    p_parts.append("".join(p_cur).strip())
-
-                for p in p_parts:
-                    if "=" in p:
-                        k, v = p.split("=", 1)
-                        params[k.strip().lower()] = v.strip()
-
-                before = params.get("before", "–")
-                title = params.get("title", "")
-                years = params.get("years", "")
-                after = params.get("after", "–")
-
-                def clean_succ_cell(c: str) -> str:
-                    c = re.sub(r"\{\{\s*flagicon\s*\|[^}]*\}\}\s*", "", c, flags=re.I)
-                    c = re.sub(r"\{\{\s*ill\s*\|([^|]+)(?:\|[^}]+)*\}\}", r"\1", c, flags=re.I)
-                    c = re.sub(r"\[\[([^|\]]+)\|([^\]]+)\]\]", r'<a href="https://id.wikipedia.org/wiki/\1">\2</a>', c)
-                    c = re.sub(r"\[\[([^\]]+)\]\]", r'<a href="https://id.wikipedia.org/wiki/\1">\1</a>', c)
-                    c = re.sub(r"'''''(.*?)'''''", r"<strong><em>\1</em></strong>", c)
-                    c = re.sub(r"'''(.*?)'''", r"<strong>\1</strong>", c)
-                    c = re.sub(r"''(.*?)''", r"<em>\1</em>", c)
-                    return c.strip()
-
-                rows.append(
-                    f'<tr><td style="width:30%; text-align:center; vertical-align:middle;">{clean_succ_cell(before)}</td>'
-                    f'<td style="width:40%; text-align:center; font-weight:bold; vertical-align:middle;">{clean_succ_cell(title)}<br><span style="font-weight:normal; font-size:90%; color:#555;">{clean_succ_cell(years)}</span></td>'
-                    f'<td style="width:30%; text-align:center; vertical-align:middle;">{clean_succ_cell(after)}</td></tr>'
-                )
-                pos = b_end
-
-            if rows:
-                return (
-                    '<table class="wikitable succession-table">'
-                    '<tr><th colspan="3" style="background:#eaecf0; text-align:center;">Gelar Politik & Jabatan Pemerintahan</th></tr>'
-                    + "".join(rows) +
-                    '</table>'
-                )
-            return ""
-        text = re.sub(r"\{\{\s*S-start\s*\}\}[\s\S]*?\{\{\s*S-end\s*\}\}", succession_sub, text, flags=re.IGNORECASE)
-
+        text = parse_navboxes_balanced(text)
         # Handle {{sfn|Author|Year|p=...}}
         def sfn_sub(m: re.Match) -> str:
             parts = [p.strip() for p in m.group(1).split("|")]
