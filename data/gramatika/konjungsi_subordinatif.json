@@ -1,0 +1,93 @@
+{
+  "deskripsi": "Taksonomi 9 Kategori Konjungsi Subordinatif dan Aturan Tanda Baca Klausa (TBBBI / Kateglo Bab X)",
+  "kategori": {
+    "waktu": [
+      "setelah",
+      "sesudah",
+      "sebelum",
+      "sehabis",
+      "sejak",
+      "selesai",
+      "ketika",
+      "tatkala",
+      "sewaktu",
+      "sementara",
+      "sambil",
+      "seraya",
+      "selagi",
+      "selama",
+      "sehingga",
+      "sampai"
+    ],
+    "syarat": [
+      "jika",
+      "kalau",
+      "jikalau",
+      "asal",
+      "asalkan",
+      "bila",
+      "apabila",
+      "manakala"
+    ],
+    "pengandaian": [
+      "andai",
+      "andaikan",
+      "seandainya",
+      "andaikata",
+      "sekiranya"
+    ],
+    "tujuan": [
+      "agar",
+      "supaya",
+      "biar",
+      "untuk",
+      "demi",
+      "guna"
+    ],
+    "konsesif": [
+      "biarpun",
+      "meskipun",
+      "sungguhpun",
+      "sekalipun",
+      "walaupun",
+      "kendatipun",
+      "kendati"
+    ],
+    "pembandingan": [
+      "seakan-akan",
+      "seolah-olah",
+      "sebagaimana",
+      "seperti",
+      "sebagai",
+      "bagaikan",
+      "laksana",
+      "alih-alih",
+      "ibarat",
+      "bak",
+      "bagai"
+    ],
+    "sebab": [
+      "sebab",
+      "karena"
+    ],
+    "akibat": [
+      "sehingga",
+      "sampai-sampai"
+    ],
+    "komplementasi": [
+      "bahwa",
+      "apakah"
+    ]
+  },
+  "aturan_tanda_baca": {
+    "anak_kalimat_di_depan": {
+      "kaidah": "WAJIB diberi tanda koma di akhir anak kalimat sebelum induk kalimat",
+      "contoh_baku": "Ketika Gorbachev berkuasa, situasi ekonomi sedang merosot."
+    },
+    "anak_kalimat_di_belakang": {
+      "kaidah": "TIDAK DIGUNAKAN tanda koma sebelum konjungsi jika induk kalimat mendahului anak kalimat",
+      "contoh_baku": "Situasi ekonomi sedang merosot ketika Gorbachev berkuasa.",
+      "contoh_salah": "Situasi ekonomi sedang merosot, ketika Gorbachev berkuasa."
+    }
+  }
+}

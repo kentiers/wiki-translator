@@ -1,0 +1,138 @@
+{
+  "deskripsi": "Klasifikasi 11 Subkelompok Konjungsi Antarkalimat berdasarkan TBBBI / Kateglo Gramatika Bab VIII & Bab X",
+  "kaidah_umum": "Konjungsi antarkalimat selalu digunakan di awal kalimat baru, huruf pertama kapital, dan WAJIB diikuti tanda koma.",
+  "subkelompok": {
+    "a_pertentangan_konsesif": {
+      "arti": "Menyatakan pertentangan konsesif dengan kalimat sebelumnya",
+      "anggota": [
+        "Biarpun demikian",
+        "Biarpun begitu",
+        "Sekalipun demikian",
+        "Sekalipun begitu",
+        "Walaupun demikian",
+        "Walaupun begitu",
+        "Meskipun demikian",
+        "Meskipun begitu",
+        "Sungguhpun demikian",
+        "Sungguhpun begitu",
+        "Kendati demikian",
+        "Kendati begitu"
+      ],
+      "padanan_en": ["Even so", "Nonetheless", "Nevertheless", "Regardless"]
+    },
+    "b_urutan_peristiwa": {
+      "arti": "Menyatakan kelanjutan dari peristiwa atau keadaan pada kalimat sebelumnya",
+      "anggota": [
+        "Kemudian",
+        "Sesudah itu",
+        "Setelah itu",
+        "Selanjutnya",
+        "Berikutnya"
+      ],
+      "padanan_en": ["Afterward", "Subsequently", "Then", "Next"]
+    },
+    "c_penambahan": {
+      "arti": "Menyatakan hal, peristiwa, atau keadaan lain di luar yang telah dinyatakan sebelumnya",
+      "anggota": [
+        "Selain itu",
+        "Lagi pula",
+        "Tambahan pula"
+      ],
+      "padanan_en": ["In addition", "Furthermore", "Moreover", "Besides"]
+    },
+    "d_kebalikan": {
+      "arti": "Mengacu pada kebalikan dari yang dinyatakan sebelumnya",
+      "anggota": [
+        "Sebaliknya"
+      ],
+      "padanan_en": ["Conversely", "On the contrary"]
+    },
+    "e_kenyataan": {
+      "arti": "Menyatakan keadaan sebenarnya atau faktual",
+      "anggota": [
+        "Sesungguhnya",
+        "Bahwasanya"
+      ],
+      "padanan_en": ["In fact", "In reality", "Actually"]
+    },
+    "f_penguatan": {
+      "arti": "Menguatkan keadaan yang dinyatakan sebelumnya",
+      "anggota": [
+        "Bahkan",
+        "Malahan"
+      ],
+      "padanan_en": ["Indeed", "In fact", "Even"]
+    },
+    "g_pertentangan_murni": {
+      "arti": "Menyatakan pertentangan murni dengan keadaan sebelumnya",
+      "anggota": [
+        "Akan tetapi",
+        "Namun"
+      ],
+      "padanan_en": ["However", "Yet"]
+    },
+    "h_inklusif_eksklusif": {
+      "arti": "Menyatakan keeksklusifan dan keinklusifan",
+      "anggota": [
+        "Di samping itu",
+        "Kecuali itu"
+      ],
+      "padanan_en": ["Aside from that", "Except for that"]
+    },
+    "i_konsekuensi": {
+      "arti": "Menyatakan konsekuensi logis",
+      "anggota": [
+        "Dengan demikian"
+      ],
+      "padanan_en": ["Thus", "Consequently", "Accordingly"]
+    },
+    "j_kausalitas_akibat": {
+      "arti": "Menyatakan akibat atau hubungan kausalitas antarperistiwa",
+      "anggota": [
+        "Oleh karena itu",
+        "Oleh sebab itu",
+        "Akibatnya"
+      ],
+      "padanan_en": ["Therefore", "As a result", "Because of this"]
+    },
+    "k_waktu_terdahulu": {
+      "arti": "Menyatakan peristiwa yang mendahului kalimat sebelumnya",
+      "anggota": [
+        "Sebelum itu"
+      ],
+      "padanan_en": ["Prior to that", "Before that"]
+    }
+  },
+  "transformasi_kalkir_terlarang": [
+    {
+      "pembuka_salah": "Sehingga,",
+      "pengganti_baku": "Akibatnya,",
+      "kelompok_target": "j_kausalitas_akibat",
+      "alasan": "'Sehingga' adalah konjungsi intrakalimat hasil/akibat; gunakan 'Akibatnya,' sebagai konjungsi antarkalimat."
+    },
+    {
+      "pembuka_salah": "Sedangkan,",
+      "pengganti_baku": "Sementara itu,",
+      "kelompok_target": "c_penambahan",
+      "alasan": "'Sedangkan' adalah konjungsi intrakalimat koordinatif; gunakan 'Sementara itu,' di awal kalimat baru."
+    },
+    {
+      "pembuka_salah": "Dan,",
+      "pengganti_baku": "Selain itu,",
+      "kelompok_target": "c_penambahan",
+      "alasan": "'Dan' adalah konjungsi koordinatif intrakalimat; gunakan 'Selain itu,' di awal kalimat baru."
+    },
+    {
+      "pembuka_salah": "Atau,",
+      "pengganti_baku": "Di sisi lain,",
+      "kelompok_target": "d_kebalikan",
+      "alasan": "'Atau' adalah konjungsi intrakalimat; gunakan 'Di sisi lain,' di awal kalimat baru."
+    },
+    {
+      "pembuka_salah": "Karena,",
+      "pengganti_baku": "Oleh karena",
+      "kelompok_target": "j_kausalitas_akibat",
+      "alasan": "'Karena' di awal anak kalimat tidak boleh diikuti tanda koma pemisah langsung setelah kata 'karena'."
+    }
+  ]
+}

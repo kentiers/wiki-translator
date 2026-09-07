@@ -1,0 +1,78 @@
+{
+  "deskripsi": "Matriks Penentuan Kata Ingkar Berdasarkan Kategori Sintaksis Predikat (TBBBI / Kateglo Gramatika Tabel 9.5 & Bab IX)",
+  "aturan_distribusi": {
+    "bukan": {
+      "kategori_predikat": [
+        "predikat_nominal",
+        "frasa_penggolong_nomina",
+        "frasa_preposisional",
+        "numeralia_tentu"
+      ],
+      "penanda_penggolong": [
+        "sebuah",
+        "suatu",
+        "seorang",
+        "seekor",
+        "sebutir",
+        "sebelah",
+        "sepotong",
+        "seuntai",
+        "selembar",
+        "sepucuk",
+        "sekelompok",
+        "sepasang"
+      ],
+      "frasa_identifikasi": [
+        "merupakan"
+      ],
+      "contoh_baku": [
+        "bukan sebuah negara",
+        "bukan seorang pejabat",
+        "bukan dari Moskow",
+        "bukan 2.000 meter persegi",
+        "bukan merupakan bagian resmi"
+      ],
+      "kesalahan_kalkir": [
+        "tidak sebuah",
+        "tidak suatu",
+        "tidak seorang",
+        "tidak seekor",
+        "tidak merupakan"
+      ]
+    },
+    "tidak": {
+      "kategori_predikat": [
+        "predikat_verbal",
+        "predikat_adjektival",
+        "numeralia_taktentu"
+      ],
+      "contoh_baku": [
+        "tidak hadir",
+        "tidak setuju",
+        "tidak marah",
+        "tidak bijaksana",
+        "tidak banyak",
+        "tidak sedikit"
+      ]
+    },
+    "belum": {
+      "kategori_predikat": [
+        "aspek_temporal_proses_waktu"
+      ],
+      "substitusi_kata": "sudah",
+      "contoh_baku": [
+        "belum kembali (menggantikan sudah kembali)",
+        "belum sembuh (menggantikan sudah sembuh)"
+      ]
+    },
+    "jangan": {
+      "kategori_predikat": [
+        "kalimat_imperatif_larangan"
+      ],
+      "contoh_baku": [
+        "jangan tutup pintu itu",
+        "jangan ragu"
+      ]
+    }
+  }
+}

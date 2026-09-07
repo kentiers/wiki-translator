@@ -1,5 +1,5 @@
 """
-Unit tests for GramatikaEngine (Kateglo / TBBBI rules).
+Unit tests for Dynamic GramatikaEngine (Kateglo / TBBBI rules).
 """
 
 import unittest
@@ -14,6 +14,9 @@ class TestGramatikaEngine(unittest.TestCase):
         self.assertGreater(self.engine.total_terms, 200)
         self.assertGreater(self.engine.total_tables, 10)
         self.assertGreater(self.engine.total_diagrams, 10)
+        self.assertEqual(len(self.engine.intersentence_subgroups), 11)
+        self.assertEqual(len(self.engine.subordinate_categories), 9)
+        self.assertIn("bukan", self.engine.negation_matrix)
 
     def test_get_term_definition(self):
         defn = self.engine.get_term_definition("adverbia")
@@ -24,19 +27,31 @@ class TestGramatikaEngine(unittest.TestCase):
         matches = self.engine.search_terms("transitif")
         self.assertGreater(len(matches), 0)
 
-    def test_normalize_sentence_openers(self):
+    def test_dynamic_sentence_openers(self):
         text = "Gorbachev mengundurkan diri. Sehingga, Uni Soviet bubar. Sedangkan, oposisi bersorak."
         fixed, count, details = self.engine.normalize_sentence_openers(text)
         self.assertEqual(count, 2)
         self.assertIn("Akibatnya, Uni Soviet bubar.", fixed)
         self.assertIn("Sementara itu, oposisi bersorak.", fixed)
 
-    def test_normalize_negation_agreement(self):
+    def test_dynamic_negation_agreement(self):
         text = "Wilayah ini tidak sebuah negara dan tidak merupakan bagian resmi."
         fixed, count, details = self.engine.normalize_negation_agreement(text)
         self.assertEqual(count, 2)
         self.assertIn("bukan sebuah negara", fixed)
         self.assertIn("bukan merupakan bagian", fixed)
+
+    def test_dynamic_restrictive_appositives(self):
+        text = "Pertemuan itu dihadiri tokoh wanita, Maria Trubnikova, di aula."
+        fixed, count = self.engine.normalize_restrictive_appositives(text)
+        self.assertEqual(count, 1)
+        self.assertIn("tokoh wanita Maria Trubnikova", fixed)
+
+    def test_dynamic_subordinate_trailing_commas(self):
+        text = "Situasi ekonomi memburuk, ketika Gorbachev memimpin."
+        fixed, count = self.engine.normalize_subordinate_trailing_commas(text)
+        self.assertEqual(count, 1)
+        self.assertIn("memburuk ketika Gorbachev", fixed)
 
     def test_normalize_adversarial_conjunction_commas(self):
         text = "Ia menyetujui usulan itu tetapi rekan-rekannya menolak."

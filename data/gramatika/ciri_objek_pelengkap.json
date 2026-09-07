@@ -1,0 +1,35 @@
+{
+  "deskripsi": "Perbedaan dan Persamaan Objek vs Pelengkap Sintaktis (TBBBI / Kateglo Tabel 9.2)",
+  "perbandingan": {
+    "objek": {
+      "wujud": "Berwujud frasa nominal atau klausa",
+      "posisi": "Berada langsung di sebelah kanan predikat verba atau frasa verbal transitif aktif",
+      "pemasifan": "DAPAT menjadi subjek dalam pemasifan kalimat",
+      "penggantian": "Dapat diganti dengan enklitika -nya",
+      "contoh": {
+        "aktif": "Dia menjual barang-barang elektronik di Glodok.",
+        "pasif_sah": "Barang-barang elektronik dijual olehnya di Glodok."
+      }
+    },
+    "pelengkap": {
+      "wujud": "Berwujud frasa nominal, frasa verbal, frasa adjektival, frasa preposisional, atau klausa",
+      "posisi": "Berada langsung di sebelah kanan predikat verba taktransitif (misal ber-, ter-), atau di belakang objek pada verba dwitransitif",
+      "pemasifan": "TIDAK DAPAT menjadi subjek dalam pemasifan kalimat",
+      "penggantian": "Tidak dapat diganti dengan -nya (kecuali dalam kombinasi preposisi tertentu)",
+      "contoh": {
+        "aktif": "Dia berjualan barang-barang elektronik di Glodok.",
+        "pasif_salah": "*Barang-barang elektronik dijualan olehnya di Glodok. (HARAM / RANCU)",
+        "verba_berpelengkap_lazim": [
+          "berlandaskan",
+          "berdasarkan",
+          "beranggotakan",
+          "berkaitan",
+          "menjadi",
+          "merupakan",
+          "bertubuh",
+          "menyerupai"
+        ]
+      }
+    }
+  }
+}

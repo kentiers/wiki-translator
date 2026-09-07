@@ -1,0 +1,63 @@
+{
+  "deskripsi": "Kaidah Sintaksis dan Tanda Baca Aposisi Bahasa Indonesia (TBBBI / Kateglo Gramatika Bagan 9.2 & Bab IX)",
+  "jenis_aposisi": {
+    "aposisi_mewatasi_restriktif": {
+      "definisi": "Frasa nominal gelar, pangkat, profesi, atau kategori sosial yang diikuti nama diri untuk membatasi acuan nomina",
+      "aturan_tanda_baca": "HARAM / DILARANG MEMAKAI TANDA KOMA di antara sebutan dan nama diri",
+      "kategori_gelar_jabatan": [
+        "presiden",
+        "wakil presiden",
+        "perdana menteri",
+        "menteri",
+        "gubernur",
+        "bupati",
+        "walikota",
+        "raja",
+        "ratu",
+        "pangeran",
+        "tsar",
+        "tsarina",
+        "kaisar",
+        "jenderal",
+        "laksamana",
+        "marsekal",
+        "kolonel",
+        "kapten",
+        "mayor",
+        "profesor",
+        "doktor",
+        "dokter",
+        "ustad",
+        "pastur",
+        "pendeta",
+        "tokoh wanita",
+        "aktivis",
+        "sutradara",
+        "pelukis",
+        "penulis",
+        "arsitek"
+      ],
+      "contoh_baku": [
+        "Presiden Ronald Reagan",
+        "tokoh wanita Maria Trubnikova",
+        "Kolonel Jafar",
+        "Dokter Baba",
+        "Sutradara Christopher Nolan"
+      ],
+      "contoh_salah": [
+        "Presiden, Ronald Reagan,",
+        "tokoh wanita, Maria Trubnikova,",
+        "Kolonel, Jafar,"
+      ]
+    },
+    "aposisi_takmewatasi_eksplikatif": {
+      "definisi": "Konstituen kedua hanya berfungsi sebagai penjelasan, identifikasi, atau keterangan tambahan bagi nama diri di depannya",
+      "aturan_tanda_baca": "WAJIB DIAPIT ATAU DIPISAHKAN DENGAN TANDA KOMA",
+      "contoh_baku": [
+        "Ir. Soekarno, Presiden Indonesia pertama, adalah tokoh pendiri Gerakan Nonblok.",
+        "Alan, juara bulu tangkis putra Olimpiade Barcelona, menerima hadiah uang.",
+        "Komandan operasi itu, Kolonel Edi, memerintahkan penyerangan."
+      ]
+    }
+  }
+}
