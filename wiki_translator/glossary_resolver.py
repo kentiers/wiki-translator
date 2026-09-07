@@ -16,7 +16,7 @@ import os
 from pathlib import Path
 import re
 import sqlite3
-from typing import Dict, Iterable, List, Optional, Set, Tuple, Union
+from typing import Any, Dict, Iterable, List, Optional, Set, Tuple, Union
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -344,6 +344,7 @@ class GlossaryResolver:
         cache_db_path: Optional[Union[str, Path]] = None,
         user_agent: Optional[str] = None,
         memory: Optional[GlossaryMemory] = None,
+        kateglo_client: Optional[Any] = None,
     ):
         self.cache_db_path = (
             Path(cache_db_path)
@@ -351,6 +352,7 @@ class GlossaryResolver:
             else default_storage_manager.glossary_cache_db
         )
         self.memory = memory
+        self.kateglo_client = kateglo_client
         self.user_agent = user_agent or "WikiTranslatorGlossaryResolver/1.0 (https://id.wikipedia.org; translator-tool)"
         self._init_db()
 
@@ -641,6 +643,24 @@ class GlossaryResolver:
             except Exception:
                 pass
 
+        # 4. Check Kateglo bilingual glossary for candidates still unresolved
+        k_client = self.kateglo_client
+        if k_client is None:
+            try:
+                from .kateglo_client import default_kateglo_client
+                k_client = default_kateglo_client
+            except Exception:
+                k_client = None
+
+        if k_client:
+            for cand in candidates:
+                if cand not in resolved:
+                    try:
+                        k_terms = k_client.find_glossary_terms(cand)
+                        if k_terms:
+                            resolved[cand] = k_terms[0]
+                    except Exception:
+                        pass
         # Return top N resolved terms
         if len(resolved) > max_resolved:
             # Sort with multi-word terms first

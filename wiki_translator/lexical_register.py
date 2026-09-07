@@ -277,6 +277,10 @@ class LexicalRegisterReranker:
 
         score = max(0, 100 - deductions)
         return score, warnings
+    def suggest_synonyms(self, word: str) -> List[str]:
+        """Queries Kateglo thesaurus dynamically for formal synonyms."""
+        from .kateglo_client import default_kateglo_client
+        return default_kateglo_client.get_synonyms(word)
 
 
 default_lexical_reranker = LexicalRegisterReranker()
