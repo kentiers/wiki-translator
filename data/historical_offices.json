@@ -104,6 +104,18 @@
         "en_triggers": ["gentleman of the feathered forest", "gentlemen of the feathered forest"],
         "id_baku": "Perwira Pengawal Yulin (Yulinlang)",
         "penjelasan": "Perwira kavaleri pengawal kaisar yang direkrut dari keturunan prajurit gugur di perbatasan."
+      },
+      "shuguo": {
+        "istilah_asli": "屬國 / 属国 (Shǔguó)",
+        "en_triggers": ["dependent state", "dependent states", "attached state", "protectorate dependency"],
+        "id_baku": "Wilayah Dependensi (Shuguo)",
+        "penjelasan": "Divisi administratif khusus di perbatasan Dinasti Han untuk menampung dan mengelola suku-suku nomaden taklukan (seperti Qiang, Xiongnu), bukan negara berdaulat mandiri."
+      },
+      "shuguo_duwei": {
+        "istilah_asli": "屬國都尉 (Shǔguó Dūwèi)",
+        "en_triggers": ["commandant of the dependent state", "dependent state commandant"],
+        "id_baku": "Komandan Militer Wilayah Dependensi",
+        "penjelasan": "Perwira militer kekaisaran Han yang memimpin dan mengawasi wilayah dependensi suku taklukan (shuguo)."
       }
     },
     "kekaisaran_romawi": {
