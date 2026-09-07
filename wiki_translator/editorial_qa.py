@@ -30,6 +30,9 @@ from .template_mapper import STRIP_METADATA_TEMPLATES
 from .factual_audit import FactualConsistencyResult, default_factual_auditor
 from .lexical_register import LexicalRegisterReranker, default_lexical_reranker
 from .gramatika_engine import GramatikaEngine, default_gramatika_engine
+from .eyd_engine import EYDEngine, default_eyd_engine
+
+
 @dataclass
 class DrafterAuditResult:
     word_count: int
@@ -227,6 +230,7 @@ class EditorialQAPipeline:
         factual_auditor=None,
         lexical_reranker: Optional[LexicalRegisterReranker] = None,
         gramatika_engine: Optional[GramatikaEngine] = None,
+        eyd_engine: Optional[EYDEngine] = None,
     ):
         self.slop_linter = slop_linter or default_slop_linter
         self.syntax_balancer = syntax_balancer or default_syntax_balancer
@@ -234,7 +238,7 @@ class EditorialQAPipeline:
         self.factual_auditor = factual_auditor or default_factual_auditor
         self.lexical_reranker = lexical_reranker or default_lexical_reranker
         self.gramatika_engine = gramatika_engine or default_gramatika_engine
-    # Layer 1: Drafter Audit
+        self.eyd_engine = eyd_engine or default_eyd_engine
     # -------------------------------------------------------------------------
     def audit_drafter(self, wikitext: str) -> DrafterAuditResult:
         """Audits word count, section count, and presence of lead & references."""
@@ -420,8 +424,22 @@ class EditorialQAPipeline:
                 f"Terdapat {neg_fixes} ketidaksesuaian kata ingkar (TBBBI Tabel 9.5): {neg_details[0]}."
             )
 
+        # Check EYD V bound morphemes and particle pun
+        _, bound_fixes, bound_details = self.eyd_engine.normalize_bound_morphemes(masked_prose)
+        if bound_fixes > 0:
+            eyd_deductions += min(10, bound_fixes * 2)
+            eyd_warnings.append(
+                f"Terdapat {bound_fixes} bentuk terikat yang belum serangkai / salah tanda hubung (EYD V Bab II Huruf B): {bound_details[0]}."
+            )
+
+        _, pun_fixes, pun_details = self.eyd_engine.normalize_pun_particles(masked_prose)
+        if pun_fixes > 0:
+            eyd_deductions += min(10, pun_fixes * 2)
+            eyd_warnings.append(
+                f"Terdapat {pun_fixes} penulisan partikel 'pun' yang belum dipisah (EYD V Bab II Huruf G): {pun_details[0]}."
+            )
+
         eyd_compliance_score = max(0, 100 - eyd_deductions)
-        warnings.extend(eyd_warnings)
 
         # Lexical register & diction maturity check
         reg_score, reg_warnings = self.lexical_reranker.calculate_register_score(wikitext)

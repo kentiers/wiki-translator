@@ -1,0 +1,72 @@
+{
+  "deskripsi": "Kaidah Penyesuaian Ejaan Unsur Serapan Asing ke Bahasa Indonesia (EYD V Bab IV)",
+  "pola_penyesuaian_sufiks": [
+    {
+      "akhiran_asing": "-tion",
+      "akhiran_indonesia": "-si",
+      "contoh": {"action": "aksi", "publication": "publikasi", "reformation": "reformasi"}
+    },
+    {
+      "akhiran_asing": "-sion",
+      "akhiran_indonesia": "-si",
+      "contoh": {"television": "televisi", "commission": "komisi"}
+    },
+    {
+      "akhiran_asing": "-ic",
+      "akhiran_indonesia": "-ik",
+      "contoh": {"electronic": "elektronik", "music": "musik", "academic": "akademik"}
+    },
+    {
+      "akhiran_asing": "-ical",
+      "akhiran_indonesia": "-is",
+      "contoh": {"practical": "praktis", "chronological": "kronologis", "logical": "logis"}
+    },
+    {
+      "akhiran_asing": "-ism",
+      "akhiran_indonesia": "-isme",
+      "contoh": {"socialism": "sosialisme", "activism": "aktivisme", "modernism": "modernisme"}
+    },
+    {
+      "akhiran_asing": "-ity",
+      "akhiran_indonesia": "-itas",
+      "contoh": {"activity": "aktivitas", "university": "universitas", "modernity": "modernitas"}
+    },
+    {
+      "akhiran_asing": "-logy",
+      "akhiran_indonesia": "-logi",
+      "contoh": {"biology": "biologi", "ideology": "ideologi", "technology": "teknologi"}
+    },
+    {
+      "akhiran_asing": "-graphy",
+      "akhiran_indonesia": "-grafi",
+      "contoh": {"geography": "geografi", "biography": "biografi", "orthography": "ortografi"}
+    }
+  ],
+  "pola_penyesuaian_konsonan_vokal": [
+    {
+      "fonem_asing": "ph",
+      "fonem_indonesia": "f",
+      "contoh": {"philosophy": "filosofi", "phoneme": "fonem", "photo": "foto"}
+    },
+    {
+      "fonem_asing": "th",
+      "fonem_indonesia": "t",
+      "contoh": {"theory": "teori", "method": "metode", "theology": "teologi"}
+    },
+    {
+      "fonem_asing": "rh",
+      "fonem_indonesia": "r",
+      "contoh": {"rhythm": "ritme", "rhetoric": "retorika"}
+    },
+    {
+      "fonem_asing": "sch",
+      "fonem_indonesia": "sk",
+      "contoh": {"schema": "skema", "scholastic": "skolastik"}
+    },
+    {
+      "fonem_asing": "x_tengah_akhir",
+      "fonem_indonesia": "ks",
+      "contoh": {"complex": "kompleks", "maximum": "maksimum", "taxi": "taksi"}
+    }
+  ]
+}

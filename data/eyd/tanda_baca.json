@@ -1,0 +1,33 @@
+{
+  "deskripsi": "Kaidah Pemakaian Tanda Baca (EYD V Bab III)",
+  "tanda_pisah_en_dash": {
+    "karakter": "–",
+    "unicode": "U+2013",
+    "kaidah": "Tanda pisah en-dash digunakan di antara dua bilangan, tanggal (hari, bulan, tahun), nomor halaman, atau tempat yang berarti 'sampai dengan' atau 'sampai ke' tanpa spasi di sekitarnya.",
+    "contoh_baku": [
+      "1945–1949",
+      "5–10 April 2022",
+      "Senin–Jumat",
+      "Jakarta–Bandung",
+      "hlm. 15–20"
+    ],
+    "kesalahan_lazim": [
+      "1945-1949 (memakai tanda hubung)",
+      "1945 - 1949 (memakai tanda hubung berjarak spasi)",
+      "1945 – 1949 (memakai en-dash berjarak spasi)"
+    ]
+  },
+  "tanda_pisah_em_dash": {
+    "karakter": "—",
+    "unicode": "U+2014",
+    "kaidah": "Tanda pisah em-dash digunakan untuk mengapit keterangan atau penjelasan yang bukan bagian utama kalimat (kalimat sela / aposisi ekstensif).",
+    "contoh_baku": [
+      "Kemerdekaan bangsa itu—saya yakin akan tercapai—diperjuangkan oleh bangsa itu sendiri.",
+      "Rangkaian temuan ini—evolusi, teori kenisbian, dan atom—mengubah dunia."
+    ]
+  },
+  "tanda_titik_angka": {
+    "kaidah_jumlah": "Tanda titik dipakai untuk memisahkan bilangan ribuan atau kelipatannya yang menunjukkan jumlah (misal: 2.500 orang, Rp5.000.000,00).",
+    "kaidah_non_jumlah": "Tanda titik TIDAK DIPAKAI pada bilangan yang tidak menunjukkan jumlah, seperti tahun, nomor telepon, halaman, atau nomor rekening (misal: tahun 1945, halaman 1420, nomor 0812345678)."
+  }
+}

@@ -1,0 +1,41 @@
+{
+  "deskripsi": "Kaidah Penulisan Partikel Pun (EYD V Bab II Huruf G)",
+  "aturan_terpisah": {
+    "kaidah": "Partikel pun ditulis terpisah dari kata yang mendahuluinya.",
+    "contoh_baku": [
+      "apa pun",
+      "siapa pun",
+      "mana pun",
+      "kapan pun",
+      "bagaimanapun juga (jika bagai kata tanya terpisah)",
+      "satu kali pun",
+      "mereka pun",
+      "dia pun",
+      "ia pun",
+      "kami pun",
+      "malam pun tiba"
+    ],
+    "contoh_salah": [
+      "apapun",
+      "siapapun",
+      "manapun",
+      "kapanpun",
+      "merekapun",
+      "diapun"
+    ]
+  },
+  "dua_belas_kata_hubung_serangkai": [
+    "adapun",
+    "andaipun",
+    "ataupun",
+    "bagaimanapun",
+    "biarpun",
+    "kalaupun",
+    "kendatipun",
+    "maupun",
+    "meskipun",
+    "sekalipun",
+    "sungguhpun",
+    "walaupun"
+  ]
+}
