@@ -908,6 +908,58 @@ class WikiLinkMapper:
             res = pattern.sub(replacement, res)
         return res.strip()
 
+    def _find_category_variations(self, cat_name: str) -> List[str]:
+        """
+        Generates canonical orthographic and taxonomy variations for Indonesian categories:
+        - Geographic spelling: 'Moskwa' <-> 'Moskow'
+        - Institutional terms: 'Ordo' <-> 'Orde'
+        - Award terminology: 'Penerima Nobel' <-> 'Pemenang Hadiah Nobel', 'Pemenang Nobel' <-> 'Pemenang Hadiah Nobel'
+        - Leadership/Role: 'Tokoh Perang' <-> 'Pemimpin Perang'
+        - Qualifier stripping: '... Majalah Time' -> '...'
+        - Temporal subcategory broadening: '... abad ke-X' -> '...'
+        - Demographic: 'Orang X di Y' -> 'Tokoh Y'
+        """
+        variations: List[str] = []
+        if not cat_name:
+            return variations
+
+        # 1. Geographic spelling variants
+        if "Moskwa" in cat_name:
+            variations.append(cat_name.replace("Moskwa", "Moskow"))
+        if "Moskow" in cat_name:
+            variations.append(cat_name.replace("Moskow", "Moskwa"))
+
+        # 2. Institutional prefixes
+        if "Ordo" in cat_name:
+            variations.append(cat_name.replace("Ordo", "Orde"))
+        if "Orde" in cat_name:
+            variations.append(cat_name.replace("Orde", "Ordo"))
+
+        # 3. Nobel & Award terminology
+        if "Penerima Nobel" in cat_name:
+            variations.append(cat_name.replace("Penerima Nobel", "Pemenang Hadiah Nobel"))
+            variations.append(cat_name.replace("Penerima Nobel", "Pemenang Nobel"))
+        if "Pemenang Nobel" in cat_name and "Hadiah" not in cat_name:
+            variations.append(cat_name.replace("Pemenang Nobel", "Pemenang Hadiah Nobel"))
+
+        # 4. Leadership / Roles
+        if "Tokoh Perang" in cat_name:
+            variations.append(cat_name.replace("Tokoh Perang", "Pemimpin Perang"))
+
+        # 5. Media qualifiers
+        if "Majalah Time" in cat_name:
+            variations.append(re.sub(r"\s*Majalah Time\b", "", cat_name).strip())
+
+        # 6. Era-specific subcategory broadening to parent category
+        if re.search(r"\s+abad ke-\d+\b", cat_name):
+            variations.append(re.sub(r"\s+abad ke-\d+\b", "", cat_name).strip())
+
+        # 7. Demographic diaspora -> national figure parent category
+        m_di = re.match(r"^Orang\s+(.+?)\s+di\s+(.+)$", cat_name, re.IGNORECASE)
+        if m_di:
+            variations.append(f"Tokoh {m_di.group(2)}")
+
+        return variations
     def resolve_category(self, raw_category: str) -> CategoryResolution:
         """
         Resolves an English or Indonesian category markup/title to an official id.wikipedia.org category.
@@ -920,12 +972,14 @@ class WikiLinkMapper:
         if not cat_name:
             return CategoryResolution(original_category=raw_category, id_category=None, exists_on_id=False)
 
-        # 1. Check cache
+        # 1. Check cache (positive cache returns immediately; negative cache allows live variation check if network enabled)
         cached = self.get_cached_category(cat_name)
-        if cached:
+        if cached and cached.exists_on_id:
             return cached
 
         if not self.allow_network:
+            if cached:
+                return cached
             # Offline / mock-friendly heuristic
             rule_id = self.translate_category_rule_based(cat_name)
             res = CategoryResolution(
@@ -970,6 +1024,22 @@ class WikiLinkMapper:
             self.cache_category(cat_name, rule_translated, True, "id_direct_rule")
             return res
 
+        # 3b. Smart Indonesian category variation & broadening matching
+        variations = self._find_category_variations(rule_translated or cat_name)
+        if variations:
+            var_candidates = [f"Kategori:{v}" for v in variations]
+            var_exist_map = self.check_id_wiki_pages_exist(var_candidates)
+            for v in variations:
+                full_v = f"Kategori:{v}"
+                if var_exist_map.get(full_v, False):
+                    res = CategoryResolution(
+                        original_category=cat_name,
+                        id_category=v,
+                        exists_on_id=True,
+                        source="id_variation_match",
+                    )
+                    self.cache_category(cat_name, v, True, "id_variation_match")
+                    return res
         # 4. Check Wikidata
         wd_title = self.fetch_wikidata_id_sitelink(en_cat_title)
         if wd_title:
