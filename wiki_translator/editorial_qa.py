@@ -445,6 +445,20 @@ class EditorialQAPipeline:
             eyd_warnings.append(
                 f"Terdapat {len(monotonous_issues)} repetisi pembuka kalimat monoton berturut-turut ('{monotonous_issues[0][0]}'). Variasikan dengan inversi pasif partisipial atau peleburan klausa kohesif."
             )
+        # Check consecutive enclitic "-nya" clutter (kakofoni rima akhiran -nya beruntun)
+        INHERENT_NYA = {"hanya", "tanya", "nyonya", "punya", "senya"}
+        nya_clutter = []
+        for m in re.finditer(r"\b([a-zA-Z]{3,})nya\s+([a-zA-Z]{3,})nya\b", prose_clean, re.IGNORECASE):
+            w1, w2 = m.group(1).lower() + "nya", m.group(2).lower() + "nya"
+            if w1 not in INHERENT_NYA and w2 not in INHERENT_NYA:
+                nya_clutter.append(m.group(0))
+
+        if nya_clutter:
+            d = min(15, len(nya_clutter) * 5)
+            eyd_deductions += d
+            eyd_warnings.append(
+                f"Terdapat {len(nya_clutter)} penumpukan enklitika '-nya' berdampingan yang menimbulkan kakofoni rima canggung (misal: '{nya_clutter[0]}'). Restrukturisasi dengan frasa relatif 'yang' atau variasi verba."
+            )
         # Check Gramatika TBBBI compliance (Sentence openers, Negation, Restrictive appositives)
         _, opener_fixes, opener_details = self.gramatika_engine.normalize_sentence_openers(masked_prose)
         if opener_fixes > 0:

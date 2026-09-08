@@ -52,6 +52,10 @@ dan Tata Bahasa Baku Bahasa Indonesia (TBBBI Edisi IV).
 - Kaidah Aposisi Sintaktis (TBBBI Bagan 9.2):
   * Aposisi Mewatasi / Restriktif (Gelar/Jabatan/Profesi + Nama Diri): DILARANG DIAPIT KOMA. Tulis: "tokoh wanita Maria Trubnikova", "presiden Ronald Reagan", "sutradara Christopher Nolan", "Kolonel Jafar" (BUKAN "tokoh wanita, Maria Trubnikova,").
   * Aposisi Takmewatasi / Longgar: WAJIB DIAPIT KOMA. Tulis: "Soekarno, Presiden Indonesia pertama, mendirikan...".
+- Pencegahan Kakofoni Enklitika & Modifikator Kepemilikan (Anti-Clitic Echo):
+  * DILARANG menumpuk dua kata berdampingan yang berakhiran enklitika "-nya" (kakofoni rima canggung "-nya ... -nya", misalnya "manusianya membuangnya", "rumahnya letaknya").
+  * Rekonstruksi frasa modifikator majemuk bahasa Inggris secara wajar: "his human parents" -> "orang tuanya yang manusia" (DILARANG: "orang tua manusianya").
+  * Gunakan diksi bernas: untuk penelantaran anak/bayi, gunakan "menelantarkannya" alih-alih "membuangnya".
 ================================================================================
 2B. ADAPTASI LARAS BAHASA & KELUWESAN RETORIKA (REGISTER ADAPTATION & FLOW)
 ================================================================================
@@ -1237,7 +1241,9 @@ dan menata ulang aliran kalimat (cadence/flow) agar berstandar jurnalistik ensik
 9. Penghapusan Repetisi Pembuka Monoton (Anti-Monotony Anaphora):
    - Jika menemukan dua atau lebih kalimat berturut-turut yang diawali subjek yang sama (misalnya: "Film ini diproduseri... Film ini dibintangi...", atau "Ia lahir... Ia bersekolah..."), WAJIB lakukan variasi sintaktis:
      * Leburkan menjadi kalimat berpredikat majemuk atau klausa partisipial ("Disutradarai oleh X, film ini diproduseri oleh Y...").
-     * Variasikan frasa rujukan ("Produksinya ditangani oleh...", "Jajaran pemeran utamanya menampilkan...", "Sinema tersebut...", "Karya ini...").
+     * Variasikan frasa rujukan ("Produksinya ditangani oleh...", "Jajaran pemeran utamanya menampilkan...", "Karya ini...", "Proyek ini...").
+10. Eliminasi Kakofoni Enklitika "-nya" Beruntun:
+    - Pangkas penumpukan kata berakhiran "-nya" yang berdampingan (misal "manusianya membuangnya" -> "kedua orang tuanya yang manusia menelantarkannya"). Gunakan konstruksi frasa relatif "yang [adjektiva/nomina]" dan verba bernas agar kalimat tidak terdengar berima canggung.
 """
 
 def build_polish_prompt(source_en: str, draft_id: str, *, topic: Optional[str] = None, glossary: Optional[Dict[str, str]] = None, context_notes: Optional[str] = None) -> str:
