@@ -127,6 +127,20 @@ class AntiAISlopLinter:
                  ["Kalkir bahasa Inggris 'is one that / is something that'; pangkas 'adalah hal yang' dan gunakan predikat langsung (misal: 'bermakna sangat mendalam bagi saya')"]),
                 ("calque_merupakan_inti_dari", r"\bmerupakan\s+inti\s+dari\b",
                  ["Pangkas kata pengisi mubazir: gunakan 'menjadi inti ...' tanpa kata 'dari'"]),
+                ("pleonasme_tak_ubahnya_seperti", r"\btak\s+ubahnya\s+seperti\b",
+                 ["Pleonasme & arkaisme: 'tak ubahnya' sudah berarti 'sama seperti'; gunakan 'persis seperti' atau 'tak ada bedanya dengan'"]),
+                ("arkaisme_tak_ubahnya", r"\btak\s+ubahnya\b",
+                 ["Gaya bahasa klasik/sastra kuno: pada artikel ensiklopedia modern gunakan kalimat lugas 'persis seperti' atau 'tak ada bedanya dengan'"]),
+                ("dialek_melayu_penstriman", r"\b(?:layanan\s+)?penstriman\b",
+                 ["Kosakata dialek Melayu (Malaysia): gunakan 'layanan pengaliran' (KBBI VI) atau 'layanan streaming'"]),
+                ("dialek_melayu_pawagam", r"\bpawagam\b",
+                 ["Kosakata dialek Melayu (Malaysia): gunakan 'bioskop'"]),
+                ("dialek_melayu_pelakon", r"\bpelakon\b",
+                 ["Kosakata dialek Melayu (Malaysia): gunakan 'pemeran', 'aktor', atau 'aktris'"]),
+                ("dialek_melayu_muat_turun", r"\bmuat\s+turun\b",
+                 ["Kosakata dialek Melayu (Malaysia): gunakan 'unduh'"]),
+                ("dialek_melayu_muat_naik", r"\bmuat\s+naik\b",
+                 ["Kosakata dialek Melayu (Malaysia): gunakan 'unggah'"]),
             ]
         ]
         for typo, spelling in {

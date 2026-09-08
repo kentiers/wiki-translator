@@ -197,6 +197,16 @@ IDIOM_AND_PHRASE_MAPPINGS: Dict[str, str] = {
     "cornerstone": "fondasi utama / pilar penting",
     "bread and butter": "sumber penghidupan utama",
     "face the music": "menghadapi kenyataan / menanggung akibat",
+    # Film criticism & entertainment journalism idioms
+    "nightmare fuel": "materi yang memicu mimpi buruk / sangat mengerikan",
+    "low point": "bagian terburuk / titik terlemah",
+    "lifeless endeavor": "garapan yang hambar / karya tanpa jiwa",
+    "punch-up": "polesan lelucon / penajaman humor",
+    "punch-ups": "polesan lelucon / penajaman humor",
+    "shot-for-shot": "bidikan demi bidikan / adegan demi adegan",
+    "underwhelming": "mengecewakan / di bawah ekspektasi",
+    "high praise": "pujian tinggi",
+    "mixed or average reviews": "ulasan bercampur atau rata-rata",
 }
 
 # Common English stop words / punctuation words that should not be extracted as standalone candidate terms

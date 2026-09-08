@@ -810,6 +810,16 @@ class GeneralFixesEngine:
             if w_lower in safe_legitimate_words:
                 return word
 
+            # Protected KBBI root endings: never split words derived from these roots
+            legitimate_endings = (
+                "padan", "pantau", "rantau", "teladan", "badan", "medan",
+                "serta", "peserta", "dandan", "kandang", "gudang", "pedang",
+                "sandang", "pandang", "lindang", "pindang", "rendang", "sedang",
+                "undang", "hadang", "adang", "padang", "ladang", "bidang",
+                "sidang", "gendang", "kendang", "pandan", "dendan"
+            )
+            if any(w_lower.endswith(end) for end in legitimate_endings):
+                return word
             # Trailing conjunction (e.g. 'semidan' -> 'semi dan'):
             for conj in common_fused_conjunctions:
                 if w_lower.endswith(conj) and len(w_lower) >= len(conj) + 4:

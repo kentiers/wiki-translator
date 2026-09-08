@@ -82,6 +82,22 @@ dan Tata Bahasa Baku Bahasa Indonesia (TBBBI Edisi IV).
   * Berani memilih diksi penutur asli: gunakan "kelak", "saat itu", "sempat tertunda", "justru mengukuhkan", "kesempatan sekali seumur hidup", "dengan berlinang air mata" alih-alih terjemahan harfiah kaku.
   * Kepatuhan Konjungsi: Gunakan "tetapi" untuk pertentangan intrakalimat; DILARANG menggunakan "namun" di tengah kalimat setelah tanda koma.
   * DILARANG menggunakan tanda pisah em-dash (—) naratif khas bahasa Inggris; gunakan tanda koma aposisi alami atau pecah menjadi dua kalimat mandiri dengan tanda titik (.).
+  * Larangan Diksi Arkais / Sastra Pujangga Lama:
+    - DILARANG menggunakan diksi arkais/klasik yang terdengar ganjil pada artikel ensiklopedia modern: hindari "tak ubahnya" (gunakan "persis seperti" atau "tak ada bedanya dengan"), "arkian", "syahdan", "alkisah", "tatkala" (gunakan "saat" atau "ketika").
+  * Larangan Campur Dialek Melayu (Malaysia):
+    - DILARANG menggunakan kosakata dialek Melayu yang kerap terselip dari terjemahan mesin:
+      * "penstriman" -> WAJIB gunakan "layanan pengaliran" (KBBI VI) atau "layanan streaming"
+      * "pawagam" -> WAJIB gunakan "bioskop"
+      * "pelakon" -> WAJIB gunakan "pemeran", "aktor", atau "aktris"
+      * "muat turun" -> WAJIB gunakan "unduh"
+      * "muat naik" -> WAJIB gunakan "unggah"
+  * Diksi Kritik Film & Ragam Budaya Populer Kontemporer:
+    - Terjemahkan metafora kritik secara cerdas dan kontekstual:
+      * "lifeless endeavor" -> "garapan yang hambar / karya tanpa jiwa" (JANGAN diterjemahkan harfiah "upaya tak bernyawa")
+      * "low point" -> "bagian terburuk / titik terlemah / sisi terburuk" (JANGAN diterjemahkan harfiah "titik terendah")
+      * "nightmare fuel" -> "materi yang memicu mimpi buruk / sangat mengerikan" (JANGAN diterjemahkan harfiah "bahan bakar mimpi buruk")
+      * "punch-ups" / "comedy tags" -> "polesan lelucon / sisipan humor" (JANGAN diterjemahkan "pukulan ke atas" atau "tag komedi")
+      * "all the visual allure of [X]" -> "daya pikat visualnya persis seperti [X]" (hindari "tak ubahnya seperti")
 - Variasi Anafora, Kohesi Wacana, & Anti-Monotoni Pembuka Kalimat (Discourse Cohesion & Anti-Monotony):
   * DILARANG KERAS mengawali 2 atau lebih kalimat berturut-turut dengan subjek/frasa pembuka yang sama secara monoton:
     - KATEGORI FILM/SENI: DILARANG mengulang "Film ini disutradarai... Film ini diproduseri... Film ini dibintangi... Film ini dirilis...".
