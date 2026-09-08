@@ -585,16 +585,17 @@ class GeneralFixesEngine:
         )
 
         # 1. Clean spaces before punctuation: "kata ," -> "kata,", "kata ." -> "kata."
-        masked = re.sub(r"([a-zA-Z0-9\]\)\'\"])\s+([,.:;!?])", r"\1\2", masked)
+        # Use horizontal whitespace [^\S\r\n]+ so newlines before table markup (! or |) are never stripped!
+        masked = re.sub(r"([a-zA-Z0-9\]\)\'\"])[^\S\r\n]+([,.:;!?])", r"\1\2", masked)
 
         # 2. Duplicate commas: ",," or ", ," -> ","
-        masked = re.sub(r",\s*,+", ",", masked)
+        masked = re.sub(r",[^\S\r\n]*,+", ",", masked)
 
         # 3. Comma followed by period: ",." or ", ." -> "."
-        masked = re.sub(r",\s*\.", ".", masked)
+        masked = re.sub(r",[^\S\r\n]*\.", ".", masked)
 
         # 4. Period followed by comma: ".," or ". ," -> "." (excluding initials like M.S., or A.B.,)
-        masked = re.sub(r"(?<!\b[A-Z])\.\s*,", ".", masked)
+        masked = re.sub(r"(?<!\b[A-Z])\.[^\S\r\n]*,", ".", masked)
         # 5. Double periods: ".." but not "..." or "...."
         masked = re.sub(r"(?<!\.)\.\.(?!\.)", ".", masked)
 
