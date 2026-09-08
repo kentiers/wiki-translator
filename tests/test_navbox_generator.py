@@ -58,15 +58,15 @@ class TestNavboxGenerator(unittest.TestCase):
         converted = self.generator.convert_navbox(en_wikitext, "Christopher Nolan")
 
         # Must contain Kotak navigasi
-        self.assertIn("{{Kotak navigasi", converted)
-        # Parameters mapped
-        self.assertIn("| nama = Christopher Nolan", converted)
-        self.assertIn("| judul =", converted)
-        self.assertIn("| status = {{{state|autocollapse}}}", converted)
-        self.assertIn("| kelompok1 = Disutradarai oleh", converted)
-        self.assertIn("| daftar1 =", converted)
-        self.assertIn("| kelompok2 = Diproduseri oleh", converted)
-        self.assertIn("| daftar2 =", converted)
+        self.assertIn("{{Navbox", converted)
+        # Parameters mapped canonically
+        self.assertIn("| name = Christopher Nolan", converted)
+        self.assertIn("| title =", converted)
+        self.assertIn("| state = {{{state|autocollapse}}}", converted)
+        self.assertIn("| group1 = Disutradarai oleh", converted)
+        self.assertIn("| list1 =", converted)
+        self.assertIn("| group2 = Diproduseri oleh", converted)
+        self.assertIn("| list2 =", converted)
         # Check documentation and category
         self.assertIn("<noinclude>", converted)
         self.assertIn("{{Dokumentasi navbox}}", converted)
@@ -91,7 +91,7 @@ class TestNavboxGenerator(unittest.TestCase):
         self.assertEqual(res["template_name"], "Test")
         self.assertEqual(res["id_title"], "Templat:Test")
         self.assertFalse(res["already_exists"])
-        self.assertIn("{{Kotak navigasi", res["wikitext"])
+        self.assertIn("{{Navbox", res["wikitext"])
 
     def test_save_navbox(self):
         navbox_info = {
@@ -133,8 +133,8 @@ class TestNavboxGenerator(unittest.TestCase):
         converted = self.generator.convert_navbox(kevin_navbox_en, "Kevin Macdonald")
 
         # Check converted template header and title link
-        self.assertIn("{{Kotak navigasi", converted)
-        self.assertIn("| nama = Kevin Macdonald", converted)
+        self.assertIn("{{Navbox", converted)
+        self.assertIn("| name = Kevin Macdonald", converted)
         self.assertIn("[[Kevin Macdonald (sutradara)|Kevin Macdonald]]", converted)
 
         # Check films in list

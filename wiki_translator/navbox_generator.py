@@ -271,32 +271,33 @@ class NavboxGenerator:
                 continue
             lower_name = name.lower()
 
-            # Translate parameter key
-            new_key = PARAM_TRANSLATION_MAP.get(lower_name, lower_name)
-
-            # Check groupN / kelompokN
+            # Keep parameter keys canonical for Modul:Navbox (never translate keys to avoid breaking Lua)
             group_match = re.match(r"^group(\d+)$", lower_name)
             list_match = re.match(r"^list(\d+)$", lower_name)
 
             if group_match:
-                new_key = f"kelompok{group_match.group(1)}"
+                new_key = f"group{group_match.group(1)}"
                 val = self.translate_group_label(val)
             elif list_match:
-                new_key = f"daftar{list_match.group(1)}"
+                new_key = f"list{list_match.group(1)}"
                 # Translate wikilinks inside lists
                 val = self.link_mapper.map_wikilinks(val)
-            elif lower_name == "name" or new_key == "nama":
-                # Ensure name matches Indonesian template name
+            elif lower_name == "name":
+                new_key = "name"
                 val = norm_name
-            elif lower_name == "title" or new_key == "judul":
+            elif lower_name == "title":
+                new_key = "title"
                 val = self.link_mapper.map_wikilinks(val)
-            elif lower_name in ("above", "below") or new_key in ("atas", "bawah"):
+            elif lower_name in ("above", "below"):
+                new_key = lower_name
                 val = self.link_mapper.map_wikilinks(val)
+            else:
+                new_key = lower_name
 
             converted_params.append((new_key, val))
 
-        # 3. Assemble {{Kotak navigasi}} wikitext
-        lines = ["{{Kotak navigasi"]
+        # 3. Assemble {{Navbox}} wikitext
+        lines = ["{{Navbox"]
         for k, v in converted_params:
             if "\n" in v:
                 lines.append(f"| {k} = \n{v}")
@@ -304,7 +305,6 @@ class NavboxGenerator:
                 lines.append(f"| {k} = {v}")
         lines.append("}}")
         result_wikitext = "\n".join(lines)
-
         # 4. Handle categories in suffix or add default navigation template category
         cat_lines: List[str] = []
         # Find any existing categories in the original wikitext
