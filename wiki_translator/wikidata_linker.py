@@ -461,11 +461,11 @@ class WikidataLinker:
     def create_item_with_sitelink(
         self,
         id_title: str,
-        label_id: str,
+        label_id: Optional[str] = None,
         label_en: Optional[str] = None,
-        description_id: str = "templat navigasi Wikimedia",
-        description_en: str = "Wikimedia navigation template",
-        instance_of_qid: Optional[str] = "Q639864",
+        description_id: Optional[str] = None,
+        description_en: Optional[str] = None,
+        instance_of_qid: Optional[str] = None,
         username: Optional[str] = None,
         bot_password: Optional[str] = None,
         summary: Optional[str] = None,
@@ -473,11 +473,35 @@ class WikidataLinker:
     ) -> Dict[str, Any]:
         """
         Creates a brand-new Wikidata item (action=wbeditentity&new=item) and attaches the idwiki sitelink.
-        Used when publishing new templates, categories, or articles that do not yet exist on Wikidata.
+        Dynamically infers namespace metadata (Templat, Kategori, Modul, Mainspace) when parameters are omitted.
         """
         clean_id_title = id_title.strip()
-        clean_label_id = label_id.strip()
-        clean_label_en = (label_en or label_id).strip()
+        clean_label_id = (label_id or clean_id_title).strip()
+        clean_label_en = (label_en or clean_label_id).strip()
+
+        # Dynamic namespace-aware metadata inference
+        if description_id is None or description_en is None or instance_of_qid is None:
+            if clean_id_title.startswith(("Templat:", "Template:")):
+                inferred_desc_id = "templat navigasi Wikimedia"
+                inferred_desc_en = "Wikimedia navigation template"
+                inferred_qid = "Q639864"
+            elif clean_id_title.startswith(("Kategori:", "Category:")):
+                inferred_desc_id = "kategori Wikimedia"
+                inferred_desc_en = "Wikimedia category"
+                inferred_qid = "Q4167836"
+            elif clean_id_title.startswith(("Modul:", "Module:")):
+                inferred_desc_id = "modul Lua Wikimedia"
+                inferred_desc_en = "Wikimedia Lua module"
+                inferred_qid = "Q15155490"
+            else:
+                inferred_desc_id = ""
+                inferred_desc_en = ""
+                inferred_qid = None
+
+            description_id = description_id if description_id is not None else inferred_desc_id
+            description_en = description_en if description_en is not None else inferred_desc_en
+            instance_of_qid = instance_of_qid if instance_of_qid is not None else inferred_qid
+
         edit_summary = summary or f"buat entitas Wikidata baru untuk {clean_id_title}"
 
         if dry_run:
