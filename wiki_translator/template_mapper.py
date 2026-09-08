@@ -327,6 +327,10 @@ TEMPLATE_NAME_MAPPINGS: Dict[str, str] = {
     "reflist": "reflist",
     "daftar rujukan": "reflist",
     "notelist": "Catatan kaki",
+    # Translation Attribution & Talk Page
+    "translated page": "Terjemahan",
+    "translated": "Terjemahan",
+    "sudah diterjemahkan": "Terjemahan",
     # Dates & Biography
     "birth date and age": "Tanggal lahir dan umur",
     "birth date and age2": "Tanggal lahir dan umur",

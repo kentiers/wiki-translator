@@ -114,7 +114,7 @@ class TalkPageAttributionGenerator:
             lines.append(f"* '''Revisi sumber:''' Versi mutakhir dari [[:en:{en_title}]]")
 
         lines.append(f"* '''Waktu penerjemahan:''' {date_str}")
-        lines.append("* '''Lisensi:''' Konten dilisensikan di bawah [https://creativecommons.org/licenses/by-sa/4.0/deed.id Creative Commons Attribution-ShareAlike 4.0 International (CC BY-SA 4.0)] dan GFDL.")
+        lines.append("* '''Lisensi:''' Konten dilisensikan di bawah Creative Commons Attribution-ShareAlike 4.0 International (CC BY-SA 4.0) dan GFDL.")
 
         if notes:
             lines.append(f"* '''Catatan penerjemah:''' {notes.strip()}")
