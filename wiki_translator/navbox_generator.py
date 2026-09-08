@@ -322,9 +322,12 @@ class NavboxGenerator:
         if not has_navbox_cat:
             cat_lines.append("[[Kategori:Templat navigasi]]")
 
-        # 5. Add standard documentation wrap
+        # 5. Add standard documentation wrap (Dokumentasi navbox) and preserve DEFAULTSORT
+        defaultsort_m = re.search(r"\{\{\s*DEFAULTSORT\s*:\s*([^}]+)\}\}", en_wikitext, re.IGNORECASE)
+        defaultsort_block = f"\n{{{{DEFAULTSORT:{defaultsort_m.group(1).strip()}}}}}" if defaultsort_m else ""
+
         cats_formatted = "\n".join(cat_lines)
-        doc_block = f"<noinclude>\n{{{{Dokumentasi}}}}\n{cats_formatted}\n</noinclude>"
+        doc_block = f"<noinclude>\n{{{{Dokumentasi navbox}}}}{defaultsort_block}\n{cats_formatted}\n</noinclude>"
 
         return f"{result_wikitext}\n{doc_block}".strip()
 

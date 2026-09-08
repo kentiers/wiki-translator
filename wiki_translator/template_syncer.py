@@ -381,6 +381,10 @@ class TemplateSyncer:
                 or re.search(r"\{\{\s*(?:Template:)?(?:Navbox|Kotak navigasi)\b", en_wikitext, re.IGNORECASE)
             )
 
+        # Preserve DEFAULTSORT from en_wikitext
+        defaultsort_m = re.search(r"\{\{\s*DEFAULTSORT\s*:\s*([^}]+)\}\}", en_wikitext, re.IGNORECASE)
+        defaultsort_block = f"\n{{{{DEFAULTSORT:{defaultsort_m.group(1).strip()}}}}}" if defaultsort_m else ""
+
         # Append documentation tail
         if is_navbox:
             doc_tag = "{{Dokumentasi navbox}}"
@@ -388,14 +392,14 @@ class TemplateSyncer:
                 cat_block = "\n" + "\n".join(cat_lines)
             else:
                 cat_block = ""
-            final_wikitext = f"{body_wikitext}\n<noinclude>\n{doc_tag}{cat_block}\n</noinclude>"
+            final_wikitext = f"{body_wikitext}\n<noinclude>\n{doc_tag}{defaultsort_block}{cat_block}\n</noinclude>"
         else:
             doc_tag = "{{Dokumentasi}}"
             if cat_lines:
                 cat_block = "\n" + "\n".join(cat_lines)
             else:
                 cat_block = ""
-            final_wikitext = f"{body_wikitext}\n<noinclude>\n{doc_tag}{cat_block}\n</noinclude>"
+            final_wikitext = f"{body_wikitext}\n<noinclude>\n{doc_tag}{defaultsort_block}{cat_block}\n</noinclude>"
         return final_wikitext.strip()
 
     def generate_doc_wikitext(

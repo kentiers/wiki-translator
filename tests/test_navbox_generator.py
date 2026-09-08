@@ -69,7 +69,7 @@ class TestNavboxGenerator(unittest.TestCase):
         self.assertIn("| daftar2 =", converted)
         # Check documentation and category
         self.assertIn("<noinclude>", converted)
-        self.assertIn("{{Dokumentasi}}", converted)
+        self.assertIn("{{Dokumentasi navbox}}", converted)
         self.assertIn("[[Kategori:", converted)
 
     def test_check_template_exists_on_id(self):
