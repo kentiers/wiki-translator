@@ -756,14 +756,15 @@ class TypographySanitizer:
         e.g. 'putrinya, Irina, menikah dengan' -> 'putrinya Irina menikah dengan'
         e.g. 'sesama mahasiswa, Anatoly Virgansky, pada' -> 'sesama mahasiswa Anatoly Virgansky pada'
         """
-        ATTRIB_NOUNS = r"(?:[Aa]yah|[Ii]bu|[Ss]audara|[Ss]audari|[Aa]dik|[Kk]akak|[Aa]nak|[Pp]utra|[Pp]utri|[Ss]uami|[Ii]stri|[Ss]ahabat|[Tt]eman|[Rr]ekan|[Kk]olega|[Pp]enulis|[Aa]rsitek|[Rr]ektor|[Mm]enteri|[Pp]residen|[Rr]aja|[Kk]aisar|[Dd]uta [Bb]esar|sesama mahasiswa)(?:nya)?"
+        ATTRIB_NOUNS = r"(?:mantan\s+)?(?:[Aa]yah|[Ii]bu|[Ss]audara|[Ss]audari|[Aa]dik|[Kk]akak|[Aa]nak|[Pp]utra|[Pp]utri|[Ss]uami|[Ii]stri|[Ss]ahabat|[Tt]eman|[Rr]ekan|[Kk]olega|[Pp]enulis|[Aa]rsitek|[Rr]ektor|[Mm]enteri|[Pp]residen|[Rr]aja|[Kk]aisar|[Dd]uta [Bb]esar|sesama mahasiswa)(?:nya)?"
+        NAME_PAT = r"(?:\[\[(?:[^|\]]+\|)?[^\]]+\]\]|SLOPMASK\d+END|[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)"
         pattern = re.compile(
-            rf"\b({ATTRIB_NOUNS}(?:\s+\w+){{0,7}}),\s+((?:\[\[(?:[^|\]]+\|)?([^\]]+)\]\]|[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)(?:\s+\([^)]+\))*),\s+(\w+)\b"
+            rf"\b({ATTRIB_NOUNS}(?:\s+[\w\-]+){{0,7}}),\s+({NAME_PAT}(?:\s+\([^)]+\))*),\s+(\w+)\b"
         )
         def clean_appositive(m: re.Match) -> str:
             desc = m.group(1)
             name = m.group(2)
-            nxt = m.group(4)
+            nxt = m.group(3)
             return f"{desc} {name} {nxt}"
 
         return pattern.sub(clean_appositive, text)
