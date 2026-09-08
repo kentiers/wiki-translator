@@ -207,6 +207,14 @@ IDIOM_AND_PHRASE_MAPPINGS: Dict[str, str] = {
     "underwhelming": "mengecewakan / di bawah ekspektasi",
     "high praise": "pujian tinggi",
     "mixed or average reviews": "ulasan bercampur atau rata-rata",
+    # High-value consensus terms & ecclesiastical/academic expressions (JohnThorne / Warung Kopi)
+    "child prodigy": "anak berbakat luar biasa",
+    "chess prodigy": "pecatur berbakat luar biasa",
+    "cloistered emperor": "kaisar bersuluk",
+    "inerrancy": "ineransi",
+    "biblical inerrancy": "ineransi Alkitab",
+    "infallibility": "infalibilitas",
+    "papal infallibility": "infalibilitas kepausan",
 }
 
 # Common English stop words / punctuation words that should not be extracted as standalone candidate terms
