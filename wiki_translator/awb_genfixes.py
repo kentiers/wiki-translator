@@ -784,7 +784,7 @@ class GeneralFixesEngine:
         # 2. Ordinal number normalization: ke10 / ke 10 -> ke-10 (EYD V Bab II Huruf E)
         text = re.sub(r"\bke\s*[-–]?\s*(\d+)\b", r"ke-\1", text, flags=re.IGNORECASE)
 
-        # 3. Lexicon-protected word-level fused conjunctions and prepositions:
+        # 3. Lexicon-protected word-level fused conjunctions:
         safe_legitimate_words = {
             "teladan", "ramadan", "medan", "badan", "padan", "dandan", "kandang", "gudang",
             "pedang", "sandang", "pandang", "lindang", "pindang", "rendang", "kadang",
@@ -792,10 +792,12 @@ class GeneralFixesEngine:
             "padang", "ladang", "bidang", "sidang", "tindang", "pindan", "gendang",
             "kendang", "sendang", "sindang", "redan", "kedan", "sedan", "indan", "ardan",
             "tandang", "tandan", "pandan", "adan", "edan", "mardan", "dendan",
-            "mendalam", "perdalam", "memperdalam", "sedalam", "kedalaman", "didalamnya", "didalam"
+            "mendalam", "perdalam", "memperdalam", "sedalam", "kedalaman", "didalamnya", "didalam",
+            "menyadari", "menghindari", "mendasari", "mengedari", "kendari",
+            "waspada", "daripada", "perantara", "dangkal", "danau", "dampak", "dansa"
         }
-        common_fused_conjunctions = ["dan", "atau", "serta", "namun", "tetapi", "karena", "sehingga", "bahwa"]
-        common_fused_prepositions = ["dari", "pada", "untuk", "dengan", "tanpa", "dalam", "antara"]
+        common_fused_conjunctions = ["dan", "atau", "serta"]
+        vowel_pat = re.compile(r"[aiueo]", re.IGNORECASE)
 
         def repl_token(m: re.Match) -> str:
             word = m.group(0)
@@ -803,19 +805,14 @@ class GeneralFixesEngine:
             if w_lower in safe_legitimate_words:
                 return word
 
-            # Trailing conjunction / preposition (min stem 3 + min conj 3):
-            for conj in sorted(common_fused_conjunctions + common_fused_prepositions, key=len, reverse=True):
-                if w_lower.endswith(conj) and len(w_lower) >= len(conj) + 3:
+            # Trailing conjunction (e.g. 'semidan' -> 'semi dan'):
+            for conj in common_fused_conjunctions:
+                if w_lower.endswith(conj) and len(w_lower) >= len(conj) + 4:
                     stem = word[:-len(conj)]
-                    if stem.isalpha() and stem.lower() not in ("ter", "ber", "ke", "se", "di", "men", "me", "meng", "per", "pe", "memper"):
+                    if stem.isalpha() and vowel_pat.search(stem) and stem.lower() not in (
+                        "ter", "ber", "ke", "se", "di", "men", "me", "meng", "per", "pe", "memper"
+                    ):
                         return f"{stem} {conj}"
-
-            # Leading conjunction:
-            for conj in sorted(common_fused_conjunctions, key=len, reverse=True):
-                if w_lower.startswith(conj) and len(w_lower) >= len(conj) + 3:
-                    rem = word[len(conj):]
-                    if rem.isalpha():
-                        return f"{conj} {rem}"
 
             return word
 
