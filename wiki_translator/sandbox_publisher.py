@@ -48,13 +48,12 @@ FORBIDDEN_COMPILED_PATTERNS = [
 ]
 
 HUMAN_SUMMARY_REPLACEMENTS: List[Tuple[re.Pattern, str]] = [
+    # 1. Full expansion / adaptation from enwiki
     (
-        re.compile(
-            r"pemolesan\s+menyeluruh\s*:\s*perbaikan\s+tata\s+bahasa\s+ensiklopedis,\s*istilah\s+historis,\s*standardisasi\s+eyd\s+v,\s*dan\s+resolusi\s+pranala",
-            re.IGNORECASE,
-        ),
-        "rapikan terjemahan & rujukan",
+        re.compile(r"\b(?:adaptasi\s+penuh|terjemahan\s+penuh|naskah\s+lengkap|perluas|ekspansi)\b", re.IGNORECASE),
+        "perluas artikel dari enwiki",
     ),
+    # 2. Specific draft polish
     (
         re.compile(
             r"pemolesan\s+menyeluruh\s+tata\s+bahasa\s+dan\s+kelancaran\s+kalimat\s+ensiklopedia(?:\s*\([^)]*\))?",
@@ -62,36 +61,39 @@ HUMAN_SUMMARY_REPLACEMENTS: List[Tuple[re.Pattern, str]] = [
         ),
         "rapikan draf",
     ),
+    # 3. Translation & reference polishing
     (
-        re.compile(r"pemolesan\s+menyeluruh", re.IGNORECASE),
+        re.compile(r"\b(?:pemutakhiran\s+terjemahan|pemolesan\s+menyeluruh|perbaikan\s+tata\s+bahasa|perbaikan\s+menyeluruh)\b", re.IGNORECASE),
         "rapikan terjemahan & rujukan",
     ),
+    # 4. Wikilinks & categories
     (
-        re.compile(
-            r"catatan\s+evaluasi\s+draf\s+pemolesan(?:\s+[^\n]*)?",
-            re.IGNORECASE,
-        ),
-        "catatan evaluasi",
+        re.compile(r"\b(?:standardisasi\s+pranala|resolusi\s+pranala|pengamanan\s+pranala|pemutakhiran\s+kategori|kategori\s+idwiki)\b", re.IGNORECASE),
+        "rapikan format pranala & kategori",
     ),
+    # 5. Draft creation
     (
-        re.compile(
-            r"perbaikan\s+kesalahan\s+pengutipan(?:\s*:\s*[^\n]*)?",
-            re.IGNORECASE,
-        ),
+        re.compile(r"\b(?:buat\s+draf\s+awal|pembuatan\s+rintisan|artikel\s+rintisan)\b", re.IGNORECASE),
+        "buat artikel rintisan dari enwiki",
+    ),
+    # 6. Citation & reference fixes
+    (
+        re.compile(r"\b(?:perbaikan\s+kesalahan\s+pengutipan|perbaikan\s+rujukan)\b", re.IGNORECASE),
         "perbaikan rujukan",
     ),
+    # 7. Evaluation notes
     (
-        re.compile(
-            r"standardisasi\s+penggunaan\s+istilah(?:\s+[^\n]*)?",
-            re.IGNORECASE,
-        ),
+        re.compile(r"\b(?:catatan\s+evaluasi\s+draf(?:\s+pemolesan)?|hasil\s+evaluasi)\b", re.IGNORECASE),
+        "catatan evaluasi",
+    ),
+    # 8. Standardize terms
+    (
+        re.compile(r"\bstandardisasi\s+penggunaan\s+istilah\b", re.IGNORECASE),
         "penyesuaian istilah",
     ),
+    # 9. Standardize link targets
     (
-        re.compile(
-            r"standardisasi\s+target\s+pranala(?:\s+[^\n]*)?",
-            re.IGNORECASE,
-        ),
+        re.compile(r"\bstandardisasi\s+target\s+pranala\b", re.IGNORECASE),
         "perbaikan pranala",
     ),
 ]
@@ -105,47 +107,62 @@ POMPOUS_WORDS: List[re.Pattern] = [
 ]
 
 
-def sanitize_edit_summary(summary: Optional[str], default_fallback: str = "pemutakhiran draf") -> str:
+def sanitize_edit_summary(summary: Optional[str], default_fallback: str = "rapikan draf") -> str:
     """
     Cleans and humanizes Wikipedia edit summaries:
-    1. Replaces verbose/technical bot phrasing with human concise phrases.
+    1. Replaces verbose/robotic bot phrasing with concise, natural human editor summaries.
     2. Strips AI/model leak words: gemini, model, flash, grade a++, ai, llm, bot.
-    3. Strips pompous words: menyeluruh, standardisasi, ensiklopedis, resolusi, analisis mendalam.
-    4. Normalizes whitespace and punctuation.
-    5. Caps length at max ~80 chars.
-    6. Falls back to natural human summary if empty or stripped.
+    3. Normalizes whitespace and punctuation.
+    4. Truncates cleanly on word boundaries (never cutting mid-word or leaving unclosed parentheses).
+    5. Falls back to natural human summary if empty or stripped.
     """
     if not summary:
         return default_fallback
 
-    sanitized = summary
+    s = summary.strip()
 
-    # 1. Replace verbose bot expressions with concise human summaries
+    # Priority 0: Check redirect pattern
+    m_redir = re.search(r"\b(?:mengalihkan\s+ke|alih\s+ke)\s*(\[\[[^\]]+\]\])", s, re.IGNORECASE)
+    if m_redir:
+        return f"mengalihkan ke {m_redir.group(1)}"
+
+    # Priority 1: Check canonical human action replacements (full replacement, avoid robotic hybrids)
     for pattern, replacement in HUMAN_SUMMARY_REPLACEMENTS:
-        sanitized = pattern.sub(replacement, sanitized)
+        if pattern.search(s):
+            return replacement
 
-    # 2. Strip AI leak patterns
+    # Priority 2: Strip AI leak patterns
     for compiled in FORBIDDEN_COMPILED_PATTERNS:
-        sanitized = compiled.sub("", sanitized)
+        s = compiled.sub("", s)
 
-    # 3. Strip pompous/verbose words
+    # Priority 3: Strip pompous/verbose words
     for compiled in POMPOUS_WORDS:
-        sanitized = compiled.sub("", sanitized)
+        s = compiled.sub("", s)
 
-    # 4. Collapse multiple whitespace
-    sanitized = re.sub(r"\s+", " ", sanitized).strip()
-    # Remove leftover dangling punctuation like " - " or empty parentheses
-    sanitized = re.sub(r"^[\s\-–—:,()]+|[\s\-–—:,()]+$", "", sanitized).strip()
+    # Priority 4: Clean whitespace and dangling colons/hyphens
+    s = re.sub(r"\s*[:\-–—]\s*(?=[:\-–—]|\Z)", "", s)
+    s = re.sub(r"\s+", " ", s).strip()
+    s = re.sub(r"^[\s\-–—:,()]+|[\s\-–—:,()]+$", "", s).strip()
 
-    # 5. Length capping (max ~80 chars)
-    if len(sanitized) > 80:
-        sanitized = sanitized[:80].strip()
-        sanitized = re.sub(r"^[\s\-–—:,()]+|[\s\-–—:,()]+$", "", sanitized).strip()
+    # Priority 5: Word-boundary truncation at ~100 chars (never mid-word)
+    max_len = 100
+    if len(s) > max_len:
+        cut_idx = s.rfind(" ", 0, max_len)
+        if cut_idx > 20:
+            s = s[:cut_idx].strip()
+        else:
+            s = s[:max_len].strip()
+        s = re.sub(r"^[\s\-–—:,()]+|[\s\-–—:,()]+$", "", s).strip()
+    # Priority 6: Balance unclosed parentheses
+    if s.count("(") > s.count(")"):
+        s += ")"
+    elif s.count("(") < s.count(")"):
+        s = s.replace(")", "")
 
-    if not sanitized:
+    if not s:
         return default_fallback
 
-    return sanitized
+    return s
 
 class SandboxPublisher:
     """Publishes drafts and attribution to structured user sandboxes on id.wikipedia.org."""

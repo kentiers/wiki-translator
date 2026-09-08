@@ -29,7 +29,7 @@ class MainspacePublisher:
     API_URL = "https://id.wikipedia.org/w/api.php"
     BASE_WEB_URL = "https://id.wikipedia.org/wiki"
     DEFAULT_MOVE_REASON = "pemindahan draf ke ruang utama"
-    DEFAULT_PUBLISH_SUMMARY = "buat draf awal"
+    DEFAULT_PUBLISH_SUMMARY = "kembangkan artikel dari enwiki"
     DEFAULT_TALK_SUMMARY = "atribusi terjemahan"
     USER_AGENT = "WikiTranslatorUserScript/1.0 (https://id.wikipedia.org/wiki/Pengguna:Baloo_Official; Mainspace publisher & mover helper)"
 
