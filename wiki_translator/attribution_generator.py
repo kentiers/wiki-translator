@@ -83,13 +83,13 @@ class TalkPageAttributionGenerator:
         notes: Optional[str] = None,
         timestamp: Optional[datetime] = None,
         include_proyek_wiki: bool = False,
+        clean_banner_only: bool = True,
     ) -> str:
         """
-        Generates the full Halaman Pembicaraan wikitext content.
-        Includes:
-        - Translation attribution template ({{Translated page}}) with version oldid
-        - Optional topic ProyekWiki banners (if include_proyek_wiki is True)
-        - Section noting translation history and licensing compliance
+        Generates compliant Halaman Pembicaraan wikitext content.
+        By default (clean_banner_only=True without custom notes), produces the clean,
+        authoritative Wikimedia translation banner ({{Translated page|en|...}}) preferred by
+        Indonesian Wikipedia editors without cluttering talk pages with redundant self-threads.
         """
         now = timestamp or datetime.now(timezone.utc)
         date_str = now.strftime("%d %B %Y %H:%M UTC")
@@ -104,6 +104,9 @@ class TalkPageAttributionGenerator:
             lines.append("\n".join(banners))
 
         lines.append(attr_template)
+        if clean_banner_only and not notes:
+            return "\n".join(lines).strip() + "\n"
+
         lines.append("")
         lines.append("== Terjemahan Artikel ==")
         lines.append(f"Artikel ini diterjemahkan sebagian atau seluruhnya dari artikel Wikipedia bahasa Inggris [[:en:{en_title}|{en_title}]].")
