@@ -307,25 +307,26 @@ class EntityGroundingAuditor:
             return warnings
 
         REPORTING_VERB_ID = re.compile(
-            r"(?:(?:pemimpin|tokoh|sejarawan|penulis|pengarang|ilmuwan|kritikus|sutradara)[^,\n]*,\s*)?(?:\[\[([^\]|]+)(?:\|[^\]]+)?\]\]|\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*))\s*,?\s*(?:mengenang[^,\n]*dengan\s+)?(?:menulis|menuliskan|mengenang|menuturkan|mencatat|menyatakan|menggambarkan)\b",
+            r"(?:(?:pemimpin|tokoh|sejarawan|penulis|pengarang|ilmuwan|kritikus|sutradara)[^,\n]*,\s*)?(?:\[\[([^\]|]+)(?:\|[^\]]+)?\]\]|\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,4}))(?:\s+dari\s+[^,\n]+)?\s*,?\s*(?:mengenang[^,\n]*dengan\s+)?(?:menulis|menuliskan|mengenang|menuturkan|mencatat|menyatakan|menggambarkan|menyebut)\b(?:\s+bahwa)?\s*[,:]?\s*[\"“«]",
             re.IGNORECASE,
         )
         REPORTING_VERB_EN = re.compile(
-            r"(?:(?:the\s+)?(?:historian|author|writer|scholar|critic|director|leader)\s+)?(?:\[\[([^\]|]+)(?:\|[^\]]+)?\]\]|\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*))\s+(?:writes|wrote|stated|recalled|noted|argued|described)\b",
+            r"(?:(?:the\s+)?(?:historian|author|writer|scholar|critic|director|leader|website(?:'s)?(?:\s+consensus)?)\s+)?(?:\[\[([^\]|]+)(?:\|[^\]]+)?\]\]|\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,4}))(?:\s+of\s+[^,\n]+)?\s+(?:writes|wrote|stated|recalled|noted|argued|described|reads|states)\b(?:\s+that\s+(?:she|he|they|it))?\s*[,:]?\s*[\"“«]",
             re.IGNORECASE,
         )
 
         PRONOUNS = {"as", "they", "he", "she", "it", "we", "you", "i", "ia", "dia", "mereka", "beliau"}
+        NON_ACTORS = {"film ini", "sinema ini", "karya ini", "proyek ini", "dan", "serta", "namun", "tetapi", "konsensus", "konsensus kritik", "konsensus kritik situs web tersebut"}
         en_actors = []
         for m in REPORTING_VERB_EN.finditer(source_wikitext):
             actor = (m.group(1) or m.group(2) or "").strip()
-            if actor and not any(w.lower() in PRONOUNS for w in actor.split()) and actor.lower() not in ENGLISH_STOPWORDS:
+            if actor and not any(w.lower() in PRONOUNS for w in actor.split()) and actor.lower() not in ENGLISH_STOPWORDS and actor.lower() not in NON_ACTORS:
                 en_actors.append(actor)
 
         id_actors = []
         for m in REPORTING_VERB_ID.finditer(draft_wikitext):
             actor = (m.group(1) or m.group(2) or "").strip()
-            if actor and not any(w.lower() in PRONOUNS for w in actor.split()) and actor.lower() not in INDONESIAN_STOPWORDS:
+            if actor and not any(w.lower() in PRONOUNS for w in actor.split()) and actor.lower() not in INDONESIAN_STOPWORDS and actor.lower() not in NON_ACTORS:
                 id_actors.append(actor)
 
         # An attribution drift occurs when an actor reporting a quote in the draft
@@ -414,7 +415,7 @@ class EntityGroundingAuditor:
             all_en_stems.update(get_stems(s))
 
         STOP_STEMS = {"seper", "dalam", "untuk", "bahwa", "denga", "serta", "terse", "karen", "merup", "adala", "menja"}
-        for s in id_sents:
+        for s in id_sents[-2:]:
             s_stems = get_stems(s) - STOP_STEMS
             overlap = len(s_stems & all_en_stems)
             if len(s_stems) >= 5 and overlap == 0:
