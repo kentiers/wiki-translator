@@ -423,6 +423,28 @@ class EditorialQAPipeline:
                 f"Terdapat {len(appositive_commas)} frasa aposisi koma ganda yang menjepit nama diri ('{desc}, {name}, {nxt}'). Sesuai EYD V sebutan atributif langsung tidak perlu diapit koma."
             )
 
+        # Check consecutive sentence opener monotony (e.g. "Film ini... Film ini...", "Ia... Ia...")
+        monotonous_issues = []
+        for paragraph in prose_clean.split("\n\n"):
+            p_strip = paragraph.strip()
+            if not p_strip or p_strip.startswith(("{|", "|", "!", "*", "#")):
+                continue
+            sents = [s.strip() for s in re.split(r"[.!?]\s+", p_strip) if len(s.strip()) > 15]
+            for idx in range(len(sents) - 1):
+                s1, s2 = sents[idx], sents[idx+1]
+                m1 = re.match(r"^([A-Z][a-z]+(?:\s+[a-z]+)?)\b", s1)
+                m2 = re.match(r"^([A-Z][a-z]+(?:\s+[a-z]+)?)\b", s2)
+                if m1 and m2 and m1.group(1).lower() == m2.group(1).lower():
+                    target_opener = m1.group(1).lower()
+                    if target_opener in ("film ini", "buku ini", "album ini", "serial ini", "ia", "dia", "mereka", "perusahaan ini", "kota ini", "karya ini"):
+                        monotonous_issues.append((target_opener, s1[:35], s2[:35]))
+
+        if monotonous_issues:
+            d = min(15, len(monotonous_issues) * 5)
+            eyd_deductions += d
+            eyd_warnings.append(
+                f"Terdapat {len(monotonous_issues)} repetisi pembuka kalimat monoton berturut-turut ('{monotonous_issues[0][0]}'). Variasikan dengan inversi pasif partisipial atau peleburan klausa kohesif."
+            )
         # Check Gramatika TBBBI compliance (Sentence openers, Negation, Restrictive appositives)
         _, opener_fixes, opener_details = self.gramatika_engine.normalize_sentence_openers(masked_prose)
         if opener_fixes > 0:
@@ -487,7 +509,7 @@ class EditorialQAPipeline:
         # Lexical register & diction maturity check
         reg_score, reg_warnings = self.lexical_reranker.calculate_register_score(wikitext)
         warnings.extend(reg_warnings)
-
+        warnings.extend(eyd_warnings)
         # Composite naturalness calculation incorporating register weight
         naturalness_score = int(0.5 * slop_score + 0.3 * eyd_compliance_score + 0.2 * reg_score)
         layer_score = int(0.5 * slop_score + 0.5 * naturalness_score)

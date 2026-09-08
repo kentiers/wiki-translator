@@ -70,7 +70,17 @@ dan Tata Bahasa Baku Bahasa Indonesia (TBBBI Edisi IV).
   * Berani memilih diksi penutur asli: gunakan "kelak", "saat itu", "sempat tertunda", "justru mengukuhkan", "kesempatan sekali seumur hidup", "dengan berlinang air mata" alih-alih terjemahan harfiah kaku.
   * Kepatuhan Konjungsi: Gunakan "tetapi" untuk pertentangan intrakalimat; DILARANG menggunakan "namun" di tengah kalimat setelah tanda koma.
   * DILARANG menggunakan tanda pisah em-dash (—) naratif khas bahasa Inggris; gunakan tanda koma aposisi alami atau pecah menjadi dua kalimat mandiri dengan tanda titik (.).
-================================================================================
+- Variasi Anafora, Kohesi Wacana, & Anti-Monotoni Pembuka Kalimat (Discourse Cohesion & Anti-Monotony):
+  * DILARANG KERAS mengawali 2 atau lebih kalimat berturut-turut dengan subjek/frasa pembuka yang sama secara monoton:
+    - KATEGORI FILM/SENI: DILARANG mengulang "Film ini disutradarai... Film ini diproduseri... Film ini dibintangi... Film ini dirilis...".
+      Gunakan teknik perangkaian alami:
+      * Satukan klausa bertingkat: "Disutradarai oleh X berdasarkan naskah karya Y, film ini diproduseri oleh Z..."
+      * Variasikan subjek dan sudut pandang: "Produksinya ditangani oleh...", "Jajaran pemeran utamanya menampilkan...", "Sinema tersebut...", "Karya ini..."
+    - KATEGORI TOKOH/BIOGRAFI: DILARANG mengulang "Ia lahir... Ia belajar... Ia kemudian... Ia menjabat...".
+      Variasikan dengan penanda kronologis ("Pada tahun 1985, ia...", "Kariernya berlanjut ketika..."), nama belakang tokoh, atau gelar atributif.
+    - KATEGORI MUSIK/ALBUM/BUKU: DILARANG mengulang "Album ini... Album ini..." atau "Buku ini... Buku ini...".
+      Gunakan "Rekaman tersebut...", "Koleksi lagu ini...", "Karya tulis ini...", dsb.
+    - KATEGORI UMUM: Manfaatkan pelesapan subjek (zero anaphora) atau penggabungan predikat jika rujukannya sudah jelas bagi pembaca.
 3. STANDARISASI ORTOGRAFI & TANDA BACA (EYD V KEMENDIKDASMEN)
 ================================================================================
 - Penulisan Bentuk Terikat (EYD V Bab II Huruf B):
@@ -1223,6 +1233,10 @@ dan menata ulang aliran kalimat (cadence/flow) agar berstandar jurnalistik ensik
 8. Penyelarasan Laras Bahasa & Warna Suara Kutipan:
    - Pada teks narasi: sesuaikan laras bahasa (sains = dingin dan presisi; sejarah = berwibawa dan kronologis; seni = mengalir dan apresiatif).
    - Pada kutipan langsung ("..."): jangan kaku menerjemahkan kata demi kata. Tangkap warna suara, sarkasme kritikus, metafora, dan emosi pembicara aslinya secara hidup dan luwes dalam bahasa Indonesia penutur asli.
+9. Penghapusan Repetisi Pembuka Monoton (Anti-Monotony Anaphora):
+   - Jika menemukan dua atau lebih kalimat berturut-turut yang diawali subjek yang sama (misalnya: "Film ini diproduseri... Film ini dibintangi...", atau "Ia lahir... Ia bersekolah..."), WAJIB lakukan variasi sintaktis:
+     * Leburkan menjadi kalimat berpredikat majemuk atau klausa partisipial ("Disutradarai oleh X, film ini diproduseri oleh Y...").
+     * Variasikan frasa rujukan ("Produksinya ditangani oleh...", "Jajaran pemeran utamanya menampilkan...", "Sinema tersebut...", "Karya ini...").
 """
 
 def build_polish_prompt(source_en: str, draft_id: str, *, topic: Optional[str] = None, glossary: Optional[Dict[str, str]] = None, context_notes: Optional[str] = None) -> str:

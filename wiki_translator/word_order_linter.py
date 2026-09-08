@@ -182,6 +182,33 @@ class WordOrderLinter:
             fixes += n
             details.append(f"[susunan_kata] Menghilangkan koma cegukan pada keterangan pembuka bertumpuk ({n}x)")
             result = new_text
+        # 4. Consecutive subject repetition smoothing (Discourse Cohesion)
+        p_prod = re.compile(r"(\bfilm\s+ini\b[^\n.]+?\.\s+)Film\s+ini\s+diproduseri\s+oleh\b", re.IGNORECASE)
+        def repl_prod(m: re.Match) -> str:
+            return f"{m.group(1)}Produksinya ditangani oleh"
+        new_text, n = p_prod.subn(repl_prod, result)
+        if n > 0:
+            fixes += n
+            details.append(f"[kohesi_wacana] Mengganti repetisi subjek monoton: 'Film ini diproduseri oleh' -> 'Produksinya ditangani oleh' ({n}x)")
+            result = new_text
+
+        p_star = re.compile(r"(\b(?:film\s+ini|karya\s+ini|sinema\s+ini|produksinya)\b[^\n.]+?\.\s+)Film\s+ini\s+dibintangi\s+oleh\b", re.IGNORECASE)
+        def repl_star(m: re.Match) -> str:
+            return f"{m.group(1)}Jajaran pemeran utamanya menampilkan"
+        new_text, n = p_star.subn(repl_star, result)
+        if n > 0:
+            fixes += n
+            details.append(f"[kohesi_wacana] Mengganti repetisi subjek monoton: 'Film ini dibintangi oleh' -> 'Jajaran pemeran utamanya menampilkan' ({n}x)")
+            result = new_text
+
+        p_gross = re.compile(r"(\b(?:dirilis|tayang|tayangan|premier)\b[^\n.]+?\.\s+)Film\s+ini\s+meraup\b", re.IGNORECASE)
+        def repl_gross(m: re.Match) -> str:
+            return f"{m.group(1)}Sinema ini meraup"
+        new_text, n = p_gross.subn(repl_gross, result)
+        if n > 0:
+            fixes += n
+            details.append(f"[kohesi_wacana] Mengganti repetisi subjek monoton: 'Film ini meraup' -> 'Sinema ini meraup' ({n}x)")
+            result = new_text
 
         return result, fixes, details
 
