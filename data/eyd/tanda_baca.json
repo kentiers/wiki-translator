@@ -29,5 +29,40 @@
   "tanda_titik_angka": {
     "kaidah_jumlah": "Tanda titik dipakai untuk memisahkan bilangan ribuan atau kelipatannya yang menunjukkan jumlah (misal: 2.500 orang, Rp5.000.000,00).",
     "kaidah_non_jumlah": "Tanda titik TIDAK DIPAKAI pada bilangan yang tidak menunjukkan jumlah, seperti tahun, nomor telepon, halaman, atau nomor rekening (misal: tahun 1945, halaman 1420, nomor 0812345678)."
+  },
+  "tanda_koma": {
+    "koma_keterangan_pembuka": {
+      "kaidah": "Tanda koma dipakai untuk memisahkan anak kalimat atau keterangan yang mendahului induk kalimat. Jika terdapat dua keterangan berdampingan di awal kalimat (misal: waktu + tempat), KEDUA KETERANGAN MERUPAKAN SATU KESATUAN BLOK dan TIDAK BOLEH diselingi tanda koma di antaranya.",
+      "contoh_baku": "Dahulu kala di Pulau Motunui di Polinesia, penduduk setempat memuja dewi Te Fiti.",
+      "kesalahan_lazim": "Dahulu kala, di Pulau Motunui di Polinesia, penduduk setempat... (cegukan koma bertumpuk)"
+    },
+    "koma_aposisi_restriktif": {
+      "kaidah": "Tanda koma TIDAK DIPAKAI untuk mengapit nama diri yang mengikuti sebutan kekerabatan, profesi, jabatan, atau status atributif langsung.",
+      "contoh_baku": [
+        "bersama mantan istrinya Dany Garcia dan saudaranya Hiram Garcia",
+        "presiden Ronald Reagan",
+        "sutradara Thomas Kail",
+        "putrinya Irina"
+      ],
+      "kesalahan_lazim": [
+        "bersama mantan istrinya, Dany Garcia, dan saudaranya, Hiram Garcia, (sandwich koma)",
+        "presiden, Ronald Reagan, mengunjungi..."
+      ]
+    },
+    "koma_anak_kalimat_di_belakang": {
+      "kaidah": "Tanda koma TIDAK DIPAKAI untuk memisahkan anak kalimat yang mengiringi induk kalimat (anak kalimat berada di belakang konjungsi subordinatif: bahwa, karena, sehingga, ketika, agar).",
+      "contoh_baku": "Ia menyatakan bahwa ia akan kembali memerankan karakter Maui.",
+      "kesalahan_lazim": "Ia menyatakan, bahwa ia akan kembali..."
+    },
+    "koma_koordinatif_pertentangan": {
+      "kaidah": "Tanda koma dipakai sebelum kata penghubung intrakalimat yang menyatakan pertentangan (tetapi, sedangkan, melainkan).",
+      "contoh_baku": "Maui menolak, tetapi akhirnya setuju.",
+      "kesalahan_lazim": "Maui menolak namun akhirnya setuju. (namun adalah konjungsi antarkalimat, bukan intrakalimat)"
+    },
+    "koma_penghubung_antarkalimat": {
+      "kaidah": "Tanda koma dipakai di belakang kata atau ungkapan penghubung antarkalimat yang terdapat pada awal kalimat (Selain itu, Namun, Oleh karena itu, Meskipun demikian, Sebaliknya).",
+      "contoh_baku": "Selain itu, ia juga bertindak sebagai produser.",
+      "kesalahan_lazim": "Selain itu ia juga bertindak..."
+    }
   }
 }

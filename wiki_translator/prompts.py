@@ -1208,10 +1208,15 @@ def build_translation_prompt(
         "```wikitext",
         wikitext_content,
         "```",
-        "\n### Instruksi Terjemahan:",
-        "Terjemahkan hanya teks sumber di atas. Pertahankan makna, batas paragraf, "
-        "markup, dan setiap rujukan pada klaim yang sama. Konteks bukan sumber fakta tambahan.",
-        "Keluarkan HANYA hasil terjemahan wikitext tanpa pengantar atau pagar Markdown.",
+        "\n### Instruksi Terjemahan (Kepatuhan Penuh EYD V & TBBBI):",
+        "1. Terjemahkan hanya teks sumber di atas. Pertahankan makna, batas paragraf, markup wikitext, dan setiap rujukan pada klaim yang sama persis. Konteks bukan sumber fakta tambahan.",
+        "2. Kaidah Tanda Baca & Sintaksis EYD V (Wajib Patuh):",
+        "   - JANGAN menyalin buta tanda koma bahasa Inggris.",
+        "   - DILARANG mengapit nama diri dengan koma jika didahului sebutan kekerabatan/profesi/status (\"mantan istrinya Dany Garcia\", BUKAN \"mantan istrinya, Dany Garcia,\").",
+        "   - Keterangan pembuka ganda (waktu + tempat) adalah satu kesatuan blok (\"Dahulu kala di Pulau Motunui di Polinesia, ...\", BUKAN \"Dahulu kala, di...\").",
+        "   - Hindari rima kakofoni enklitika \"-nya\" beruntun (\"orang tuanya yang manusia menelantarkannya\", BUKAN \"orang tua manusianya membuangnya\").",
+        "   - Hindari repetisi subjek pembuka kalimat yang monoton berturut-turut.",
+        "3. Keluarkan HANYA hasil terjemahan wikitext tanpa pengantar atau pagar Markdown.",
     ])
     return "\n".join(prompt_parts)
 
