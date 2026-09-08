@@ -786,7 +786,8 @@ class GeneralFixesEngine:
 
         # 3. Lexicon-protected word-level fused conjunctions:
         safe_legitimate_words = {
-            "teladan", "ramadan", "medan", "badan", "padan", "dandan", "kandang", "gudang",
+            "teladan", "keteladanan", "ramadan", "medan", "badan", "padan", "sepadan", "berpadan",
+            "kesepadanan", "persepadanan", "dandan", "kandang", "gudang",
             "pedang", "sandang", "pandang", "lindang", "pindang", "rendang", "kadang",
             "terkadang", "bergadang", "begadang", "sedang", "undang", "hadang", "adang",
             "padang", "ladang", "bidang", "sidang", "tindang", "pindan", "gendang",
@@ -794,7 +795,10 @@ class GeneralFixesEngine:
             "tandang", "tandan", "pandan", "adan", "edan", "mardan", "dendan",
             "mendalam", "perdalam", "memperdalam", "sedalam", "kedalaman", "didalamnya", "didalam",
             "menyadari", "menghindari", "mendasari", "mengedari", "kendari",
-            "waspada", "daripada", "perantara", "dangkal", "danau", "dampak", "dansa"
+            "waspada", "daripada", "perantara", "dangkal", "danau", "dampak", "dansa",
+            "pantau", "memantau", "terpantau", "pemantau", "pemantauan",
+            "rantau", "merantau", "perantau", "perantauan",
+            "peserta", "kepesertaan", "beserta", "menyertai", "disertai"
         }
         common_fused_conjunctions = ["dan", "atau", "serta"]
         vowel_pat = re.compile(r"[aiueo]", re.IGNORECASE)
@@ -810,7 +814,8 @@ class GeneralFixesEngine:
                 if w_lower.endswith(conj) and len(w_lower) >= len(conj) + 4:
                     stem = word[:-len(conj)]
                     if stem.isalpha() and vowel_pat.search(stem) and stem.lower() not in (
-                        "ter", "ber", "ke", "se", "di", "men", "me", "meng", "per", "pe", "memper"
+                        "ter", "ber", "ke", "se", "di", "men", "me", "meng", "per", "pe", "memper",
+                        "sepa", "mem", "pem", "pen", "peng", "peny"
                     ):
                         return f"{stem} {conj}"
 

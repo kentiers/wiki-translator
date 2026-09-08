@@ -18,7 +18,8 @@ class TestEditorialInvariants(unittest.TestCase):
         words_to_protect = [
             "menyadari", "menghindari", "mendasari", "mengedari", "kendari",
             "waspada", "daripada", "perantara", "dangkal", "danau", "dampak",
-            "mendalam", "perdalam", "memperdalam", "sedalam", "kedalaman"
+            "mendalam", "perdalam", "memperdalam", "sedalam", "kedalaman",
+            "sepadan", "kesepadanan", "memantau", "merantau"
         ]
         for w in words_to_protect:
             sample = f"Tokoh tersebut {w} bahwa hal itu penting."
