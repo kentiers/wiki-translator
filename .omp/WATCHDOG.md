@@ -22,6 +22,7 @@ Sebagai reviewer independen (Watchdog), pantau tindakan agen dan berikan interup
 - DILARANG membelah kata baku bahasa Indonesia (seperti `menyadari`, `menghindari`, `kendari`, `waspada`, `daripada`).
 - DILARANG menjepit nama diri dengan koma jika didahului sebutan atributif langsung (`mantan istrinya Dany Garcia`, BUKAN `mantan istrinya, Dany Garcia,`).
 - Keterangan pembuka ganda (waktu + tempat) adalah satu kesatuan blok tanpa koma di antaranya (`Dahulu kala di Pulau Motunui, ...`, BUKAN `Dahulu kala, di...`).
+- DILARANG menggunakan "di mana" atau "yang mana" sebagai kata penghubung relatif (kalkir bahasa Inggris "where" / "which"). Wajib gunakan "tempat", "saat", "ketika", atau pecah kalimat (TBBBI Edisi IV & WP:GAYA).
 - Cegah rima kakofoni enklitika `-nya` beruntun (`manusianya membuangnya`).
 
 ## 5. Disiplin Verifikasi & Pengujian

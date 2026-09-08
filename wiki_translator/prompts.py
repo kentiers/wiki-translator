@@ -102,6 +102,13 @@ dan Tata Bahasa Baku Bahasa Indonesia (TBBBI Edisi IV).
       * "nightmare fuel" -> "materi yang memicu mimpi buruk / sangat mengerikan" (JANGAN diterjemahkan harfiah "bahan bakar mimpi buruk")
       * "punch-ups" / "comedy tags" -> "polesan lelucon / sisipan humor" (JANGAN diterjemahkan "pukulan ke atas" atau "tag komedi")
       * "all the visual allure of [X]" -> "daya pikat visualnya persis seperti [X]" (hindari "tak ubahnya seperti")
+  * Larangan Penggunaan "Di Mana" / "Yang Mana" sebagai Kata Hubung Relatif (TBBBI Bab X & WP:GAYA):
+    - HARAM HUKUMNYA menggunakan "di mana" atau "yang mana" sebagai kata penghubung relatif (kalkir bahasa Inggris "where" / "which").
+    - "Di mana" HANYA BOLEH DIGUNAKAN UNTUK KALIMAT TANYA TEMPAT.
+    - GANTIKAN DENGAN:
+      * Untuk rujukan tempat/lokasi: gunakan "tempat" ("lahir di Selandia Baru, tempat ia menyelesaikan...", BUKAN "di mana ia...").
+      * Untuk rujukan waktu/momen: gunakan "saat" atau "ketika".
+      * Untuk anak kalimat penjelas: satukan dengan konjungsi alami ("dan", "sehingga", "dengan") atau pecah menjadi kalimat baru.
   * Diferensiasi Gender Profesi Seni Peran (Konsensus Warung Kopi & KBBI VI):
     - Tokoh Laki-Laki (Male): WAJIB menggunakan "aktor" (misal: "X adalah seorang aktor asal..."). DILARANG meratakan menjadi "pemeran".
     - Tokoh Perempuan (Female): WAJIB menggunakan "aktris" (misal: "Y adalah seorang aktris asal..."). DILARANG meratakan menjadi "pemeran".

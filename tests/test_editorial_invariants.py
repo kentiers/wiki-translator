@@ -77,5 +77,16 @@ class TestEditorialInvariants(unittest.TestCase):
         self.assertIn("; lahir", sanitized)
         self.assertNotIn("dan lahir", sanitized)
 
+    def test_invariant_10_ban_relative_di_mana(self):
+        """Relative pronoun 'di mana' (calqued from 'where') must be flagged by linter while questions are allowed."""
+        from wiki_translator.slop_linter import default_slop_linter
+        calque_sample = "ia dibesarkan di Selandia Baru, di mana ia meraih gelar"
+        res1 = default_slop_linter.lint(calque_sample)
+        self.assertTrue(any(v.rule_id == "unidiomatic_di_mana" for v in res1.violations))
+
+        question_sample = "Di mana lokasi pengambilan gambar film tersebut?"
+        res2 = default_slop_linter.lint(question_sample)
+        self.assertFalse(any(v.rule_id == "unidiomatic_di_mana" for v in res2.violations))
+
 if __name__ == "__main__":
     unittest.main()

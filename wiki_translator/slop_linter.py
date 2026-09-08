@@ -69,6 +69,8 @@ class AntiAISlopLinter:
                 suggestions=suggestions,
             )
             for rule_id, pattern, suggestions in [
+                ("unidiomatic_di_mana", r"\bdi\s+mana\b",
+                 ["Kata 'di mana' BUKAN kata penghubung relatif (kalkir bahasa Inggris 'where'); gunakan 'tempat' (lokasi), 'saat/ketika' (waktu), atau susun ulang kalimat (TBBBI Bab X & WP:GAYA)"]),
                 ("calque_berbasis_di", r"\byang\s+berbasis\s+di\b",
                  ["berbasis di; berkantor di hanya jika sumber menyatakan lokasi kantor"]),
                 ("calque_upaya_putus_asa", r"\bdalam\s+upaya\s+putus\s+asa\s+untuk\b",
