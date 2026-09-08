@@ -75,7 +75,8 @@ dan Tata Bahasa Baku Bahasa Indonesia (TBBBI Edisi IV).
     - KATEGORI FILM/SENI: DILARANG mengulang "Film ini disutradarai... Film ini diproduseri... Film ini dibintangi... Film ini dirilis...".
       Gunakan teknik perangkaian alami:
       * Satukan klausa bertingkat: "Disutradarai oleh X berdasarkan naskah karya Y, film ini diproduseri oleh Z..."
-      * Variasikan subjek dan sudut pandang: "Produksinya ditangani oleh...", "Jajaran pemeran utamanya menampilkan...", "Sinema tersebut...", "Karya ini..."
+      * Variasikan subjek dan sudut pandang secara kontekstual: "Produksinya ditangani oleh...", "Jajaran pemeran utamanya menampilkan...", "Karya ini...", "Proyek ini..." (DILARANG memaksakan sinonim ganjil seperti 'Sinema ini').
+      * Catatan: Pengulangan subjek wajar (seperti 'Film ini') tetap sah dan dianjurkan jika sudah diselingi nama film atau subjek lain sebelumnya; yang dilarang hanyalah repetisi kaku berturut-turut di setiap kalimat.
     - KATEGORI TOKOH/BIOGRAFI: DILARANG mengulang "Ia lahir... Ia belajar... Ia kemudian... Ia menjabat...".
       Variasikan dengan penanda kronologis ("Pada tahun 1985, ia...", "Kariernya berlanjut ketika..."), nama belakang tokoh, atau gelar atributif.
     - KATEGORI MUSIK/ALBUM/BUKU: DILARANG mengulang "Album ini... Album ini..." atau "Buku ini... Buku ini...".

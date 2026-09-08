@@ -435,10 +435,10 @@ class EditorialQAPipeline:
                 m1 = re.match(r"^([A-Z][a-z]+(?:\s+[a-z]+)?)\b", s1)
                 m2 = re.match(r"^([A-Z][a-z]+(?:\s+[a-z]+)?)\b", s2)
                 if m1 and m2 and m1.group(1).lower() == m2.group(1).lower():
-                    target_opener = m1.group(1).lower()
-                    if target_opener in ("film ini", "buku ini", "album ini", "serial ini", "ia", "dia", "mereka", "perusahaan ini", "kota ini", "karya ini"):
-                        monotonous_issues.append((target_opener, s1[:35], s2[:35]))
-
+                    opener_lower = m1.group(1).lower()
+                    # General structural check: demonstrative noun phrases ("X ini", "X tersebut", "X itu") or personal pronouns
+                    if opener_lower.endswith((" ini", " tersebut", " itu")) or opener_lower in ("ia", "dia", "mereka", "beliau"):
+                        monotonous_issues.append((m1.group(1), s1[:35], s2[:35]))
         if monotonous_issues:
             d = min(15, len(monotonous_issues) * 5)
             eyd_deductions += d
