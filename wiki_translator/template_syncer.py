@@ -767,10 +767,19 @@ class TemplateSyncer:
                         )
                         result["wikidata"] = wiki_res
                     else:
-                        result["wikidata"] = {
-                            "success": False,
-                            "error": f"Could not find Wikidata item ID for '{en_tmpl_title}'",
-                        }
+                        # Auto-create brand new Wikidata entity for this template
+                        wiki_res = self.wikidata_linker.create_item_with_sitelink(
+                            id_title=f"Templat:{clean_id_name}",
+                            label_id=f"Templat:{clean_id_name}",
+                            label_en=f"Template:{clean_en_name}",
+                            description_id="templat navigasi Wikimedia",
+                            description_en="Wikimedia navigation template",
+                            instance_of_qid="Q639864",
+                            username=wiki_user,
+                            bot_password=bot_pass,
+                            dry_run=False,
+                        )
+                        result["wikidata"] = wiki_res
                 except Exception as e:
                     result["wikidata"] = {"success": False, "error": str(e)}
 

@@ -458,5 +458,145 @@ class WikidataLinker:
             "error": None,
         }
 
+    def create_item_with_sitelink(
+        self,
+        id_title: str,
+        label_id: str,
+        label_en: Optional[str] = None,
+        description_id: str = "templat navigasi Wikimedia",
+        description_en: str = "Wikimedia navigation template",
+        instance_of_qid: Optional[str] = "Q639864",
+        username: Optional[str] = None,
+        bot_password: Optional[str] = None,
+        summary: Optional[str] = None,
+        dry_run: bool = False,
+    ) -> Dict[str, Any]:
+        """
+        Creates a brand-new Wikidata item (action=wbeditentity&new=item) and attaches the idwiki sitelink.
+        Used when publishing new templates, categories, or articles that do not yet exist on Wikidata.
+        """
+        clean_id_title = id_title.strip()
+        clean_label_id = label_id.strip()
+        clean_label_en = (label_en or label_id).strip()
+        edit_summary = summary or f"buat entitas Wikidata baru untuk {clean_id_title}"
+
+        if dry_run:
+            return {
+                "success": True,
+                "dry_run": True,
+                "item_id": "Q_SIMULATED",
+                "id_title": clean_id_title,
+                "url": "https://www.wikidata.org/wiki/Q_SIMULATED",
+                "error": None,
+            }
+
+        if self._auth_failed:
+            return {
+                "success": False,
+                "reason": "auth_failed",
+                "id_title": clean_id_title,
+                "error": self._auth_fail_reason or "Wikidata authentication not available",
+            }
+
+        user, pwd = self._resolve_credentials(username, bot_password)
+        if not user or not pwd:
+            return {
+                "success": False,
+                "id_title": clean_id_title,
+                "error": "Missing Wikidata credentials",
+            }
+
+        if not self._auth_successful:
+            login_ok, login_err = self._authenticate_bot_password(user, pwd)
+            if not login_ok:
+                return {
+                    "success": False,
+                    "id_title": clean_id_title,
+                    "error": f"Wikidata login failed: {login_err}",
+                }
+
+        csrf_token, token_err = self._get_csrf_token()
+        if not csrf_token:
+            return {
+                "success": False,
+                "id_title": clean_id_title,
+                "error": f"Failed to get Wikidata CSRF token: {token_err}",
+            }
+
+        data: Dict[str, Any] = {
+            "labels": {
+                "id": {"language": "id", "value": clean_label_id},
+                "en": {"language": "en", "value": clean_label_en},
+            },
+            "descriptions": {
+                "id": {"language": "id", "value": description_id},
+                "en": {"language": "en", "value": description_en},
+            },
+            "sitelinks": {
+                "idwiki": {"site": "idwiki", "title": clean_id_title}
+            }
+        }
+
+        if instance_of_qid and instance_of_qid.upper().startswith("Q"):
+            try:
+                numeric_qid = int(instance_of_qid.upper().replace("Q", ""))
+                data["claims"] = [
+                    {
+                        "mainsnak": {
+                            "snaktype": "value",
+                            "property": "P31",
+                            "datavalue": {
+                                "value": {
+                                    "entity-type": "item",
+                                    "numeric-id": numeric_qid,
+                                    "id": instance_of_qid.upper(),
+                                },
+                                "type": "wikibase-entityid",
+                            },
+                            "datatype": "wikibase-item",
+                        },
+                        "type": "statement",
+                        "rank": "normal",
+                    }
+                ]
+            except Exception:
+                pass
+
+        params = {
+            "action": "wbeditentity",
+            "new": "item",
+            "data": json.dumps(data),
+            "summary": edit_summary,
+            "token": csrf_token,
+            "formatversion": "2",
+            "format": "json",
+        }
+
+        resp, err = self._make_request(params, method="POST")
+        if err or not resp:
+            return {
+                "success": False,
+                "id_title": clean_id_title,
+                "error": f"Wikidata wbeditentity failed: {err}",
+            }
+
+        if "error" in resp:
+            err_info = resp["error"].get("info", json.dumps(resp["error"]))
+            return {
+                "success": False,
+                "id_title": clean_id_title,
+                "error": f"Wikidata wbeditentity error: {err_info}",
+            }
+
+        created_qid = resp.get("entity", {}).get("id")
+        return {
+            "success": True,
+            "item_id": created_qid,
+            "id_title": clean_id_title,
+            "url": f"https://www.wikidata.org/wiki/{created_qid}" if created_qid else None,
+            "entity": resp.get("entity"),
+            "error": None,
+        }
+
 
 default_wikidata_linker = WikidataLinker()

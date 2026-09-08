@@ -305,6 +305,16 @@ class TestWikidataLinker(unittest.TestCase):
                 self.assertFalse(res["success"])
                 self.assertEqual(res.get("reason"), "auth_failed")
                 mock_req.assert_not_called()
+    def test_create_item_with_sitelink_dry_run(self):
+        res = self.linker.create_item_with_sitelink(
+            id_title="Templat:Uji",
+            label_id="Templat:Uji",
+            label_en="Template:Test",
+            dry_run=True,
+        )
+        self.assertTrue(res["success"])
+        self.assertTrue(res["dry_run"])
+        self.assertEqual(res["item_id"], "Q_SIMULATED")
 
 if __name__ == "__main__":
     unittest.main()
