@@ -430,6 +430,8 @@ class TypographySanitizer:
             (r"\bmanagemen\b", "manajemen"),
             (r"\bhakekat\b", "hakikat"),
             (r"\bmen\s+dalam\b", "mendalam"),
+            (r"\bmenghin\s+dari\b", "menghindari"),
+            (r"\bmenya\s+dari\b", "menyadari"),
             (r"\b\(skor\s+dan\s+lagu\)", "(komposisi musik dan lagu)"),
             (r"\bskor\s+film\b", "tata musik film"),
             (r"\bHingga\s+(\{\{(?:As of|as of|Per|per)\b)", r"\1"),
