@@ -422,6 +422,19 @@ class EditorialQAPipeline:
             eyd_warnings.append(
                 f"Terdapat {len(appositive_commas)} frasa aposisi koma ganda yang menjepit nama diri ('{desc}, {name}, {nxt}'). Sesuai EYD V sebutan atributif langsung tidak perlu diapit koma."
             )
+        # Check English inverted title appositions: "[Deskripsi/Peran], [Nama Orang], [Verba Predikat]"
+        inverted_appositives = re.findall(
+            r"(?:^|[.!?\n]\s*)([A-Z][a-zA-Z\s]{5,35}),\s+((?:\[\[(?:[^|\]]+\|)?([^\]]+)\]\]|[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)),\s+(?:bertindak|menjabat|merupakan|menjadi|memimpin|berperan|bekerja|dianugerahi|menerima|mengumumkan|mencatat)\b",
+            prose_clean,
+        )
+        if inverted_appositives:
+            d = min(15, len(inverted_appositives) * 5)
+            eyd_deductions += d
+            first_desc = inverted_appositives[0][0].strip()
+            first_name = (inverted_appositives[0][2] or inverted_appositives[0][1]).strip()
+            eyd_warnings.append(
+                f"Terdapat {len(inverted_appositives)} susunan aposisi terbalik bahasa Inggris ('{first_desc}, {first_name}, ...'). Rekonstruksi ke urutan kanonis bahasa Indonesia dengan menempatkan Nama Diri di depan ('{first_name}, {first_desc.lower()}, ...')."
+            )
 
         # Check consecutive sentence opener monotony (e.g. "Film ini... Film ini...", "Ia... Ia...")
         monotonous_issues = []

@@ -52,6 +52,12 @@ dan Tata Bahasa Baku Bahasa Indonesia (TBBBI Edisi IV).
 - Kaidah Aposisi Sintaktis (TBBBI Bagan 9.2):
   * Aposisi Mewatasi / Restriktif (Gelar/Jabatan/Profesi + Nama Diri): DILARANG DIAPIT KOMA. Tulis: "tokoh wanita Maria Trubnikova", "presiden Ronald Reagan", "sutradara Christopher Nolan", "Kolonel Jafar" (BUKAN "tokoh wanita, Maria Trubnikova,").
   * Aposisi Takmewatasi / Longgar: WAJIB DIAPIT KOMA. Tulis: "Soekarno, Presiden Indonesia pertama, mendirikan...".
+  * Restrukturisasi Aposisi Terbalik Bahasa Inggris (English Inverted Apposition):
+    Pola bahasa Inggris: "[Frasa Peran/Status/Deskripsi], [Nama Diri], [Verba Predikat]..."
+    (misal: "The animated film's lead, Auliʻi Cravalho, serves as...", "The Nobel laureate, Albert Einstein, discovered...")
+    DILARANG diterjemahkan terbalik menjepit nama orang di tengah subjek. WAJIB direkonstruksi ke susunan kanonis bahasa Indonesia dengan menempatkan NAMA DIRI DI DEPAN SEBAGAI SUBJEK UTAMA:
+    -> "[Nama Diri], [keterangan penjelas], [Verba Predikat]..."
+    ("Auliʻi Cravalho, pemeran utama film animasinya, bertindak sebagai...", "Albert Einstein, peraih Nobel tersebut, menemukan...").
 - Pencegahan Kakofoni Enklitika & Modifikator Kepemilikan (Anti-Clitic Echo):
   * DILARANG menumpuk dua kata berdampingan yang berakhiran enklitika "-nya" (kakofoni rima canggung "-nya ... -nya", misalnya "manusianya membuangnya", "rumahnya letaknya").
   * Rekonstruksi frasa modifikator majemuk bahasa Inggris secara wajar: "his human parents" -> "orang tuanya yang manusia" (DILARANG: "orang tua manusianya").
@@ -1213,13 +1219,13 @@ def build_translation_prompt(
         "2. Kaidah Tanda Baca & Sintaksis EYD V (Wajib Patuh):",
         "   - JANGAN menyalin buta tanda koma bahasa Inggris.",
         "   - DILARANG mengapit nama diri dengan koma jika didahului sebutan kekerabatan/profesi/status (\"mantan istrinya Dany Garcia\", BUKAN \"mantan istrinya, Dany Garcia,\").",
+        "   - Rekonstruksi aposisi terbalik bahasa Inggris: letakkan Nama Diri di depan sebagai subjek utama (\"Auliʻi Cravalho, pemeran utama film animasinya, bertindak...\", BUKAN \"Pemeran utama film animasinya, Auliʻi Cravalho, bertindak...\").",
         "   - Keterangan pembuka ganda (waktu + tempat) adalah satu kesatuan blok (\"Dahulu kala di Pulau Motunui di Polinesia, ...\", BUKAN \"Dahulu kala, di...\").",
         "   - Hindari rima kakofoni enklitika \"-nya\" beruntun (\"orang tuanya yang manusia menelantarkannya\", BUKAN \"orang tua manusianya membuangnya\").",
         "   - Hindari repetisi subjek pembuka kalimat yang monoton berturut-turut.",
         "3. Keluarkan HANYA hasil terjemahan wikitext tanpa pengantar atau pagar Markdown.",
     ])
     return "\n".join(prompt_parts)
-
 
 SYSTEM_PROMPT_HUMANIZE_POLISH = SYSTEM_PROMPT_GRADE_A_PLUS_PLUS + """
 ### Tugas penyunting (Redaktur & Humanize Polish)
@@ -1249,6 +1255,8 @@ dan menata ulang aliran kalimat (cadence/flow) agar berstandar jurnalistik ensik
      * Variasikan frasa rujukan ("Produksinya ditangani oleh...", "Jajaran pemeran utamanya menampilkan...", "Karya ini...", "Proyek ini...").
 10. Eliminasi Kakofoni Enklitika "-nya" Beruntun:
     - Pangkas penumpukan kata berakhiran "-nya" yang berdampingan (misal "manusianya membuangnya" -> "kedua orang tuanya yang manusia menelantarkannya"). Gunakan konstruksi frasa relatif "yang [adjektiva/nomina]" dan verba bernas agar kalimat tidak terdengar berima canggung.
+11. Restrukturisasi Aposisi Terbalik Bahasa Inggris:
+    - Jika draf memuat pola terbalik "[Deskripsi/Peran], [Nama Orang], [Predikat]..." (misal: "Pemeran utama film animasinya, Auliʻi Cravalho, bertindak..."), WAJIB rekonstruksi ke susunan kanonis bahasa Indonesia: letakkan Nama Orang di depan sebagai Subjek Utama, diikuti keterangan penjelas diapit koma ("Auliʻi Cravalho, pemeran utama film animasinya, bertindak...").
 """
 
 def build_polish_prompt(source_en: str, draft_id: str, *, topic: Optional[str] = None, glossary: Optional[Dict[str, str]] = None, context_notes: Optional[str] = None) -> str:
