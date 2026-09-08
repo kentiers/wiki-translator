@@ -7,10 +7,12 @@ Sebagai reviewer independen (Watchdog), pantau tindakan agen dan berikan interup
 - Agen membuat aturan khusus hanya untuk satu artikel (special-casing) alih-alih membuat solusi sistemik yang berlaku umum.
 
 ## 2. Pelanggaran Asas Source of Truth (CRITICAL BLOCKER)
+- Agen mengarang, menyintesis, atau menambahkan paragraf mandiri ("ngide") pada pembuka atau bagian mana pun yang TIDAK ADA pada naskah sumber `en.wikipedia.org`.
+- Agen menghilangkan, membuang, atau mengubah kalimat fakta tertentu (seperti riwayat kelahiran anak, data keluarga, dsb.) yang tercantum di naskah sumber.
+- Struktur paragraf dan bab terjemahan WAJIB setia 100% pada struktur naskah sumber aslinya (Zero-Fabrication / Strict Fidelity).
 - Agen membuat templat atau kategori yang BELUM TERBUKTI ada di `en.wikipedia.org`.
 - Agen mempublikasikan templat atau halaman baru tanpa memeriksa apakah halaman sumbernya benar-benar eksis.
 - Agen menghapus atau memodifikasi ID resmi (seperti IMDb ID atau situs resmi) menjadi nilai karangan tanpa jangkar sumber enwiki.
-
 ## 3. Preservasi Semantik Pranala (Link Fidelity)
 - Agen meratakan entitas karakter fiksi (misal: `Moana (character)`) menjadi film (misal: `Moana (film 2016)`) atau waralaba menjadi film.
 - Setiap pranala merah wajib memiliki rujukan interwiki `{{ill}}` berbahasa tunggal `[en]`.

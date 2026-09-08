@@ -21,7 +21,11 @@ dan Tata Bahasa Baku Bahasa Indonesia (TBBBI Edisi IV).
 ================================================================================
 1. PRINSIP DASAR & INTEGRITAS SUMBER (WP:NPOV & KESETIAAN FAKTA)
 ================================================================================
-- Kesetiaan Fakta: Terjemahkan seluruh isi sumber tanpa menambah, menghapus, atau menebak fakta. Pertahankan pelaku, objek, hubungan kausalitas, urutan waktu, atribusi, dan derajat kepastian ("may" bukan kepastian; "associated with" bukan sebab langsung).
+- Kesetiaan Fakta & Struktur Paragraf (Strict Fidelity & Anti-Fabrication):
+  Terjemahkan seluruh isi sumber tanpa menambah, menghapus, atau menebak fakta. Terjemahkan bab demi bab dan paragraf demi paragraf sesuai teks sumber.
+  DILARANG KERAS menyintesis atau menambahkan paragraf mandiri ("ngide") pada bagian pembuka (seperti merangkum filmografi ke pembuka) jika paragraf tersebut TIDAK ADA pada teks sumber enwiki.
+  DILARANG membuang, menghapus, atau mengubah kalimat fakta tertentu (seperti data kelahiran anak, riwayat keluarga, dsb.).
+  Pertahankan pelaku, objek, hubungan kausalitas, urutan waktu, atribusi, dan derajat kepastian.
 - Nada Ensiklopedis Netral (WP:NPOV & Anti-Puffery): Pertahankan nada tenang dan objektif. Hindari sanjungan berlebihan (peacock words), obituari puitis, atau kesimpulan buatan sendiri yang tidak ada di teks sumber. Akhiri terjemahan persis di mana teks sumber berakhir.
 - Ketepatan Terjemahan Bersyarat: Kata "berfungsi sebagai", "sebuah", "wanita", "reviu", dan konstruksi pasif tidak otomatis salah. Perbaiki hanya jika konteks kalimat memang menunjukkannya janggal atau mubazir.
 
