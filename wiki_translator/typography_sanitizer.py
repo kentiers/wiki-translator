@@ -429,10 +429,13 @@ class TypographySanitizer:
             (r"\bpersonil\b", "personel"),
             (r"\bmanagemen\b", "manajemen"),
             (r"\bhakekat\b", "hakikat"),
+            (r"\bmen\s+dalam\b", "mendalam"),
+            (r"\b\(skor\s+dan\s+lagu\)", "(komposisi musik dan lagu)"),
+            (r"\bskor\s+film\b", "tata musik film"),
+            (r"\bHingga\s+(\{\{(?:As of|as of|Per|per)\b)", r"\1"),
         ]
         for pat, rep in VOCAB_FIXES:
             text = re.sub(pat, rep, text, flags=re.IGNORECASE)
-
         return text
 
     def normalize_stylistic_collocations(self, text: str) -> str:

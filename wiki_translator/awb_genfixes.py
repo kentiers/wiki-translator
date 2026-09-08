@@ -791,7 +791,8 @@ class GeneralFixesEngine:
             "terkadang", "bergadang", "begadang", "sedang", "undang", "hadang", "adang",
             "padang", "ladang", "bidang", "sidang", "tindang", "pindan", "gendang",
             "kendang", "sendang", "sindang", "redan", "kedan", "sedan", "indan", "ardan",
-            "tandang", "tandan", "pandan", "adan", "edan", "mardan", "dendan"
+            "tandang", "tandan", "pandan", "adan", "edan", "mardan", "dendan",
+            "mendalam", "perdalam", "memperdalam", "sedalam", "kedalaman", "didalamnya", "didalam"
         }
         common_fused_conjunctions = ["dan", "atau", "serta", "namun", "tetapi", "karena", "sehingga", "bahwa"]
         common_fused_prepositions = ["dari", "pada", "untuk", "dengan", "tanpa", "dalam", "antara"]
@@ -806,7 +807,7 @@ class GeneralFixesEngine:
             for conj in sorted(common_fused_conjunctions + common_fused_prepositions, key=len, reverse=True):
                 if w_lower.endswith(conj) and len(w_lower) >= len(conj) + 3:
                     stem = word[:-len(conj)]
-                    if stem.isalpha() and stem.lower() not in ("ter", "ber", "ke", "se", "di"):
+                    if stem.isalpha() and stem.lower() not in ("ter", "ber", "ke", "se", "di", "men", "me", "meng", "per", "pe", "memper"):
                         return f"{stem} {conj}"
 
             # Leading conjunction:
