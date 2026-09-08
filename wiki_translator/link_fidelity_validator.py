@@ -617,6 +617,8 @@ class LinkFidelityValidator:
             (re.compile(r"\s*\(\s*video\s+game\s*\)$", re.I), r" (permainan video)"),
             (re.compile(r"\s*\(\s*painting\s*\)$", re.I), r" (lukisan)"),
             (re.compile(r"\s*\(\s*ship\s*\)$", re.I), r" (kapal)"),
+            (re.compile(r"\s*\(\s*character\s*\)$", re.I), r" (karakter)"),
+            (re.compile(r"\s*\(\s*franchise\s*\)$", re.I), r" (waralaba)"),
             (re.compile(r"\s*\(\s*disambiguation\s*\)$", re.I), r" (disambiguasi)"),
         ]:
             if pat.search(t):
