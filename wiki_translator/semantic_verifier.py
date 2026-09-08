@@ -183,7 +183,7 @@ class UniversalSemanticVerifier:
 
         return pairs
 
-    def verify_sentence_pair(self, en_sent: str, id_sent: str, idx: int, topic: Optional[str] = None) -> List[SemanticIssue]:
+    def verify_sentence_pair(self, en_sent: str, id_sent: str, idx: int, topic: Optional[str] = None, section_context: Optional[str] = None) -> List[SemanticIssue]:
         """
         Performs multi-rule universal semantic verification on an aligned sentence pair.
         Works across all topics (science, medicine, film, biography, history, law).
@@ -202,7 +202,10 @@ class UniversalSemanticVerifier:
         }
         for owner, noun in possessives:
             if owner.lower() not in EXCLUDED_POSSESSIVE_WORDS:
-                if owner.lower() not in id_sent.lower():
+                owner_found = owner.lower() in id_sent.lower() or (
+                    bool(section_context) and owner.lower() in section_context.lower()
+                )
+                if not owner_found:
                     issues.append(
                         SemanticIssue(
                             category="Aktor / Pemilik Terpotong (Entity Dropout)",
@@ -350,7 +353,7 @@ class UniversalSemanticVerifier:
                 pairs = self.align_sentence_pairs(s_list, d_list)
                 for s_item, d_item, _ in pairs:
                     aligned_pairs.append((s_item, d_item, pair_idx))
-                    issues = self.verify_sentence_pair(s_item, d_item, pair_idx, topic=topic)
+                    issues = self.verify_sentence_pair(s_item, d_item, pair_idx, topic=topic, section_context=sec_dft)
                     all_issues.extend(issues)
                     pair_idx += 1
         else:
