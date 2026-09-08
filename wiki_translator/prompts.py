@@ -52,7 +52,24 @@ dan Tata Bahasa Baku Bahasa Indonesia (TBBBI Edisi IV).
 - Kaidah Aposisi Sintaktis (TBBBI Bagan 9.2):
   * Aposisi Mewatasi / Restriktif (Gelar/Jabatan/Profesi + Nama Diri): DILARANG DIAPIT KOMA. Tulis: "tokoh wanita Maria Trubnikova", "presiden Ronald Reagan", "sutradara Christopher Nolan", "Kolonel Jafar" (BUKAN "tokoh wanita, Maria Trubnikova,").
   * Aposisi Takmewatasi / Longgar: WAJIB DIAPIT KOMA. Tulis: "Soekarno, Presiden Indonesia pertama, mendirikan...".
-
+================================================================================
+2B. ADAPTASI LARAS BAHASA & KELUWESAN RETORIKA (REGISTER ADAPTATION & FLOW)
+================================================================================
+- Penyelarasan Laras Bahasa Berdasarkan Ranah Subjek (Domain-Aware Register):
+  * SAINS, MATEMATIKA, & KEDOKTERAN:
+    Wajib menggunakan laras ilmiah murni, dingin, terukur, dan presisi tinggi. DILARANG menggunakan metafora sastrawi, bunga bahasa, atau dramatisasi novel. Pertahankan peristilahan teknis sesuai leksikon resmi Badan Bahasa.
+  * HISTORIOGRAFI, POLITIK, & BIOGRAFI:
+    Gunakan laras historiografi berwibawa, tenang, berjarak (detached), dan kronologis. Jangan mendramatisasi peristiwa perang atau kematian tokoh layaknya cerita fiksi, tetapi bangun alur kalimat yang mengalir luwes.
+  * KARYA KREATIF, SENI, FILM, & BUDAYA:
+    Gunakan laras apresiasi seni yang hidup. Alur narasi (plot/sinopsis) wajib mengalir lincah, berbobot, dan mengesankan penceritaan yang matang tanpa terbelenggu susunan kata bahasa Inggris asalnya.
+- Pemisahan Suara Narasi Wikipedia vs Suara Kutipan Langsung (Voice Isolation):
+  * Narasi Ensiklopedia (di luar tanda petik): Wajib berjarak, tenang, netral, tidak berspekulasi, dan mematuhi WP:NPOV secara mutlak.
+  * Kutipan Langsung Tokoh / Ulasan Kritikus (di dalam tanda petik "..." / «...»):
+    TANGKAP WARNA SUARA, INTONASI, DAN RETORIKA ASLINYA SECARA ALAMI. Terjemahkan sindiran, sarkasme, metafora tajam, nada getir, maupun kebanggaan tokoh dengan diksi bahasa Indonesia yang ekspresif dan tepat sasaran, tanpa terikat pada struktur gramatikal kaku bahasa Inggris asalnya.
+- Diksi Penceritaan Luwes & Alami (Natural Storytelling Cadence):
+  * Berani memilih diksi penutur asli: gunakan "kelak", "saat itu", "sempat tertunda", "justru mengukuhkan", "kesempatan sekali seumur hidup", "dengan berlinang air mata" alih-alih terjemahan harfiah kaku.
+  * Kepatuhan Konjungsi: Gunakan "tetapi" untuk pertentangan intrakalimat; DILARANG menggunakan "namun" di tengah kalimat setelah tanda koma.
+  * DILARANG menggunakan tanda pisah em-dash (—) naratif khas bahasa Inggris; gunakan tanda koma aposisi alami atau pecah menjadi dua kalimat mandiri dengan tanda titik (.).
 ================================================================================
 3. STANDARISASI ORTOGRAFI & TANDA BACA (EYD V KEMENDIKDASMEN)
 ================================================================================
@@ -62,9 +79,9 @@ dan Tata Bahasa Baku Bahasa Indonesia (TBBBI Edisi IV).
 - Kaidah Partikel "pun" (EYD V Bab II Huruf G):
   * Partikel pun WAJIB ditulis terpisah dari kata yang mendahuluinya: "apa pun", "siapa pun", "mana pun", "kapan pun", "mereka pun", "dia pun", "satu kali pun".
   * Pengecualian: HANYA 12 kata hubung majemuk yang partikel pun-nya ditulis serangkai: "adapun", "andaipun", "ataupun", "bagaimanapun", "biarpun", "kalaupun", "kendatipun", "maupun", "meskipun", "sekalipun" (jika bermakna biarpun), "sungguhpun", "walaupun".
-- Kaidah Tanda Pisah En-Dash (–) dan Em-Dash (—) (EYD V Bab III Huruf F):
+- Kaidah Tanda Pisah En-Dash (–) vs Em-Dash (—) (EYD V Bab III Huruf F):
   * En-Dash (–) TANPA SPASI digunakan untuk rentang bilangan, tanggal, tahun, halaman, atau tempat yang berarti "sampai dengan": "1941–1945", "hlm. 12–15", "Jakarta–Bandung" (DILARANG: "1941-1945", "1941 - 1945", atau "1941 – 1945").
-  * Em-Dash (—) digunakan untuk mengapit kalimat sela atau aposisi penjelas: "Kemerdekaan bangsa itu—saya yakin—akan tercapai".
+  * DILARANG menggunakan em-dash (—) naratif di artikel ensiklopedia; gantikan dengan tanda koma aposisi alami atau pecah kalimat.
 - Kaidah Tanda Titik Koma (;) dan Titik Dua (:) Naratif:
   * DILARANG menggunakan titik koma (;) tanpa kata hubung untuk menyambung narasi cerita ("A lahir di X; B adalah ayahnya"). Pecah menjadi dua kalimat dengan tanda titik (.) atau gunakan konjungsi koordinatif.
   * DILARANG menggunakan tanda titik dua (:) untuk menyambung klausa narasi. Ganti dengan tanda titik (.) dan jadikan kalimat baru mandiri. Titik dua hanya untuk daftar rincian benda.
@@ -1203,6 +1220,9 @@ dan menata ulang aliran kalimat (cadence/flow) agar berstandar jurnalistik ensik
    depersonifikasikan waktu/dokumen ("1860s saw" -> "Pada dekade 1860-an"), dan rapikan tanda pisah em-dash
    menjadi koma aposisi atau klausa pembanding di awal kalimat.
 7. Pembongkaran Penumpukan Tanda Koma: Jika draf lama memuat kalimat dengan lebih dari 2–3 tanda koma bertumpuk (keterangan waktu ganda + aposisi jabatan + kurung penjelas), pecah menjadi dua kalimat terpisah agar ritme baca tidak tersendat.
+8. Penyelarasan Laras Bahasa & Warna Suara Kutipan:
+   - Pada teks narasi: sesuaikan laras bahasa (sains = dingin dan presisi; sejarah = berwibawa dan kronologis; seni = mengalir dan apresiatif).
+   - Pada kutipan langsung ("..."): jangan kaku menerjemahkan kata demi kata. Tangkap warna suara, sarkasme kritikus, metafora, dan emosi pembicara aslinya secara hidup dan luwes dalam bahasa Indonesia penutur asli.
 """
 
 def build_polish_prompt(source_en: str, draft_id: str, *, topic: Optional[str] = None, glossary: Optional[Dict[str, str]] = None, context_notes: Optional[str] = None) -> str:
