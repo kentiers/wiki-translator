@@ -24,3 +24,11 @@ Sebagai reviewer independen (Watchdog), pantau tindakan agen dan berikan interup
 
 ## 5. Disiplin Verifikasi & Pengujian
 - Agen wajib menjalankan pengujian unit (`unittest discover tests`) setiap kali melakukan perubahan arsitektur pada modul `wiki_translator/`.
+
+## 6. Standar Kelengkapan Artikel Rintisan (Comprehensive Stub Standard)
+- Setiap pembuatan artikel rintisan (stub) biografi tokoh / kreator / seniman WAJIB menyertakan:
+  1. Kotak info terisi lengkap (`{{Infobox person}}`, `{{Infobox film}}`, dll.).
+  2. Narasi biografis (pembuka, kehidupan awal/pendidikan, karier, kehidupan pribadi).
+  3. Bagian katalog karya lengkap (`== Karya ==`, `== Filmografi ==`, `== Teater ==`, dsb.) dalam bentuk tabel terstruktur rapi (sintaks `! Header` per baris).
+  4. Bagian penghargaan lengkap (`== Penghargaan dan nominasi ==`) dengan templat sel baku `{{won}}` dan `{{nom}}` (DILARANG menggunakan `{{Menang}}` yang menyisipkan tabel bersarang).
+  5. Seluruh rujukan asli (`<ref>`) dari sumber enwiki dipertahankan secara utuh.
