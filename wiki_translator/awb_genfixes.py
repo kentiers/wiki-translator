@@ -182,6 +182,7 @@ INDONESIAN_TYPO_PAIRS: Dict[str, str] = {
     "prakata": "prakata",
     "propinsi": "provinsi",
     "psikotest": "psikotes",
+    "penstriman": "pengaliran",
     # R
     "rapih": "rapi",
     "raport": "rapor",

@@ -63,6 +63,12 @@ class TestEditorialInvariants(unittest.TestCase):
         qa = default_qa_pipeline.audit(draft_hallucinated, title="Test", source_wikitext=source)
         self.assertFalse(qa.is_approved())
         self.assertTrue(any("Thomas Kail" in err for err in qa.critical_errors))
+    def test_invariant_7_malay_loanwords_normalized(self):
+        """Malaysian terminology (e.g. penstriman) must be normalized to standard Indonesian (pengaliran)."""
+        sample = "film ini dirilis di layanan penstriman terkemuka"
+        fixed = default_genfixes.apply_all_fixes(sample)
+        self.assertIn("layanan pengaliran", fixed)
+        self.assertNotIn("penstriman", fixed)
 
 
 if __name__ == "__main__":
