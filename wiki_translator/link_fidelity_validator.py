@@ -487,6 +487,24 @@ class LinkFidelityValidator:
             is_valid=(len(issues) == 0)
         )
 
+    @staticmethod
+    def _get_disambig_type(s: Optional[str]) -> Optional[str]:
+        if not s:
+            return None
+        sl = s.lower()
+        if any(k in sl for k in ("(karakter)", "(tokoh)", "(character)")):
+            return "character"
+        if any(k in sl for k in ("(waralaba)", "(franchise)")):
+            return "franchise"
+        if any(k in sl for k in ("(film)", "film)")):
+            return "film"
+        if any(k in sl for k in ("(jalur suara)", "(soundtrack)")):
+            return "soundtrack"
+        if any(k in sl for k in ("(album)",)):
+            return "album"
+        if any(k in sl for k in ("(seri tv)", "(serial tv)", "(seri televisi)", "(serial televisi)", "(tv series)", "(television series)")):
+            return "tv_series"
+        return None
     def auto_convert_existing_links(self, wikitext: str, allow_network: bool = True) -> Tuple[str, int]:
         """
         Inspects all {{ill|...}} in wikitext.
@@ -542,13 +560,19 @@ class LinkFidelityValidator:
             if lang.lower() == "en" and foreign_target.lower() in wd_map:
                 wd_info = wd_map[foreign_target.lower()]
                 if wd_info.get("exists_on_id") and wd_info.get("id_title"):
-                    converted_count += 1
                     actual_id_title = wd_info["id_title"]
+                    # Semantic type incompatibility guard:
+                    # Never collapse character or franchise ill links into a film article!
+                    id_type = self._get_disambig_type(id_title)
+                    act_type = self._get_disambig_type(actual_id_title)
+                    if id_type and act_type and id_type != act_type:
+                        return raw
+
+                    converted_count += 1
                     disp = label or id_title
                     if disp != actual_id_title:
                         return f"[[{actual_id_title}|{disp}]]"
                     return f"[[{actual_id_title}]]"
-
             return raw
         updated = self.ILL_PATTERN.sub(repl, wikitext)
         return updated, converted_count
@@ -792,18 +816,37 @@ class LinkFidelityValidator:
                     if st.lower() == target.lower():
                         en_target = st
                         break
-                # 2. Dynamic token and proper-noun overlap scoring
+                # 2. Dynamic token, proper-noun, and disambiguation type overlap scoring
                 if not en_target:
+                    t_type = self._get_disambig_type(target)
                     t_tokens = {w.lower() for w in re.findall(r"\w+", target) if len(w) > 2 and not w.isdigit()}
-                    best_score = 0
+                    if "karakter" in t_tokens or "tokoh" in t_tokens:
+                        t_tokens.add("character")
+                    if "waralaba" in t_tokens:
+                        t_tokens.add("franchise")
+                    if "suara" in t_tokens:
+                        t_tokens.add("soundtrack")
+
+                    best_score = -999
                     best_st = None
                     for st, sl in source_links:
+                        st_type = self._get_disambig_type(st)
                         st_tokens = {w.lower() for w in re.findall(r"\w+", st) if len(w) > 2 and not w.isdigit()}
                         sl_tokens = {w.lower() for w in re.findall(r"\w+", sl) if len(w) > 2 and not w.isdigit()} if sl else set()
                         all_st = st_tokens | sl_tokens
                         overlap = len(t_tokens & all_st)
                         proper_overlap = len({w for w in t_tokens if len(w) > 3} & {w for w in all_st if len(w) > 3})
                         score = overlap + proper_overlap * 2
+
+                        # Disambiguation compatibility scoring
+                        if t_type and st_type:
+                            if t_type == st_type:
+                                score += 50
+                            else:
+                                score -= 100
+                        elif t_type and not st_type:
+                            score -= 10
+
                         if score > best_score:
                             best_score = score
                             best_st = st

@@ -142,6 +142,21 @@ class TestLinkFidelityValidator(unittest.TestCase):
         pruned, count = self.validator.prune_ill_to_single_language(raw)
         self.assertEqual(pruned, "{{ill|Dewan Kota Dublin|en|Dublin City Council}}")
         self.assertEqual(count, 1)
+    def test_disambiguation_type_scoring_prevents_entity_flattening(self):
+        """Ensures character redlinks map to character source targets, not films or franchises."""
+        source = "[[Moana (2016 film)|2016 film]] [[Moana (character)|Moana]] [[Moana (franchise)|franchise]]"
+        draft = "[[Moana (film 2016)|film 2016]] [[Moana (karakter)|Moana]] [[Moana (waralaba)|waralaba]]"
+        updated, count, details = self.validator.safeguard_redlinks_with_ill(draft, source)
+        self.assertIn("en|Moana (character)", updated)
+        self.assertIn("en|Moana (franchise)", updated)
+        self.assertIn("en|Moana (2016 film)", updated)
+
+    def test_semantic_type_guard_blocks_character_to_film_conversion(self):
+        """Ensures a character ill link is never converted into a film article."""
+        sample = "{{ill|Moana (karakter)|en|Moana (2016 film)|lt=Moana}}"
+        converted, count = self.validator.auto_convert_existing_links(sample)
+        self.assertEqual(converted, sample)
+        self.assertEqual(count, 0)
 
 if __name__ == "__main__":
     unittest.main()
