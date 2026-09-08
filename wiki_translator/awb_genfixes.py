@@ -742,6 +742,8 @@ class GeneralFixesEngine:
         sanitized = self.clean_family_name_footnotes(sanitized)
         sanitized = self.clean_image_directions(sanitized)
         sanitized = self.separate_fused_words(sanitized)
+        from .word_order_linter import default_word_order_linter
+        sanitized, _, _ = default_word_order_linter.auto_fix_word_order(sanitized)
         from .lexical_register import default_lexical_reranker
         return sanitized
 
@@ -760,7 +762,6 @@ class GeneralFixesEngine:
             return f'"{cleaned_inner}"'
 
         return re.sub(r'"([^"\n]+)"', repl, text)
-
     def separate_fused_words(self, text: str) -> str:
         """
         Separates common fused words where spaces were accidentally dropped before/after

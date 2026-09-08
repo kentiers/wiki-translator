@@ -1,0 +1,96 @@
+{
+  "deskripsi": "Kaidah dan Matriks Pengujian Susunan Kata (Sintaksis & Konstituen) Bahasa Indonesia",
+  "dasar_teori": "Tata Bahasa Baku Bahasa Indonesia (TBBBI Edisi IV, Badan Bahasa) Bab III, V, VIII, IX & Kaidah D-M Sutan Takdir Alisjahbana",
+  "aturan_susunan_kata": {
+    "hukum_dm_inversi": {
+      "deskripsi": "Hukum D-M (Diterangkan-Menerangkan): Frasa nomina bahasa Indonesia meletakkan unsur inti (D) di depan dan penjelas/pewatas (M) di belakang.",
+      "pola_inversi_rusak": [
+        {
+          "pola": "\\bkemudian\\s+(presiden|raja|menteri|sutradara|gubernur|kaisar|pemeran|penulis)\\b",
+          "anjuran": "presiden saat itu / raja saat itu",
+          "penjelasan": "Kalkir inversi bahasa Inggris 'the then [title]'. Gunakan '[gelar] saat itu / [gelar] yang kemudian menjabat'."
+        },
+        {
+          "pola": "\\blalu\\s+(presiden|raja|menteri|sutradara|gubernur|kaisar|pemeran|penulis)\\b",
+          "anjuran": "tokoh yang kelak menjadi [gelar]",
+          "penjelasan": "Kalkir inversi bahasa Inggris. Gunakan penjelas di belakang nomina."
+        },
+        {
+          "pola": "\\bdi\\s+atas\\s+disebutkan\\b",
+          "anjuran": "yang telah disebutkan di atas",
+          "penjelasan": "Kalkir dari 'the above mentioned'. Letakkan pewatas di belakang."
+        }
+      ]
+    },
+    "urutan_aspek_modalitas_negasi": {
+      "deskripsi": "Urutan pewatas verba dalam TBBBI: Penanda Aspek/Waktu + Negasi + Modalitas + Verba Inti.",
+      "pola_urutan_rancu": [
+        {
+          "pola": "\\bakan\\s+tidak\\b",
+          "anjuran": "tidak akan",
+          "penjelasan": "Urutan pewatas verba terbalik: partikel negasi 'tidak' mendahului aspek 'akan'."
+        },
+        {
+          "pola": "\\bbisa\\s+belum\\b",
+          "anjuran": "belum bisa",
+          "penjelasan": "Urutan pewatas verba terbalik: penanda aspek 'belum' mendahului modalitas 'bisa'."
+        },
+        {
+          "pola": "\\bdapat\\s+telah\\b",
+          "anjuran": "telah dapat",
+          "penjelasan": "Urutan pewatas verba terbalik: penanda aspek 'telah' mendahului modalitas 'dapat'."
+        },
+        {
+          "pola": "\\btelah\\s+tidak\\s+dapat\\b",
+          "anjuran": "sudah tidak dapat / tidak dapat lagi",
+          "penjelasan": "Susunan frasa kaku; lebih alami menggunakan 'sudah tidak dapat' atau 'tidak dapat lagi'."
+        }
+      ]
+    },
+    "pewatas_relatif_dan_komplemen": {
+      "deskripsi": "Ketepatan letak penghubung komplemen 'bahwa' vs pewatas nomina 'yang'.",
+      "pola_salah_letak": [
+        {
+          "pola": "\\b(?:menyatakan|mengumumkan|menegaskan|mencatat|mengetahui|meyakini|menyadari)\\s+yang\\b",
+          "anjuran": "ganti 'yang' menjadi 'bahwa'",
+          "penjelasan": "Verba deklaratif mengambil klausa komplemen yang diawali konjungsi 'bahwa', bukan pewatas relatif 'yang' (kalkir dari 'said that')."
+        },
+        {
+          "pola": "\\bmenjelaskan\\s+yang\\b",
+          "anjuran": "menjelaskan bahwa",
+          "penjelasan": "Klausa komplemen verba penjelas diawali 'bahwa', bukan 'yang'."
+        }
+      ]
+    },
+    "urutan_pewatas_kuantitas_jamak": {
+      "deskripsi": "Kuantifikasi jamak mendahului kata benda tanpa pengulangan kata dasar (anti-pleonasme).",
+      "pola_pleonastis": [
+        {
+          "pola": "\\bpara\\s+([a-zA-Z]+)-\\1\\b",
+          "anjuran": "para \\1",
+          "penjelasan": "Redundansi urutan penanda jamak: kata dasar tidak perlu diulang setelah kata 'para'."
+        },
+        {
+          "pola": "\\bberbagai\\s+([a-zA-Z]+)-\\1\\b",
+          "anjuran": "berbagai \\1",
+          "penjelasan": "Redundansi urutan penanda jamak: kata dasar tidak perlu diulang setelah kata 'berbagai'."
+        },
+        {
+          "pola": "\\bsemua\\s+([a-zA-Z]+)-\\1\\b",
+          "anjuran": "semua \\1",
+          "penjelasan": "Redundansi urutan penanda jamak: kata dasar tidak perlu diulang setelah kata 'semua'."
+        }
+      ]
+    },
+    "inversi_keterangan_canggung": {
+      "deskripsi": "Mencegah inversi canggung kalimat pasif dan frasa preposisi pembuka tanpa pemisahan koma.",
+      "pola_inversi": [
+        {
+          "pola": "^([A-Z][a-zA-Z\\s]+)\\s+(?:oleh\\s+[a-zA-Z\\s]+)\\s+(?:dibuat|dilakukan|diterbitkan|disutradarai)\\b",
+          "anjuran": "atur ulang menjadi S-P-O atau P-S alami",
+          "penjelasan": "Susunan frasa pasif terbalik: pelaku 'oleh...' mendahului predikat verba pasif."
+        }
+      ]
+    }
+  }
+}

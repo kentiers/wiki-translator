@@ -35,6 +35,8 @@ from .semantic_verifier import UniversalSemanticVerifier, default_semantic_verif
 from .historical_offices import HistoricalOfficesManager, default_offices_manager
 from .historical_ethnonyms import HistoricalEthnonymsManager, default_ethnonyms_manager
 from .featured_article_harvester import FeaturedArticleHarvester, default_fa_harvester
+from .word_order_linter import WordOrderLinter, default_word_order_linter
+
 @dataclass
 class DrafterAuditResult:
     word_count: int
@@ -237,6 +239,7 @@ class EditorialQAPipeline:
         offices_manager: Optional[HistoricalOfficesManager] = None,
         ethnonyms_manager: Optional[HistoricalEthnonymsManager] = None,
         fa_harvester: Optional[FeaturedArticleHarvester] = None,
+        word_order_linter: Optional[WordOrderLinter] = None,
     ):
         self.slop_linter = slop_linter or default_slop_linter
         self.syntax_balancer = syntax_balancer or default_syntax_balancer
@@ -249,6 +252,7 @@ class EditorialQAPipeline:
         self.offices_manager = offices_manager or default_offices_manager
         self.ethnonyms_manager = ethnonyms_manager or default_ethnonyms_manager
         self.fa_harvester = fa_harvester or default_fa_harvester
+        self.word_order_linter = word_order_linter or default_word_order_linter
     # -------------------------------------------------------------------------
     def audit_drafter(self, wikitext: str) -> DrafterAuditResult:
         """Audits word count, section count, and presence of lead & references."""
@@ -466,6 +470,16 @@ class EditorialQAPipeline:
                 if eth_fixes > 0:
                     eyd_deductions += min(15, eth_fixes * 5)
                     warnings.extend(eth_details)
+            except Exception:
+                pass
+        # Check word order & syntactic constituent arrangement (Hukum D-M & TBBBI)
+        if getattr(self, "word_order_linter", None):
+            try:
+                wo_res = self.word_order_linter.audit_word_order(masked_prose)
+                if not wo_res.passed:
+                    eyd_deductions += min(15, len(wo_res.issues) * 5)
+                    for iss in wo_res.issues:
+                        warnings.append(f"L{iss.line_number} [Susunan Kata]: {iss.explanation} (ditemukan '{iss.matched_text}' -> saran: '{iss.suggested_fix}')")
             except Exception:
                 pass
         eyd_compliance_score = max(0, 100 - eyd_deductions)

@@ -266,3 +266,9 @@ from .semantic_verifier import (
     UniversalSemanticVerifier,
     default_semantic_verifier,
 )
+from .word_order_linter import (
+    WordOrderLinter,
+    WordOrderIssue,
+    WordOrderAuditResult,
+    default_word_order_linter,
+)

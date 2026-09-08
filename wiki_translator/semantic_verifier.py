@@ -195,8 +195,13 @@ class UniversalSemanticVerifier:
         # e.g. "X's algorithm/treatment/soundtrack/army" -> bare noun without owner
         # ---------------------------------------------------------------------
         possessives = re.findall(r"\b([A-Z][a-z]+)'s\s+([a-z]+)\b", en_sent)
+        EXCLUDED_POSSESSIVE_WORDS = {
+            "today", "yesterday", "tomorrow", "nature", "world", "year",
+            "there", "here", "it", "that", "what", "where", "who", "when",
+            "why", "how", "he", "she", "let", "action"
+        }
         for owner, noun in possessives:
-            if owner.lower() not in ("today", "yesterday", "tomorrow", "nature", "world"):
+            if owner.lower() not in EXCLUDED_POSSESSIVE_WORDS:
                 if owner.lower() not in id_sent.lower():
                     issues.append(
                         SemanticIssue(
@@ -318,16 +323,43 @@ class UniversalSemanticVerifier:
         Runs comprehensive, sentence-by-sentence universal semantic verification
         on source wikitext and draft wikitext.
         """
-        src_sents = self.split_into_sentences(source_wikitext)
-        dft_sents = self.split_into_sentences(draft_wikitext)
+        # Section-scoped alignment prevents global index drift across multi-thousand word articles
+        section_pat = re.compile(r"^={2,5}[^=]+={2,5}\s*$", re.MULTILINE)
+        src_has_sections = bool(section_pat.search(source_wikitext))
+        dft_has_sections = bool(section_pat.search(draft_wikitext))
 
-        aligned_pairs = self.align_sentence_pairs(src_sents, dft_sents)
         all_issues: List[SemanticIssue] = []
-
-        for src, dft, idx in aligned_pairs:
-            pair_issues = self.verify_sentence_pair(src, dft, idx, topic=topic)
-            all_issues.extend(pair_issues)
-
+        aligned_pairs: List[Tuple[str, str, int]] = []
+        src_sents: List[str] = []
+        dft_sents: List[str] = []
+        if src_has_sections and dft_has_sections:
+            from .wiki_client import WikipediaClient
+            client = WikipediaClient()
+            src_secs = client.split_sections(source_wikitext)
+            dft_secs = client.split_sections(draft_wikitext)
+            pair_idx = 1
+            for i in range(min(len(src_secs), len(dft_secs))):
+                sec_src = src_secs[i].content
+                sec_dft = dft_secs[i].content
+                if not sec_src.strip() or not sec_dft.strip():
+                    continue
+                s_list = self.split_into_sentences(sec_src)
+                d_list = self.split_into_sentences(sec_dft)
+                src_sents.extend(s_list)
+                dft_sents.extend(d_list)
+                pairs = self.align_sentence_pairs(s_list, d_list)
+                for s_item, d_item, _ in pairs:
+                    aligned_pairs.append((s_item, d_item, pair_idx))
+                    issues = self.verify_sentence_pair(s_item, d_item, pair_idx, topic=topic)
+                    all_issues.extend(issues)
+                    pair_idx += 1
+        else:
+            src_sents = self.split_into_sentences(source_wikitext)
+            dft_sents = self.split_into_sentences(draft_wikitext)
+            aligned_pairs = self.align_sentence_pairs(src_sents, dft_sents)
+            for src, dft, idx in aligned_pairs:
+                pair_issues = self.verify_sentence_pair(src, dft, idx, topic=topic)
+                all_issues.extend(pair_issues)
         # Compute semantic alignment score
         penalty = 0
         for issue in all_issues:
