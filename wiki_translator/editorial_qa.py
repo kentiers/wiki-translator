@@ -725,6 +725,31 @@ class EditorialQAPipeline:
                             recommendations.append(f"[Kalimat #{iss.sentence_idx}] {iss.explanation}")
             except Exception:
                 pass
+        # Source of Truth Grounding Check: Bottom Navboxes and Major Templates
+        if source_wikitext is not None:
+            src_split = re.split(r"==\s*References\s*==|\{\{reflist", source_wikitext, flags=re.IGNORECASE)
+            src_bottom = src_split[-1] if len(src_split) > 1 else ""
+            src_tmpls_raw = re.findall(r"\{\{\s*([A-Za-z0-9\s\-_:’'()]+?)(?=[|}])", src_bottom)
+            src_tmpls = {t.strip().lower() for t in src_tmpls_raw if t.strip()}
+            EXCLUDED_TEMPLATES = {
+                "reflist", "daftar rujukan", "kategori", "category", "stub", "portal", "portal bar",
+                "coord", "authority control", "defaultsort", "navboxes", "kotak navigasi",
+                "halaman pembicaraan", "translated page", "clean up", "official", "imdb title",
+                "disney princess", "putri disney"
+            }
+
+            draft_split = re.split(r"==\s*Referensi\s*==|\{\{reflist|\{\{daftar rujukan", wikitext, flags=re.IGNORECASE)
+            draft_bottom = draft_split[-1] if len(draft_split) > 1 else ""
+            draft_tmpls_raw = re.findall(r"\{\{\s*([A-Za-z0-9\s\-_:’'()]+?)(?=[|}])", draft_bottom)
+            draft_tmpls = [t.strip() for t in draft_tmpls_raw if t.strip() and t.strip().lower() not in EXCLUDED_TEMPLATES]
+
+            for dt in draft_tmpls:
+                dt_lower = dt.lower()
+                # Check if dt is grounded in source templates (allowing standard translations)
+                if not any(st in dt_lower or dt_lower in st for st in src_tmpls):
+                    critical_errors.append(
+                        f"Verifikasi Source of Truth Gagal: Templat kaki artikel '{{{{{dt}}}}}' tidak berakar dari artikel sumber en.wikipedia.org! (Dilarang mempublikasikan templat navigasi tanpa jangkar sumber)."
+                    )
         if layer1.word_count < 30:
             critical_errors.append("Panjang artikel tidak memadai untuk draf ensiklopedis (< 30 kata).")
 

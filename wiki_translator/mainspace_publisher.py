@@ -48,7 +48,8 @@ class MainspacePublisher:
         )
         self.sandbox_publisher = sandbox_publisher or default_sandbox_publisher
         self.wikidata_linker = wikidata_linker or default_wikidata_linker
-
+        from .wiki_client import WikipediaClient
+        self.en_client = WikipediaClient(lang="en")
     @property
     def _cookie_jar(self) -> Dict[str, str]:
         return self.http_client._cookie_jar
@@ -383,6 +384,19 @@ class MainspacePublisher:
         )
         wikitext = re.sub(r"\{\{Kotak pemberitahuan[\s\S]*?\}\}\s*", "", wikitext, flags=re.IGNORECASE).strip()
         edit_summary = sanitize_edit_summary(summary or self.DEFAULT_PUBLISH_SUMMARY, default_fallback=self.DEFAULT_PUBLISH_SUMMARY)
+        # Source of Truth Verification for Templates:
+        # Never publish a template unless its source is confirmed to exist on en.wikipedia.org!
+        if clean_title.startswith(("Templat:", "Template:")) and not force:
+            en_tmpl = en_title or clean_title.replace("Templat:", "Template:")
+            try:
+                en_exists = self.en_client.page_exists(en_tmpl)
+            except Exception:
+                en_exists = False
+            if not en_exists:
+                return {
+                    "success": False,
+                    "error": f"Verifikasi Source of Truth Gagal: Templat sumber '{en_tmpl}' tidak ditemukan di en.wikipedia.org! Pembuatan templat tanpa jangkar sumber diblokir sistem.",
+                }
 
         # Collision check
         if not dry_run or not force:

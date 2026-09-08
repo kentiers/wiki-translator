@@ -307,11 +307,11 @@ class EntityGroundingAuditor:
             return warnings
 
         REPORTING_VERB_ID = re.compile(
-            r"(?:(?:pemimpin|tokoh|sejarawan|penulis|pengarang|ilmuwan|kritikus|sutradara)[^,\n]*,\s*)?(?:\[\[([^\]|]+)(?:\|[^\]]+)?\]\]|\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,4}))(?:\s+dari\s+[^,\n]+)?\s*,?\s*(?:mengenang[^,\n]*dengan\s+)?(?:menulis|menuliskan|mengenang|menuturkan|mencatat|menyatakan|menggambarkan|menyebut)\b(?:\s+bahwa)?\s*[,:]?\s*[\"“«]",
+            r"(?:(?:pemimpin|tokoh|sejarawan|penulis|pengarang|ilmuwan|kritikus|sutradara)[^,\n]*,\s*)?(?:\[\[([^\]|]+)(?:\|[^\]]+)?\]\]|\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,4}))(?:\s+dari\s+[^,\n]+)?\s*,?\s*(?:mengenang[^,\n]*dengan\s+)?(?:menulis|menuliskan|mengenang|menuturkan|mencatat|menyatakan|menggambarkan|menyebut(?:nya)?)\b(?:\s+bahwa|\s+sebagai)?\s*[,:]?\s*[\"“«]",
             re.IGNORECASE,
         )
         REPORTING_VERB_EN = re.compile(
-            r"(?:(?:the\s+)?(?:historian|author|writer|scholar|critic|director|leader|website(?:'s)?(?:\s+consensus)?)\s+)?(?:\[\[([^\]|]+)(?:\|[^\]]+)?\]\]|\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,4}))(?:\s+of\s+[^,\n]+)?\s+(?:writes|wrote|stated|recalled|noted|argued|described|reads|states)\b(?:\s+that\s+(?:she|he|they|it))?\s*[,:]?\s*[\"“«]",
+            r"(?:(?:the\s+)?(?:historian|author|writer|scholar|critic|director|leader|website(?:'s)?(?:\s+consensus)?)\s+)?(?:\[\[([^\]|]+)(?:\|[^\]]+)?\]\]|\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,4}))(?:\s+of\s+[^,\n]+)?(?:\s*,\s*|\s+)(?:(?:rated|gave)\s+[^,\n]+,\s*)?(?:writes|wrote|writing|stated|states|stating|recalled|noted|noting|argued|described|describing|reads|called|calling|said|saying)\b(?:\s+[a-z]+){0,3}\s*[,:]?\s*[\"“«]",
             re.IGNORECASE,
         )
 
