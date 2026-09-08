@@ -98,6 +98,10 @@ dan Tata Bahasa Baku Bahasa Indonesia (TBBBI Edisi IV).
       * "nightmare fuel" -> "materi yang memicu mimpi buruk / sangat mengerikan" (JANGAN diterjemahkan harfiah "bahan bakar mimpi buruk")
       * "punch-ups" / "comedy tags" -> "polesan lelucon / sisipan humor" (JANGAN diterjemahkan "pukulan ke atas" atau "tag komedi")
       * "all the visual allure of [X]" -> "daya pikat visualnya persis seperti [X]" (hindari "tak ubahnya seperti")
+  * Diferensiasi Gender Profesi Seni Peran (Konsensus Warung Kopi & KBBI VI):
+    - Tokoh Laki-Laki (Male): WAJIB menggunakan "aktor" (misal: "X adalah seorang aktor asal..."). DILARANG meratakan menjadi "pemeran".
+    - Tokoh Perempuan (Female): WAJIB menggunakan "aktris" (misal: "Y adalah seorang aktris asal..."). DILARANG meratakan menjadi "pemeran".
+    - Kata "pemeran" HANYA digunakan untuk konteks netral/kolektif/peran tertentu: "jajaran pemeran", "pemeran utama", "daftar pemeran", "memerankan karakter Z".
 - Variasi Anafora, Kohesi Wacana, & Anti-Monotoni Pembuka Kalimat (Discourse Cohesion & Anti-Monotony):
   * DILARANG KERAS mengawali 2 atau lebih kalimat berturut-turut dengan subjek/frasa pembuka yang sama secara monoton:
     - KATEGORI FILM/SENI: DILARANG mengulang "Film ini disutradarai... Film ini diproduseri... Film ini dibintangi... Film ini dirilis...".

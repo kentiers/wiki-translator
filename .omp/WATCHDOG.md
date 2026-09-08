@@ -32,3 +32,9 @@ Sebagai reviewer independen (Watchdog), pantau tindakan agen dan berikan interup
   3. Bagian katalog karya lengkap (`== Karya ==`, `== Filmografi ==`, `== Teater ==`, dsb.) dalam bentuk tabel terstruktur rapi (sintaks `! Header` per baris).
   4. Bagian penghargaan lengkap (`== Penghargaan dan nominasi ==`) dengan templat sel baku `{{won}}` dan `{{nom}}` (DILARANG menggunakan `{{Menang}}` yang menyisipkan tabel bersarang).
   5. Seluruh rujukan asli (`<ref>`) dari sumber enwiki dipertahankan secara utuh.
+
+## 7. Diferensiasi Gender Profesi Seni Peran (Konsensus Warung Kopi & KBBI VI)
+- Agen WAJIB membedakan profesi seni peran sesuai gender tokoh:
+  * Tokoh laki-laki (actor): WAJIB menggunakan "aktor" (DILARANG meratakan menjadi "pemeran").
+  * Tokoh perempuan (actress): WAJIB menggunakan "aktris" (DILARANG meratakan menjadi "pemeran").
+  * Kata "pemeran" hanya digunakan untuk nomina peran intrakalimat (seperti "memerankan tokoh X", "jajaran pemeran").
