@@ -76,6 +76,8 @@ dan Tata Bahasa Baku Bahasa Indonesia (TBBBI Edisi IV).
   * Narasi Ensiklopedia (di luar tanda petik): Wajib berjarak, tenang, netral, tidak berspekulasi, dan mematuhi WP:NPOV secara mutlak.
   * Kutipan Langsung Tokoh / Ulasan Kritikus (di dalam tanda petik "..." / «...»):
     TANGKAP WARNA SUARA, INTONASI, DAN RETORIKA ASLINYA SECARA ALAMI. Terjemahkan sindiran, sarkasme, metafora tajam, nada getir, maupun kebanggaan tokoh dengan diksi bahasa Indonesia yang ekspresif dan tepat sasaran, tanpa terikat pada struktur gramatikal kaku bahasa Inggris asalnya.
+    - Metafora Diri & Budaya: Ungkapan idiomatik seperti "wear this culture on my skin and in my soul" merujuk pada tato adat/raga dan batin: terjemahkan secara bermartabat ("terpatri dengan bangga di raga dan jiwa saya", BUKAN secara harfiah "menyandang di kulit").
+    - Pangkas Kopula Klise pada Kutipan: jangan terjemahkan "is one that" menjadi "adalah hal yang"; langsung gunakan predikat bernas ("bermakna sangat mendalam bagi saya").
 - Diksi Penceritaan Luwes & Alami (Natural Storytelling Cadence):
   * Berani memilih diksi penutur asli: gunakan "kelak", "saat itu", "sempat tertunda", "justru mengukuhkan", "kesempatan sekali seumur hidup", "dengan berlinang air mata" alih-alih terjemahan harfiah kaku.
   * Kepatuhan Konjungsi: Gunakan "tetapi" untuk pertentangan intrakalimat; DILARANG menggunakan "namun" di tengah kalimat setelah tanda koma.

@@ -123,6 +123,10 @@ class AntiAISlopLinter:
                  ["Kata 'pensiun' bukan verba pergerakan (kalkir dari 'retired to'); gunakan 'pensiun dan kembali ke...', 'pensiun lalu menetap di...', atau 'menghabiskan masa pensiun di...'"]),
                 ("arkaisme_bertarikh", r"\bbertarikh\s+(\d+[\s\w]*)\b",
                  ["Kata 'bertarikh' adalah bentuk arkais; gunakan 'berangka tahun ...' (khusus prasasti/koin), 'berasal dari tahun ...', atau 'bertanggal ...'"]),
+                ("calque_adalah_hal_yang", r"\badalah\s+hal\s+yang\b",
+                 ["Kalkir bahasa Inggris 'is one that / is something that'; pangkas 'adalah hal yang' dan gunakan predikat langsung (misal: 'bermakna sangat mendalam bagi saya')"]),
+                ("calque_merupakan_inti_dari", r"\bmerupakan\s+inti\s+dari\b",
+                 ["Pangkas kata pengisi mubazir: gunakan 'menjadi inti ...' tanpa kata 'dari'"]),
             ]
         ]
         for typo, spelling in {
