@@ -894,6 +894,7 @@ class TypographySanitizer:
            '... dan X, dan ia Y ...' -> '... dan X. Selain itu, ia Y ...'
         2. Cleans duplicate commas (',,') and stray spaces before commas.
         3. Cleans comma before period (',.').
+        4. Cleans stacked introductory adverbials (e.g. 'Dahulu kala, di...' -> 'Dahulu kala di...').
         """
         def split_double_dan(m: re.Match) -> str:
             left = m.group(1)
@@ -905,6 +906,14 @@ class TypographySanitizer:
         text = re.sub(r",\s*,+", ",", text)
         text = re.sub(r"\s+,", ",", text)
         text = re.sub(r",\s*\.", ".", text)
+
+        # 4. Cleans stacked introductory adverbials (waktu + tempat / cegukan koma bertumpuk)
+        text = re.sub(
+            r"(^|[.!?\n]\s*)\b(Dahulu\s+kala|Pada\s+tahun\s+\d{4}|Pada\s+[A-Za-z]+\s+\d{4}|Setelah\s+itu|Sebelumnya|Kini|Awalnya|Mulanya|Sekitar\s+tahun\s+\d{4}|Di\s+kemudian\s+hari),\s+((?:di|ke|dari|pada|dalam|selama)\s+[^,]{3,50}),",
+            r"\1\2 \3,",
+            text,
+            flags=re.IGNORECASE,
+        )
         return text
 
     def normalize_semicolons(self, text: str) -> str:

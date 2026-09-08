@@ -169,6 +169,20 @@ class WordOrderLinter:
                 details.append(f"[susunan_kata] Menghilangkan pleonasme reduplikasi setelah '{quant}' ({n}x)")
                 result = new_text
 
+        # 3. Stacked introductory adverbials comma clutter:
+        # e.g. 'Dahulu kala, di...' -> 'Dahulu kala di...'
+        p_intro = re.compile(
+            r"(^|[.!?\n]\s*)\b(Dahulu\s+kala|Pada\s+tahun\s+\d{4}|Pada\s+[A-Za-z]+\s+\d{4}|Setelah\s+itu|Sebelumnya|Kini|Awalnya|Mulanya|Sekitar\s+tahun\s+\d{4}|Di\s+kemudian\s+hari),\s+((?:di|ke|dari|pada|dalam|selama)\s+[^,]{3,50}),",
+            re.IGNORECASE,
+        )
+        def repl_intro(m: re.Match) -> str:
+            return f"{m.group(1)}{m.group(2)} {m.group(3)},"
+        new_text, n = p_intro.subn(repl_intro, result)
+        if n > 0:
+            fixes += n
+            details.append(f"[susunan_kata] Menghilangkan koma cegukan pada keterangan pembuka bertumpuk ({n}x)")
+            result = new_text
+
         return result, fixes, details
 
 

@@ -91,6 +91,16 @@
           "penjelasan": "Susunan frasa pasif terbalik: pelaku 'oleh...' mendahului predikat verba pasif."
         }
       ]
+    },
+    "penumpukan_koma_keterangan_pembuka": {
+      "deskripsi": "Mencegah penumpukan koma berturut-turut pada dua frasa keterangan di awal kalimat (waktu + tempat). Hanya diperlukan satu tanda koma di akhir blok keterangan sebelum subjek.",
+      "pola_inversi_rusak": [
+        {
+          "pola": "(^|[.!?\\n]\\s*)\\b(Dahulu\\s+kala|Pada\\s+tahun\\s+\\d{4}|Pada\\s+[A-Za-z]+\\s+\\d{4}|Setelah\\s+itu|Sebelumnya|Kini|Awalnya|Mulanya|Sekitar\\s+tahun\\s+\\d{4}|Di\\s+kemudian\\s+hari),\\s+((?:di|ke|dari|pada|dalam|selama)\\s+[^,]{3,50}),",
+          "anjuran": "\\1\\2 \\3,",
+          "penjelasan": "Cegukan koma bertumpuk pada keterangan pembuka: buang tanda koma pertama agar frasa waktu dan tempat menyatu dalam satu napas alami."
+        }
+      ]
     }
   }
 }
