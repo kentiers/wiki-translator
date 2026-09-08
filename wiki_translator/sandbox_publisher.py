@@ -805,6 +805,18 @@ class SandboxPublisher:
                 edit_summary = self.DEFAULT_SUMMARY
 
         resolved_talk_summary = sanitize_edit_summary(talk_summary or self.DEFAULT_TALK_SUMMARY, default_fallback=self.DEFAULT_TALK_SUMMARY)
+        # Automated Link Fidelity Guard:
+        # Automatically scan and safeguard all bare redlinks into {{ill|...|en|...}}
+        # so that every uncreated page gets an interlanguage reference badge [en] automatically!
+        from .link_fidelity_validator import default_fidelity_validator
+        try:
+            wikitext, _, _ = default_fidelity_validator.safeguard_redlinks_with_ill(
+                draft_wikitext=wikitext,
+                source_wikitext=None,
+            )
+            wikitext, _ = default_fidelity_validator.prune_ill_to_single_language(wikitext)
+        except Exception:
+            pass
         if dry_run:
             result: Dict[str, Any] = {
                 "success": True,

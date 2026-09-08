@@ -384,6 +384,18 @@ class MainspacePublisher:
         )
         wikitext = re.sub(r"\{\{Kotak pemberitahuan[\s\S]*?\}\}\s*", "", wikitext, flags=re.IGNORECASE).strip()
         edit_summary = sanitize_edit_summary(summary or self.DEFAULT_PUBLISH_SUMMARY, default_fallback=self.DEFAULT_PUBLISH_SUMMARY)
+        # Automated Link Fidelity Guard:
+        # Automatically scan and safeguard all bare redlinks into {{ill|...|en|...}}
+        # so that every uncreated page gets an interlanguage reference badge [en] automatically!
+        from .link_fidelity_validator import default_fidelity_validator
+        try:
+            wikitext, _, _ = default_fidelity_validator.safeguard_redlinks_with_ill(
+                draft_wikitext=wikitext,
+                source_wikitext=None,
+            )
+            wikitext, _ = default_fidelity_validator.prune_ill_to_single_language(wikitext)
+        except Exception:
+            pass
         # Source of Truth Verification for Templates:
         # Never publish a template unless its source is confirmed to exist on en.wikipedia.org!
         if clean_title.startswith(("Templat:", "Template:")) and not force:
