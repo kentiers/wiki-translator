@@ -925,10 +925,21 @@ class TypographySanitizer:
     def normalize_semicolons(self, text: str) -> str:
         """
         Converts semicolons (';') in narrative prose.
-        Indonesian encyclopedic prose avoids semicolons; uses ', dan ' or splits sentences.
-        Must not touch semicolons inside HTML entities (&nbsp;, &#123;).
+        Indonesian encyclopedic prose avoids semicolons between clauses; uses ', ' or splits sentences.
+        Must not touch semicolons inside HTML entities (&nbsp;, &#123;) or inside parentheses (...).
         """
-        # Semicolons followed by lowercase letter or conjunction
+        if not text:
+            return ""
+
+        # Protect parentheses content (pronunciations, dates, citations, aliases)
+        paren_placeholders = []
+        def mask_parens(m: re.Match) -> str:
+            paren_placeholders.append(m.group(0))
+            return f"__PAREN_MASK_{len(paren_placeholders) - 1}__"
+
+        text = re.sub(r"\([^)\n]*\)", mask_parens, text)
+
+        # Semicolons followed by conjunction -> ", <conj>"
         text = re.sub(r";\s*(dan|tetapi|namun|sementara|melainkan)\b", r", \1", text, flags=re.IGNORECASE)
         # Semicolons followed by space and lowercase letter -> ", dan "
         text = re.sub(r";\s*([a-z])", r", dan \1", text)
@@ -938,6 +949,10 @@ class TypographySanitizer:
         text = re.sub(r";\s+", ", ", text)
         # Standalone semicolon at end of line/sentence
         text = re.sub(r";$", ".", text, flags=re.MULTILINE)
+        # Restore parentheses
+        for i, original in enumerate(paren_placeholders):
+            text = text.replace(f"__PAREN_MASK_{i}__", original)
+
         return text
 
     def normalize_compound_hyphens(self, text: str) -> str:

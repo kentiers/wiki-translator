@@ -789,7 +789,7 @@ class GeneralFixesEngine:
         # 3. Lexicon-protected word-level fused conjunctions:
         safe_legitimate_words = {
             "teladan", "keteladanan", "ramadan", "medan", "badan", "padan", "sepadan", "berpadan",
-            "kesepadanan", "persepadanan", "dandan", "kandang", "gudang",
+            "kesepadanan", "persepadanan", "dandan", "kandang", "gudang", "komandan",
             "pedang", "sandang", "pandang", "lindang", "pindang", "rendang", "kadang",
             "terkadang", "bergadang", "begadang", "sedang", "undang", "hadang", "adang",
             "padang", "ladang", "bidang", "sidang", "tindang", "pindan", "gendang",
@@ -813,7 +813,7 @@ class GeneralFixesEngine:
 
             # Protected KBBI root endings: never split words derived from these roots
             legitimate_endings = (
-                "padan", "pantau", "rantau", "teladan", "badan", "medan",
+                "padan", "pantau", "rantau", "teladan", "badan", "medan", "mandan",
                 "serta", "peserta", "dandan", "kandang", "gudang", "pedang",
                 "sandang", "pandang", "lindang", "pindang", "rendang", "sedang",
                 "undang", "hadang", "adang", "padang", "ladang", "bidang",

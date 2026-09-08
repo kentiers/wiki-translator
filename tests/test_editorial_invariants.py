@@ -19,7 +19,7 @@ class TestEditorialInvariants(unittest.TestCase):
             "menyadari", "menghindari", "mendasari", "mengedari", "kendari",
             "waspada", "daripada", "perantara", "dangkal", "danau", "dampak",
             "mendalam", "perdalam", "memperdalam", "sedalam", "kedalaman",
-            "sepadan", "kesepadanan", "memantau", "merantau"
+            "sepadan", "kesepadanan", "memantau", "merantau", "komandan"
         ]
         for w in words_to_protect:
             sample = f"Tokoh tersebut {w} bahwa hal itu penting."
@@ -70,6 +70,12 @@ class TestEditorialInvariants(unittest.TestCase):
         self.assertIn("layanan pengaliran", fixed)
         self.assertNotIn("penstriman", fixed)
 
+    def test_invariant_8_parenthetical_semicolons_preserved(self):
+        """Semicolons inside parentheses (e.g. pronunciations, dates) must not be corrupted to ', dan '."""
+        sample = "'''John Tui''' (pelafalan: ''two-we''; lahir 11 Juni 1975) adalah"
+        sanitized = default_typography_sanitizer.sanitize_wikitext(sample)
+        self.assertIn("; lahir", sanitized)
+        self.assertNotIn("dan lahir", sanitized)
 
 if __name__ == "__main__":
     unittest.main()
